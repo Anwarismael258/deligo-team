@@ -54,6 +54,39 @@ const moduleDetails: Record<string, string[]> = {
   "Registo de Auditoria": ["Actividade", "Logins", "Segurança", "Alterações", "Exportações"],
 };
 
+const personas = {
+  anwar: {
+    name: "Anwar Ismael",
+    role: "Super Administrador",
+    initials: "AA",
+    modules: nav.map(([, label]) => label),
+  },
+  sara: {
+    name: "Sara Ismael",
+    role: "Finanças e Gestão",
+    initials: "SI",
+    modules: ["Visão geral", "Direcção Executiva", "Finanças", "Contabilidade", "Aprovações", "BI / Análises", "Relatórios"],
+  },
+  sansao: {
+    name: "Sansão Chume",
+    role: "Supervisor de Operações",
+    initials: "SC",
+    modules: ["Visão geral", "Pessoas", "Marketing", "Field", "Apoio ao Cliente", "Aquisição de Parceiros", "Embaixadores", "Projectos e Tarefas", "BI / Análises", "Relatórios"],
+  },
+  contabilista: {
+    name: "Contabilista",
+    role: "Contabilidade",
+    initials: "CT",
+    modules: ["Visão geral", "Finanças", "Contabilidade", "Compras", "Aprovações", "Relatórios"],
+  },
+  tecnologia: {
+    name: "Técnico IT",
+    role: "Tecnologia",
+    initials: "IT",
+    modules: ["Visão geral", "Plataformas", "Tecnologia / IT", "Património", "Projectos e Tarefas", "Apoio Interno", "Relatórios", "Registo de Auditoria"],
+  },
+} as const;
+
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
   { name: "Comunhão", color: "#7c5ce5", metrics: ["Igrejas", "Membros", "Eventos", "Receita"] },
@@ -66,6 +99,9 @@ export default function Home() {
   const [active, setActive] = useState("Visão geral");
   const [menuOpen, setMenuOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [persona, setPersona] = useState<keyof typeof personas>("anwar");
+  const currentPersona = personas[persona];
+  const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never));
 
   const visibleCards = useMemo(
     () => platform === "Todas as plataformas" ? platformCards : platformCards.filter((item) => item.name === platform),
@@ -81,7 +117,7 @@ export default function Home() {
         </div>
         <nav>
           <p className="navLabel">ÁREAS DA EMPRESA</p>
-          {nav.map(([icon, label]) => (
+          {visibleNav.map(([icon, label]) => (
             <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => { setActive(label); setMenuOpen(false); }}>
               <span>{icon}</span>{label}
             </button>
@@ -91,8 +127,8 @@ export default function Home() {
           <button className="navItem"><span>⚙</span>Definições</button>
         </nav>
         <div className="user">
-          <div className="avatar">AA</div>
-          <div><strong>Anwar Ismael</strong><span>Super Administrador</span></div>
+          <div className="avatar">{currentPersona.initials}</div>
+          <div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span></div>
           <b>•••</b>
         </div>
       </aside>
@@ -104,16 +140,31 @@ export default function Home() {
             <span>⌕</span><span>Pesquisar em toda a Central…</span><kbd>⌘ K</kbd>
           </button>
           <div className="headerActions">
+            <label className="viewAs">
+              <span>Ver como</span>
+              <select aria-label="Simular perfil" value={persona} onChange={(e) => {
+                const next = e.target.value as keyof typeof personas;
+                setPersona(next);
+                setActive("Visão geral");
+              }}>
+                <option value="anwar">Anwar</option>
+                <option value="sara">Sara</option>
+                <option value="sansao">Sansão</option>
+                <option value="contabilista">Contabilista</option>
+                <option value="tecnologia">Técnico IT</option>
+              </select>
+            </label>
             <select aria-label="Plataforma actual" value={platform} onChange={(e) => setPlatform(e.target.value)}>
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
             <button className="iconButton" aria-label="Notifications">♢<i /></button>
-            <div className="miniAvatar">AA</div>
+            <div className="miniAvatar">{currentPersona.initials}</div>
           </div>
         </header>
 
         <div className="content">
           <div className="eyebrow"><span>HQ</span> / {active}</div>
+          <div className="frozenBanner"><i /> Modo seguro: integrações com o backend temporariamente desligadas</div>
           <div className="titleRow">
             <div>
               <h1>{active === "Visão geral" ? "Visão geral do grupo" : active}</h1>
