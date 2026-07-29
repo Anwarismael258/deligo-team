@@ -311,6 +311,11 @@ export function HQApp() {
                 <div><span>Estado</span><strong className="textStatus">Preparado</strong><small>Adapter bloqueado</small></div>
                 <div><span>Última sincronização</span><strong className="textStatus">—</strong><small>Nunca executada</small></div>
               </div>
+              <div className="moduleVisualRow">
+                <div className="moduleDonut"><div><strong>0%</strong><span>Dados ligados</span></div></div>
+                <div className="moduleBars">{[42,68,54,82,61,74,48,70].map((height,index) => <i key={index} style={{height:`${height}%`}} />)}<span>Visualização preparada · sem valores reais</span></div>
+                <div className="modulePulse"><span>ESTADO DO ADAPTER</span><strong><i /> Preparado</strong><small>Ligação bloqueada por segurança</small></div>
+              </div>
               <div className="workspaceTable">
                 <div className="tableHeader"><span>Área</span><span>Estado</span><span>Valor</span><span>Permissão</span></div>
                 {(workspaceRows[active] || (moduleDetails[active] || []).map((item) => [item, "Preparado", "0", `${active.toLowerCase()}.view`])).map((row) => (
@@ -361,8 +366,30 @@ export function HQApp() {
               <article className="metric" key={label}>
                 <div className={`metricIcon m${index}`}>{["♙", "↗", "⇄", "◎"][index]}</div>
                 <p>{label}</p><strong>{value}</strong><span>{note}</span>
+                <div className={`miniTrend trend${index}`}><i /><i /><i /><i /><i /><i /></div>
               </article>
             ))}
+          </section>
+
+          <section className="insightGrid">
+            <article className="chartPanel">
+              <div className="panelTitle"><div><h2>Desempenho do grupo</h2><p>Receita, operações e crescimento consolidados</p></div><div className="chartLegend"><span><i /> Receita</span><span><i /> Operações</span></div></div>
+              <div className="emptyChart">
+                <div className="chartAxis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0</span></div>
+                <div className="chartCanvas"><div className="chartGlow" /><div className="chartZeroLine" />{["Jan","Fev","Mar","Abr","Mai","Jun","Jul"].map((m) => <span key={m}>{m}</span>)}</div>
+                <div className="chartMessage"><i>⌁</i><strong>Pronto para dados reais</strong><span>O gráfico será preenchido pelo adapter analítico.</span></div>
+              </div>
+            </article>
+            <article className="readinessPanel">
+              <div className="panelTitle"><div><h2>Preparação das integrações</h2><p>Estado da camada de ligação</p></div><span className="readinessScore">4/4</span></div>
+              {[
+                ["DeliGo", "#e53935", "Adapter preparado"],
+                ["Comunhão", "#7c5ce5", "Adapter preparado"],
+                ["TaoMoz", "#129a72", "Adapter preparado"],
+                ["SARCA", "#e69b22", "Adapter preparado"],
+              ].map(([name, color, state]) => <div className="readinessRow" key={name}><i style={{background: color}}>{name.charAt(0)}</i><div><strong>{name}</strong><span>{state}</span></div><b>Bloqueado</b></div>)}
+              <div className="readinessNote"><i /> Ligações permanecem seguras até aprovação de staging.</div>
+            </article>
           </section>
 
           <div className="sectionHeading">
@@ -372,6 +399,7 @@ export function HQApp() {
           <section className="platformGrid">
             {visibleCards.map((card) => (
               <article className="platformCard" key={card.name}>
+                <div className="platformAccent" style={{ background: card.color }} />
                 <div className="platformTop">
                   <div className="platformIdentity"><i style={{ background: card.color }}>{card.name.charAt(0)}</i><div><strong>{card.name}</strong><span>A aguardar ligação</span></div></div>
                   <span className="status"><i /> Preparada</span>
