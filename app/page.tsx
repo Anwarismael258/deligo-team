@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
 const nav = [
@@ -54,6 +54,68 @@ const moduleDetails: Record<string, string[]> = {
   "Registo de Auditoria": ["Actividade", "Logins", "Segurança", "Alterações", "Exportações"],
 };
 
+const routeByModule: Record<string, string> = {
+  "Visão geral": "/",
+  "Plataformas": "/plataformas",
+  "Direcção Executiva": "/executivo",
+  "Pessoas": "/pessoas",
+  "Recursos Humanos": "/recursos-humanos",
+  "Finanças": "/financas",
+  "Contabilidade": "/contabilidade",
+  "Jurídico": "/juridico",
+  "Conformidade e Risco": "/conformidade-risco",
+  "Tecnologia / IT": "/tecnologia",
+  "Compras": "/compras",
+  "Património": "/patrimonio",
+  "Marketing": "/marketing",
+  "Field": "/field",
+  "Apoio ao Cliente": "/apoio-cliente",
+  "Aquisição de Parceiros": "/aquisicao-parceiros",
+  "Embaixadores": "/embaixadores",
+  "Projectos e Tarefas": "/projectos-tarefas",
+  "Apoio Interno": "/apoio-interno",
+  "Aprovações": "/aprovacoes",
+  "BI / Análises": "/analises",
+  "Relatórios": "/relatorios",
+  "Registo de Auditoria": "/auditoria",
+};
+
+const moduleByRoute = Object.fromEntries(Object.entries(routeByModule).map(([module, route]) => [route, module]));
+
+const workspaceRows: Record<string, string[][]> = {
+  "Aprovações": [
+    ["Finanças", "Revisão financeira", "0", "finance.approve"],
+    ["Recursos Humanos", "Contratos e payroll", "0", "hr.approve"],
+    ["Jurídico", "Contratos e deliberações", "0", "legal.approve"],
+    ["Compras", "Pedidos de aquisição", "0", "procurement.approve"],
+    ["Marketing", "Publicação de campanhas", "0", "marketing.publish"],
+  ],
+  "Tecnologia / IT": [
+    ["APIs centrais", "Integração bloqueada", "Preparado", "technology.integrations.view"],
+    ["Bases de dados", "Sem ligação activa", "Protegido", "technology.database.view"],
+    ["Backups", "Não verificado", "—", "technology.backups.view"],
+    ["Incidentes técnicos", "Nenhum dado ligado", "0", "technology.incidents.view"],
+  ],
+  "Compras": [
+    ["Pedido de compra", "Rascunho", "0", "procurement.request.create"],
+    ["Aprovação", "Pendente", "0", "procurement.approve"],
+    ["Fornecedor", "Não ligado", "0", "procurement.suppliers.view"],
+    ["Factura e pagamento", "Segregação obrigatória", "—", "procurement.invoice.view"],
+  ],
+  "Património": [
+    ["Equipamentos", "Não ligados", "0", "assets.view"],
+    ["Atribuídos", "Sem fonte de dados", "0", "assets.assign"],
+    ["Devoluções pendentes", "Sem fonte de dados", "0", "assets.return"],
+    ["Manutenção", "Sem fonte de dados", "0", "assets.maintenance"],
+  ],
+  "Registo de Auditoria": [
+    ["Acessos", "Backend desligado", "—", "audit.login.view"],
+    ["Alterações de permissões", "Backend desligado", "—", "audit.security.view"],
+    ["Operações financeiras", "Backend desligado", "—", "audit.finance.view"],
+    ["Impersonation", "Apenas simulação local", "Local", "audit.impersonation.view"],
+  ],
+};
+
 const personas = {
   anwar: {
     name: "Anwar Ismael",
@@ -94,7 +156,7 @@ const platformCards = [
   { name: "SARCA", color: "#e69b22", metrics: ["Utilizadores", "Operações", "Transacções", "Receita"] },
 ];
 
-export default function Home() {
+export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
   const [active, setActive] = useState("Visão geral");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -102,6 +164,20 @@ export default function Home() {
   const [persona, setPersona] = useState<keyof typeof personas>("anwar");
   const currentPersona = personas[persona];
   const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never));
+
+  useEffect(() => {
+    const syncRoute = () => setActive(moduleByRoute[window.location.pathname] || "Visão geral");
+    syncRoute();
+    window.addEventListener("popstate", syncRoute);
+    return () => window.removeEventListener("popstate", syncRoute);
+  }, []);
+
+  const navigate = (label: string) => {
+    setActive(label);
+    setMenuOpen(false);
+    window.history.pushState({}, "", routeByModule[label] || "/");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
 
   const visibleCards = useMemo(
     () => platform === "Todas as plataformas" ? platformCards : platformCards.filter((item) => item.name === platform),
@@ -118,7 +194,7 @@ export default function Home() {
         <nav>
           <p className="navLabel">ÁREAS DA EMPRESA</p>
           {visibleNav.map(([icon, label]) => (
-            <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => { setActive(label); setMenuOpen(false); }}>
+            <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}>
               <span>{icon}</span>{label}
             </button>
           ))}
@@ -178,6 +254,27 @@ export default function Home() {
               <div className="moduleLinks">
                 {(moduleDetails[active] || ["Visão geral", "Actividade", "Relatórios", "Definições"]).map((item) => <button key={item}>{item}<b>→</b></button>)}
               </div>
+            </section>
+          )}
+          {active !== "Visão geral" && (
+            <section className="moduleWorkspace">
+              <div className="workspaceHead">
+                <div><span>ESPAÇO OPERACIONAL</span><h2>{active}</h2></div>
+                <div><button>Exportar</button><button className="primaryAction" disabled>Nova acção</button></div>
+              </div>
+              <div className="workspaceStats">
+                <div><span>Registos</span><strong>0</strong><small>Fonte não ligada</small></div>
+                <div><span>Pendentes</span><strong>0</strong><small>Sem dados reais</small></div>
+                <div><span>Estado</span><strong className="textStatus">Preparado</strong><small>Adapter bloqueado</small></div>
+                <div><span>Última sincronização</span><strong className="textStatus">—</strong><small>Nunca executada</small></div>
+              </div>
+              <div className="workspaceTable">
+                <div className="tableHeader"><span>Área</span><span>Estado</span><span>Valor</span><span>Permissão</span></div>
+                {(workspaceRows[active] || (moduleDetails[active] || []).map((item) => [item, "Preparado", "0", `${active.toLowerCase()}.view`])).map((row) => (
+                  <div className="tableRow" key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><code>{row[3]}</code></div>
+                ))}
+              </div>
+              <div className="safeNotice"><b>Modo de preparação</b><span>As acções de criação, aprovação e alteração permanecem desactivadas até existir staging aprovado e uma sessão validada pelo backend.</span></div>
             </section>
           )}
 
@@ -280,12 +377,12 @@ export default function Home() {
               ["Recursos Humanos", "Contratos · Férias · Payroll · Ciclo de vida"],
               ["Jurídico", "Documentos societários · Conformidade · Contratos"],
               ["Colaboradores externos", "Acesso temporário · Revogação · Auditoria"],
-            ].map(([title, text]) => <button key={title} onClick={() => setActive(title)}><strong>{title}</strong><span>{text}</span><b>→</b></button>)}
+            ].map(([title, text]) => <button key={title} onClick={() => navigate(title)}><strong>{title}</strong><span>{text}</span><b>→</b></button>)}
           </section>
           <section className="operationsSuite">
             <div className="sectionHeading">
               <div><h2>Operações corporativas</h2><p>Fluxos controlados entre departamentos</p></div>
-              <button onClick={() => setActive("Aprovações")}>Abrir aprovações →</button>
+              <button onClick={() => navigate("Aprovações")}>Abrir aprovações →</button>
             </div>
             <div className="suiteGrid">
               {[
@@ -296,7 +393,7 @@ export default function Home() {
                 ["?", "Apoio Interno", "Pedidos para IT, RH, Finanças, Jurídico e Operações", "0 pedidos abertos"],
                 ["✓", "Projectos e Tarefas", "Objectivos, prazos, atribuições e progresso", "0 projectos activos"],
               ].map(([icon, title, text, status]) => (
-                <button className="suiteCard" key={title} onClick={() => setActive(title)}>
+                <button className="suiteCard" key={title} onClick={() => navigate(title)}>
                   <i>{icon}</i><div><strong>{title}</strong><p>{text}</p><span>{status}</span></div><b>→</b>
                 </button>
               ))}
@@ -333,4 +430,8 @@ export default function Home() {
       </div>}
     </main>
   );
+}
+
+export default function Home() {
+  return <HQApp />;
 }
