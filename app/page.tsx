@@ -8,6 +8,9 @@ const nav = [
   ["◇", "Platforms"],
   ["♙", "People"],
   ["□", "Finance"],
+  ["▦", "Accounting"],
+  ["♧", "Human Resources"],
+  ["§", "Legal"],
   ["↗", "Marketing"],
   ["◎", "Operations"],
   ["◌", "Support"],
@@ -89,8 +92,8 @@ export default function Home() {
           <section className="metrics">
             {[
               ["Total users", "0", "Across accessible platforms"],
-              ["Total revenue", "—", "Data connection required"],
-              ["Transactions", "0", "No connected sources"],
+              ["Corporate revenue", "—", "Not connected to accounting"],
+              ["Net profit", "—", "Never inferred from bank balance"],
               ["Active employees", "3", "Configured leadership"],
             ].map(([label, value, note], index) => (
               <article className="metric" key={label}>
@@ -119,6 +122,46 @@ export default function Home() {
             ))}
           </section>
 
+          <section className="governance">
+            <div className="sectionHeading">
+              <div><h2>Corporate controls</h2><p>Financial separation and governance safeguards</p></div>
+              <span className="protected">● Protected workspace</span>
+            </div>
+            <div className="controlGrid">
+              {[
+                ["Corporate treasury", "—", "Company-owned cash only", "Bank, cash and obligations"],
+                ["User wallets", "—", "Third-party money", "Excluded from revenue and profit"],
+                ["Accounts payable", "—", "Pending obligations", "Suppliers, payroll and tax"],
+                ["Distributable profit", "—", "Accounting approval required", "No automatic withdrawal"],
+              ].map(([title, value, badge, note], index) => (
+                <article className="controlCard" key={title}>
+                  <div className={`controlGlyph c${index}`}>{["▣", "◫", "↘", "◈"][index]}</div>
+                  <span>{title}</span><strong>{value}</strong><em>{badge}</em><small>{note}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section className="workflowPanel">
+            <div className="panelTitle">
+              <div><h2>Profit distribution control</h2><p>Separation of duties — no single employee controls the full cycle</p></div>
+              <span className="draftStatus">No active proposal</span>
+            </div>
+            <div className="workflow">
+              {[
+                ["1", "Accounting", "Prepare result"],
+                ["2", "Finance", "Review"],
+                ["3", "Shareholders", "Approve"],
+                ["4", "Payment", "Bank instruction"],
+                ["5", "Reconciliation", "Complete"],
+              ].map(([number, title, text], index) => (
+                <div className="workflowStep" key={title}>
+                  <i>{number}</i><div><strong>{title}</strong><span>{text}</span></div>{index < 4 && <b>→</b>}
+                </div>
+              ))}
+            </div>
+          </section>
+
           <section className="lowerGrid">
             <article className="panel">
               <div className="panelTitle"><div><h2>Company structure</h2><p>Leadership and operational responsibility</p></div><button>Manage people</button></div>
@@ -138,6 +181,14 @@ export default function Home() {
               <div className="panelTitle"><div><h2>Recent activity</h2><p>Audited actions across the group</p></div><button>View audit log</button></div>
               <div className="empty"><div>⌁</div><strong>No activity yet</strong><p>Events will appear when real services are connected.</p></div>
             </article>
+          </section>
+          <section className="departmentStrip">
+            {[
+              ["Accounting", "Chart of accounts · Reconciliation · Tax"],
+              ["Human Resources", "Contracts · Leave · Payroll · Lifecycle"],
+              ["Legal", "Corporate documents · Compliance · Contracts"],
+              ["External collaborators", "Time-bound access · Revocation · Audit"],
+            ].map(([title, text]) => <button key={title} onClick={() => setActive(title)}><strong>{title}</strong><span>{text}</span><b>→</b></button>)}
           </section>
           <footer><span>DeliGo Triunfal HQ</span><span>Central Management & Operations · Prepared for hq.deligo.co.mz</span></footer>
         </div>

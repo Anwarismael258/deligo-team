@@ -22,6 +22,58 @@ Central Web
        └─ SARCA adapter
 ```
 
+Os conceitos `legal_entity`, `platform`, `brand` e `business_unit` são
+entidades distintas. Consolidação financeira só pode ocorrer entre entidades
+juridicamente autorizadas.
+
+## Modelo corporativo e RBAC
+
+O controlo de acesso segue:
+
+```text
+person → employment/collaboration → roles → platform access → permissions
+```
+
+Ownership é armazenado separadamente, com histórico e controlo reforçado. Os
+roles adicionais previstos são `ACCOUNTANT`, `HR`, `LEGAL_COUNSEL`,
+`TECHNOLOGY` e `EXTERNAL_COLLABORATOR`. Colaboradores externos têm validade
+de acesso e são revogados sem apagar o histórico.
+
+## Separação financeira
+
+Os ledgers devem distinguir, sem agregação implícita:
+
+- dinheiro da empresa;
+- contas bancárias e caixa;
+- saldos de carteiras de utilizadores;
+- dinheiro de terceiros;
+- contas a pagar e receber;
+- impostos, reservas e valores pendentes;
+- lucro contabilístico, lucro retido e lucro distribuível.
+
+`bank balance` nunca é derivado como `profit`. Distribuição de lucros exige:
+
+```text
+Draft → Prepared → Finance Review → Shareholder Approval
+      → Payment Pending → Paid → Reconciled
+```
+
+Quem prepara não pode, sozinho, rever, aprovar, pagar e reconciliar a mesma
+operação.
+
+## Domínios corporativos
+
+| Domain | Scope |
+|---|---|
+| Finance | Treasury, bank accounts, cash, budgets, payables/receivables |
+| Accounting | Journal, chart of accounts, reconciliation, tax, statements |
+| Human Resources | Contracts, attendance, leave, payroll, lifecycle |
+| Legal | Contracts, corporate records, compliance, licences and policies |
+| Shareholders | Ownership history, resolutions and approved distributions |
+
+Payroll, documentos pessoais, dados bancários, fiscais e jurídicos exigem
+permissões específicas, auditoria e least privilege.
+
 Cada adapter deve consultar a fonte original através de uma API segura e
 normalizar apenas as respostas necessárias. Dados operacionais não devem ser
 copiados para a Central sem uma razão explícita. Autorização é validada no
