@@ -212,13 +212,18 @@ export function HQApp() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [persona, setPersona] = useState<keyof typeof personas>("anwar");
   const [accountOpen, setAccountOpen] = useState(false);
+  const [subArea, setSubArea] = useState("");
   const currentPersona = personas[persona];
   const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
   const activePresentation = modulePresentation[active];
   const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never));
 
   useEffect(() => {
-    const syncRoute = () => setActive(moduleByRoute[window.location.pathname] || "Visão geral");
+    const syncRoute = () => {
+      const nextModule = moduleByRoute[window.location.pathname] || "Visão geral";
+      setActive(nextModule);
+      setSubArea(moduleDetails[nextModule]?.[0] || "");
+    };
     syncRoute();
     window.addEventListener("popstate", syncRoute);
     return () => window.removeEventListener("popstate", syncRoute);
@@ -226,6 +231,7 @@ export function HQApp() {
 
   const navigate = (label: string) => {
     setActive(label);
+    setSubArea(moduleDetails[label]?.[0] || "");
     setMenuOpen(false);
     window.history.pushState({}, "", routeByModule[label] || "/");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -322,14 +328,14 @@ export function HQApp() {
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{active}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
-                {(moduleDetails[active] || ["Visão geral", "Actividade", "Relatórios", "Definições"]).map((item) => <button key={item}>{item}<b>→</b></button>)}
+                {(moduleDetails[active] || ["Visão geral", "Actividade", "Relatórios", "Definições"]).map((item) => <button className={subArea === item ? "active" : ""} onClick={() => setSubArea(item)} key={item}>{item}<b>→</b></button>)}
               </div>
             </section>
           )}
           {active !== "Visão geral" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
-                <div><span>ESPAÇO OPERACIONAL</span><h2>{active}</h2></div>
+                <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
                 <div><button>Exportar</button><button className="primaryAction" disabled>{activePresentation?.action || "Nova acção"}</button></div>
               </div>
               <div className="workspaceStats">
@@ -346,7 +352,7 @@ export function HQApp() {
               <div className="workspaceTable">
                 <div className="tableHeader"><span>Área</span><span>Estado</span><span>Valor</span><span>Permissão</span></div>
                 {(workspaceRows[active] || (moduleDetails[active] || []).map((item) => [item, "Preparado", "0", `${active.toLowerCase()}.view`])).map((row) => (
-                  <div className="tableRow" key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><code>{row[3]}</code></div>
+                  <button className={`tableRow ${subArea === row[0] ? "selected" : ""}`} onClick={() => setSubArea(row[0])} key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><code>{row[3]}</code></button>
                 ))}
               </div>
               <div className="safeNotice"><b>Modo de preparação</b><span>As acções de criação, aprovação e alteração permanecem desactivadas até existir staging aprovado e uma sessão validada pelo backend.</span></div>
