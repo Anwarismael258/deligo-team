@@ -70,9 +70,26 @@ operação.
 | Human Resources | Contracts, attendance, leave, payroll, lifecycle |
 | Legal | Contracts, corporate records, compliance, licences and policies |
 | Shareholders | Ownership history, resolutions and approved distributions |
+| Technology / IT | APIs, databases, integrations, backups, incidents and monitoring |
+| Procurement | Purchase requests, approvals, suppliers, invoices and payment handoff |
+| Assets | Asset register, assignments, lifecycle, value and return tracking |
+| Compliance & Risk | Policies, risk register, incidents, reviews and controls |
+| Internal Helpdesk | Employee requests routed to authorised departments |
+| Projects & Tasks | Objectives, deadlines, assignments, dependencies and progress |
 
 Payroll, documentos pessoais, dados bancários, fiscais e jurídicos exigem
 permissões específicas, auditoria e least privilege.
+
+## Hierarquia administrativa
+
+`ADMIN` não é um role global. A hierarquia é Super Admin, administradores
+limitados por domínio, gestores de departamento, supervisores, trabalhadores e
+colaboradores externos. Autoridade efectiva resulta sempre da intersecção entre
+permissão, módulo, plataforma, entidade jurídica e validade de acesso.
+
+Technology/IT não recebe acesso financeiro por defeito. Procurement não pode
+aprovar e pagar a própria compra. Assets mantém histórico de atribuição e
+devolução sem apagar registos anteriores.
 
 Cada adapter deve consultar a fonte original através de uma API segura e
 normalizar apenas as respostas necessárias. Dados operacionais não devem ser

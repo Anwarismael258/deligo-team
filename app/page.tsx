@@ -6,19 +6,27 @@ const platforms = ["All Platforms", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
 const nav = [
   ["⌂", "Overview"],
   ["◇", "Platforms"],
+  ["♛", "Executive"],
   ["♙", "People"],
+  ["♧", "Human Resources"],
   ["□", "Finance"],
   ["▦", "Accounting"],
-  ["♧", "Human Resources"],
   ["§", "Legal"],
+  ["⚑", "Compliance & Risk"],
+  ["⌘", "Technology / IT"],
+  ["▧", "Procurement"],
+  ["▣", "Assets"],
   ["↗", "Marketing"],
-  ["◎", "Operations"],
-  ["◌", "Support"],
   ["⌖", "Field"],
+  ["◌", "Customer Support"],
   ["＋", "Acquisition"],
   ["☆", "Ambassadors"],
-  ["⌁", "Analytics"],
+  ["✓", "Projects & Tasks"],
+  ["?", "Internal Helpdesk"],
+  ["●", "Approvals"],
+  ["⌁", "BI / Analytics"],
   ["▤", "Reports"],
+  ["◎", "Audit Log"],
 ];
 
 const platformCards = [
@@ -189,6 +197,43 @@ export default function Home() {
               ["Legal", "Corporate documents · Compliance · Contracts"],
               ["External collaborators", "Time-bound access · Revocation · Audit"],
             ].map(([title, text]) => <button key={title} onClick={() => setActive(title)}><strong>{title}</strong><span>{text}</span><b>→</b></button>)}
+          </section>
+          <section className="operationsSuite">
+            <div className="sectionHeading">
+              <div><h2>Corporate operations suite</h2><p>Controlled workflows across departments</p></div>
+              <button onClick={() => setActive("Approvals")}>Open approvals →</button>
+            </div>
+            <div className="suiteGrid">
+              {[
+                ["⌘", "Technology / IT", "Systems, APIs, databases, backups and technical incidents", "Technical access only"],
+                ["▧", "Procurement", "Purchase request → approval → supplier → invoice → payment", "Approval required"],
+                ["▣", "Assets", "Equipment, vehicles, SIM cards and assignment history", "0 assets connected"],
+                ["⚑", "Compliance & Risk", "Policies, risks, audits, incidents and periodic reviews", "No open incidents"],
+                ["?", "Internal Helpdesk", "IT, HR, Finance, Legal, Operations and Facilities requests", "0 open requests"],
+                ["✓", "Projects & Tasks", "Objectives, deadlines, assignments and progress", "0 active projects"],
+              ].map(([icon, title, text, status]) => (
+                <button className="suiteCard" key={title} onClick={() => setActive(title)}>
+                  <i>{icon}</i><div><strong>{title}</strong><p>{text}</p><span>{status}</span></div><b>→</b>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="accessModel">
+            <div>
+              <span className="accessEyebrow">PERMISSION-BASED ACCESS</span>
+              <h2>Authority follows scope, never title alone.</h2>
+              <p>Department administrators manage only their authorised domain. Technical, financial, legal and security access remain independently assigned and audited.</p>
+            </div>
+            <div className="accessLadder">
+              {[
+                ["01", "Super Admin", "Global exception"],
+                ["02", "Administrators", "Scoped by module"],
+                ["03", "Department Managers", "Department scope"],
+                ["04", "Supervisors", "Operational scope"],
+                ["05", "Employees / Collaborators", "Assigned permissions"],
+                ["06", "External Collaborators", "Time-bound access"],
+              ].map(([n, role, scope]) => <div key={role}><i>{n}</i><strong>{role}</strong><span>{scope}</span></div>)}
+            </div>
           </section>
           <footer><span>DeliGo Triunfal HQ</span><span>Central Management & Operations · Prepared for hq.deligo.co.mz</span></footer>
         </div>
