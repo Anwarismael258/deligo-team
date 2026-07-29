@@ -2,48 +2,73 @@
 
 import { useMemo, useState } from "react";
 
-const platforms = ["All Platforms", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
+const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
 const nav = [
-  ["⌂", "Overview"],
-  ["◇", "Platforms"],
-  ["♛", "Executive"],
-  ["♙", "People"],
-  ["♧", "Human Resources"],
-  ["□", "Finance"],
-  ["▦", "Accounting"],
-  ["§", "Legal"],
-  ["⚑", "Compliance & Risk"],
-  ["⌘", "Technology / IT"],
-  ["▧", "Procurement"],
-  ["▣", "Assets"],
+  ["⌂", "Visão geral"],
+  ["◇", "Plataformas"],
+  ["♛", "Direcção Executiva"],
+  ["♙", "Pessoas"],
+  ["♧", "Recursos Humanos"],
+  ["□", "Finanças"],
+  ["▦", "Contabilidade"],
+  ["§", "Jurídico"],
+  ["⚑", "Conformidade e Risco"],
+  ["⌘", "Tecnologia / IT"],
+  ["▧", "Compras"],
+  ["▣", "Património"],
   ["↗", "Marketing"],
   ["⌖", "Field"],
-  ["◌", "Customer Support"],
-  ["＋", "Acquisition"],
-  ["☆", "Ambassadors"],
-  ["✓", "Projects & Tasks"],
-  ["?", "Internal Helpdesk"],
-  ["●", "Approvals"],
-  ["⌁", "BI / Analytics"],
-  ["▤", "Reports"],
-  ["◎", "Audit Log"],
+  ["◌", "Apoio ao Cliente"],
+  ["＋", "Aquisição de Parceiros"],
+  ["☆", "Embaixadores"],
+  ["✓", "Projectos e Tarefas"],
+  ["?", "Apoio Interno"],
+  ["●", "Aprovações"],
+  ["⌁", "BI / Análises"],
+  ["▤", "Relatórios"],
+  ["◎", "Registo de Auditoria"],
 ];
 
+const moduleDetails: Record<string, string[]> = {
+  "Plataformas": ["DeliGo", "Comunhão", "TaoMoz", "SARCA"],
+  "Direcção Executiva": ["Perfil da empresa", "Sócios", "Deliberações", "Gestão corporativa"],
+  "Pessoas": ["Trabalhadores", "Colaboradores externos", "Departamentos", "Roles e permissões"],
+  "Recursos Humanos": ["Contratos", "Presenças", "Férias", "Payroll", "Onboarding e Offboarding"],
+  "Finanças": ["Tesouraria", "Contas bancárias", "Receitas e despesas", "Orçamentos", "Distribuição de lucros"],
+  "Contabilidade": ["Plano de contas", "Lançamentos", "Reconciliação", "Impostos", "Demonstrações"],
+  "Jurídico": ["Contratos", "Documentos societários", "Licenças", "Políticas", "Processos"],
+  "Conformidade e Risco": ["Riscos", "Controlos", "Incidentes", "Revisões", "Políticas"],
+  "Tecnologia / IT": ["Sistemas e APIs", "Bases de dados", "Integrações", "Backups", "Incidentes técnicos"],
+  "Compras": ["Pedidos de compra", "Aprovações", "Fornecedores", "Facturas", "Pagamentos"],
+  "Património": ["Equipamentos", "Atribuições", "Manutenção", "Devoluções", "Inventário"],
+  "Marketing": ["Campanhas", "Conteúdos", "Promoções", "Leads", "Análises"],
+  "Field": ["Tarefas", "Visitas", "Verificações", "Localização", "Relatórios"],
+  "Apoio ao Cliente": ["Tickets", "Chat", "Reclamações", "Incidentes", "Histórico"],
+  "Aquisição de Parceiros": ["Leads", "Visitas", "Negociações", "Parceiros", "Objectivos"],
+  "Embaixadores": ["Embaixadores", "Referências", "Campanhas", "Conversões", "Comissões"],
+  "Projectos e Tarefas": ["Projectos", "Tarefas", "Objectivos", "Prazos", "Progresso"],
+  "Apoio Interno": ["IT", "RH", "Finanças", "Jurídico", "Operações"],
+  "Aprovações": ["Finanças", "RH", "Jurídico", "Compras", "Marketing"],
+  "BI / Análises": ["Crescimento", "Receita", "Despesas", "Performance", "KPIs"],
+  "Relatórios": ["Corporativos", "Financeiros", "RH", "Operações", "Auditoria"],
+  "Registo de Auditoria": ["Actividade", "Logins", "Segurança", "Alterações", "Exportações"],
+};
+
 const platformCards = [
-  { name: "DeliGo", color: "#e53935", metrics: ["Users", "Orders", "Partners", "Revenue"] },
-  { name: "Comunhão", color: "#7c5ce5", metrics: ["Churches", "Members", "Events", "Revenue"] },
-  { name: "TaoMoz", color: "#129a72", metrics: ["Users", "Companies", "Transactions", "Revenue"] },
-  { name: "SARCA", color: "#e69b22", metrics: ["Users", "Operations", "Transactions", "Revenue"] },
+  { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
+  { name: "Comunhão", color: "#7c5ce5", metrics: ["Igrejas", "Membros", "Eventos", "Receita"] },
+  { name: "TaoMoz", color: "#129a72", metrics: ["Utilizadores", "Empresas", "Transacções", "Receita"] },
+  { name: "SARCA", color: "#e69b22", metrics: ["Utilizadores", "Operações", "Transacções", "Receita"] },
 ];
 
 export default function Home() {
-  const [platform, setPlatform] = useState("All Platforms");
-  const [active, setActive] = useState("Overview");
+  const [platform, setPlatform] = useState("Todas as plataformas");
+  const [active, setActive] = useState("Visão geral");
   const [menuOpen, setMenuOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
 
   const visibleCards = useMemo(
-    () => platform === "All Platforms" ? platformCards : platformCards.filter((item) => item.name === platform),
+    () => platform === "Todas as plataformas" ? platformCards : platformCards.filter((item) => item.name === platform),
     [platform],
   );
 
@@ -51,23 +76,23 @@ export default function Home() {
     <main className="shell">
       <aside className={menuOpen ? "sidebar open" : "sidebar"}>
         <div className="brand">
-          <div className="brandmark">D</div>
+          <img className="brandmark logoImage" src="/deligo-icon.png" alt="DeliGo Triunfal" />
           <div><strong>DeliGo Triunfal</strong><span>Central Web</span></div>
         </div>
         <nav>
-          <p className="navLabel">WORKSPACE</p>
+          <p className="navLabel">ÁREAS DA EMPRESA</p>
           {nav.map(([icon, label]) => (
             <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => { setActive(label); setMenuOpen(false); }}>
               <span>{icon}</span>{label}
             </button>
           ))}
-          <p className="navLabel">SYSTEM</p>
-          <button className="navItem"><span>♧</span>Security</button>
-          <button className="navItem"><span>⚙</span>Settings</button>
+          <p className="navLabel">SISTEMA</p>
+          <button className="navItem"><span>♧</span>Segurança</button>
+          <button className="navItem"><span>⚙</span>Definições</button>
         </nav>
         <div className="user">
           <div className="avatar">AA</div>
-          <div><strong>Anwar Ismael</strong><span>Super Admin</span></div>
+          <div><strong>Anwar Ismael</strong><span>Super Administrador</span></div>
           <b>•••</b>
         </div>
       </aside>
@@ -76,10 +101,10 @@ export default function Home() {
         <header>
           <button className="menuButton" onClick={() => setMenuOpen(!menuOpen)}>☰</button>
           <button className="search" onClick={() => setCommandOpen(true)}>
-            <span>⌕</span><span>Search anything…</span><kbd>⌘ K</kbd>
+            <span>⌕</span><span>Pesquisar em toda a Central…</span><kbd>⌘ K</kbd>
           </button>
           <div className="headerActions">
-            <select aria-label="Current Platform" value={platform} onChange={(e) => setPlatform(e.target.value)}>
+            <select aria-label="Plataforma actual" value={platform} onChange={(e) => setPlatform(e.target.value)}>
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
             <button className="iconButton" aria-label="Notifications">♢<i /></button>
@@ -91,18 +116,26 @@ export default function Home() {
           <div className="eyebrow"><span>HQ</span> / {active}</div>
           <div className="titleRow">
             <div>
-              <h1>{active === "Overview" ? "Group overview" : active}</h1>
-              <p>Consolidated operations across DeliGo Triunfal.</p>
+              <h1>{active === "Visão geral" ? "Visão geral do grupo" : active}</h1>
+              <p>Gestão consolidada da DeliGo Triunfal, Lda.</p>
             </div>
-            <div className="live"><i /> Live systems</div>
+            <div className="live"><i /> Central operacional</div>
           </div>
+          {active !== "Visão geral" && (
+            <section className="moduleContext">
+              <div><span>MÓDULO</span><h2>{active}</h2><p>O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador.</p></div>
+              <div className="moduleLinks">
+                {(moduleDetails[active] || ["Visão geral", "Actividade", "Relatórios", "Definições"]).map((item) => <button key={item}>{item}<b>→</b></button>)}
+              </div>
+            </section>
+          )}
 
           <section className="metrics">
             {[
-              ["Total users", "0", "Across accessible platforms"],
-              ["Corporate revenue", "—", "Not connected to accounting"],
-              ["Net profit", "—", "Never inferred from bank balance"],
-              ["Active employees", "3", "Configured leadership"],
+              ["Total de utilizadores", "0", "Nas plataformas autorizadas"],
+              ["Receita corporativa", "—", "Contabilidade não ligada"],
+              ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
+              ["Trabalhadores activos", "3", "Liderança configurada"],
             ].map(([label, value, note], index) => (
               <article className="metric" key={label}>
                 <div className={`metricIcon m${index}`}>{["♙", "↗", "⇄", "◎"][index]}</div>
@@ -112,35 +145,35 @@ export default function Home() {
           </section>
 
           <div className="sectionHeading">
-            <div><h2>Platform health</h2><p>Operational view by business platform</p></div>
-            <button>View system health →</button>
+            <div><h2>Estado das plataformas</h2><p>Visão operacional por plataforma</p></div>
+            <button>Ver estado do sistema →</button>
           </div>
           <section className="platformGrid">
             {visibleCards.map((card) => (
               <article className="platformCard" key={card.name}>
                 <div className="platformTop">
-                  <div className="platformIdentity"><i style={{ background: card.color }}>{card.name.charAt(0)}</i><div><strong>{card.name}</strong><span>Awaiting connection</span></div></div>
-                  <span className="status"><i /> Ready</span>
+                  <div className="platformIdentity"><i style={{ background: card.color }}>{card.name.charAt(0)}</i><div><strong>{card.name}</strong><span>A aguardar ligação</span></div></div>
+                  <span className="status"><i /> Preparada</span>
                 </div>
                 <div className="platformMetrics">
-                  {card.metrics.map((metric) => <div key={metric}><span>{metric}</span><strong>{metric === "Revenue" ? "—" : "0"}</strong></div>)}
+                  {card.metrics.map((metric) => <div key={metric}><span>{metric}</span><strong>{metric === "Receita" ? "—" : "0"}</strong></div>)}
                 </div>
-                <button onClick={() => setPlatform(card.name)}>Open {card.name}<span>→</span></button>
+                <button onClick={() => setPlatform(card.name)}>Abrir {card.name}<span>→</span></button>
               </article>
             ))}
           </section>
 
           <section className="governance">
             <div className="sectionHeading">
-              <div><h2>Corporate controls</h2><p>Financial separation and governance safeguards</p></div>
-              <span className="protected">● Protected workspace</span>
+              <div><h2>Controlos corporativos</h2><p>Separação financeira e salvaguardas de governação</p></div>
+              <span className="protected">● Área protegida</span>
             </div>
             <div className="controlGrid">
               {[
-                ["Corporate treasury", "—", "Company-owned cash only", "Bank, cash and obligations"],
-                ["User wallets", "—", "Third-party money", "Excluded from revenue and profit"],
-                ["Accounts payable", "—", "Pending obligations", "Suppliers, payroll and tax"],
-                ["Distributable profit", "—", "Accounting approval required", "No automatic withdrawal"],
+                ["Tesouraria corporativa", "—", "Apenas dinheiro da empresa", "Banco, caixa e obrigações"],
+                ["Carteiras de utilizadores", "—", "Dinheiro de terceiros", "Excluído da receita e do lucro"],
+                ["Contas a pagar", "—", "Obrigações pendentes", "Fornecedores, salários e impostos"],
+                ["Lucro distribuível", "—", "Exige validação contabilística", "Sem levantamento automático"],
               ].map(([title, value, badge, note], index) => (
                 <article className="controlCard" key={title}>
                   <div className={`controlGlyph c${index}`}>{["▣", "◫", "↘", "◈"][index]}</div>
@@ -152,16 +185,16 @@ export default function Home() {
 
           <section className="workflowPanel">
             <div className="panelTitle">
-              <div><h2>Profit distribution control</h2><p>Separation of duties — no single employee controls the full cycle</p></div>
-              <span className="draftStatus">No active proposal</span>
+              <div><h2>Controlo da distribuição de lucros</h2><p>Separação de funções — nenhuma pessoa controla todo o ciclo</p></div>
+              <span className="draftStatus">Sem proposta activa</span>
             </div>
             <div className="workflow">
               {[
-                ["1", "Accounting", "Prepare result"],
-                ["2", "Finance", "Review"],
-                ["3", "Shareholders", "Approve"],
-                ["4", "Payment", "Bank instruction"],
-                ["5", "Reconciliation", "Complete"],
+                ["1", "Contabilidade", "Preparar resultado"],
+                ["2", "Finanças", "Rever"],
+                ["3", "Sócios", "Aprovar"],
+                ["4", "Pagamento", "Instrução bancária"],
+                ["5", "Reconciliação", "Concluir"],
               ].map(([number, title, text], index) => (
                 <div className="workflowStep" key={title}>
                   <i>{number}</i><div><strong>{title}</strong><span>{text}</span></div>{index < 4 && <b>→</b>}
@@ -172,11 +205,11 @@ export default function Home() {
 
           <section className="lowerGrid">
             <article className="panel">
-              <div className="panelTitle"><div><h2>Company structure</h2><p>Leadership and operational responsibility</p></div><button>Manage people</button></div>
+              <div className="panelTitle"><div><h2>Estrutura da empresa</h2><p>Liderança e responsabilidade operacional</p></div><button>Gerir pessoas</button></div>
               {[
-                ["AA", "Anwar Abubacar Ismael", "CEO & Founder", "SUPER ADMIN", "50% ownership"],
-                ["SI", "Sara Vitorino Feniosse Ismael", "Co-Founder · Finance & Management", "FINANCE · MANAGEMENT", "50% ownership"],
-                ["SC", "Sansão Chume", "Operations Supervisor", "SUPERVISOR", "Operations"],
+                ["AA", "Anwar Abubacar Ismael", "CEO e Fundador", "SUPER ADMIN", "50% participação"],
+                ["SI", "Sara Vitorino Feniosse Ismael", "Co-Fundadora · Finanças e Gestão", "FINANÇAS · GESTÃO", "50% participação"],
+                ["SC", "Sansão Chume", "Supervisor de Operações", "SUPERVISOR", "Operações"],
               ].map((person, index) => (
                 <div className="person" key={person[1]}>
                   <div className={`personAvatar p${index}`}>{person[0]}</div>
@@ -186,31 +219,31 @@ export default function Home() {
               ))}
             </article>
             <article className="panel activity">
-              <div className="panelTitle"><div><h2>Recent activity</h2><p>Audited actions across the group</p></div><button>View audit log</button></div>
-              <div className="empty"><div>⌁</div><strong>No activity yet</strong><p>Events will appear when real services are connected.</p></div>
+              <div className="panelTitle"><div><h2>Actividade recente</h2><p>Acções auditadas em todo o grupo</p></div><button>Ver auditoria</button></div>
+              <div className="empty"><div>⌁</div><strong>Ainda não existe actividade</strong><p>Os eventos aparecerão quando os serviços reais forem ligados.</p></div>
             </article>
           </section>
           <section className="departmentStrip">
             {[
-              ["Accounting", "Chart of accounts · Reconciliation · Tax"],
-              ["Human Resources", "Contracts · Leave · Payroll · Lifecycle"],
-              ["Legal", "Corporate documents · Compliance · Contracts"],
-              ["External collaborators", "Time-bound access · Revocation · Audit"],
+              ["Contabilidade", "Plano de contas · Reconciliação · Impostos"],
+              ["Recursos Humanos", "Contratos · Férias · Payroll · Ciclo de vida"],
+              ["Jurídico", "Documentos societários · Conformidade · Contratos"],
+              ["Colaboradores externos", "Acesso temporário · Revogação · Auditoria"],
             ].map(([title, text]) => <button key={title} onClick={() => setActive(title)}><strong>{title}</strong><span>{text}</span><b>→</b></button>)}
           </section>
           <section className="operationsSuite">
             <div className="sectionHeading">
-              <div><h2>Corporate operations suite</h2><p>Controlled workflows across departments</p></div>
-              <button onClick={() => setActive("Approvals")}>Open approvals →</button>
+              <div><h2>Operações corporativas</h2><p>Fluxos controlados entre departamentos</p></div>
+              <button onClick={() => setActive("Aprovações")}>Abrir aprovações →</button>
             </div>
             <div className="suiteGrid">
               {[
-                ["⌘", "Technology / IT", "Systems, APIs, databases, backups and technical incidents", "Technical access only"],
-                ["▧", "Procurement", "Purchase request → approval → supplier → invoice → payment", "Approval required"],
-                ["▣", "Assets", "Equipment, vehicles, SIM cards and assignment history", "0 assets connected"],
-                ["⚑", "Compliance & Risk", "Policies, risks, audits, incidents and periodic reviews", "No open incidents"],
-                ["?", "Internal Helpdesk", "IT, HR, Finance, Legal, Operations and Facilities requests", "0 open requests"],
-                ["✓", "Projects & Tasks", "Objectives, deadlines, assignments and progress", "0 active projects"],
+                ["⌘", "Tecnologia / IT", "Sistemas, APIs, bases de dados, backups e incidentes técnicos", "Apenas acesso técnico"],
+                ["▧", "Compras", "Pedido → aprovação → fornecedor → factura → pagamento", "Aprovação obrigatória"],
+                ["▣", "Património", "Equipamentos, veículos, cartões SIM e histórico de atribuição", "0 activos ligados"],
+                ["⚑", "Conformidade e Risco", "Políticas, riscos, auditorias, incidentes e revisões", "Sem incidentes abertos"],
+                ["?", "Apoio Interno", "Pedidos para IT, RH, Finanças, Jurídico e Operações", "0 pedidos abertos"],
+                ["✓", "Projectos e Tarefas", "Objectivos, prazos, atribuições e progresso", "0 projectos activos"],
               ].map(([icon, title, text, status]) => (
                 <button className="suiteCard" key={title} onClick={() => setActive(title)}>
                   <i>{icon}</i><div><strong>{title}</strong><p>{text}</p><span>{status}</span></div><b>→</b>
@@ -220,31 +253,31 @@ export default function Home() {
           </section>
           <section className="accessModel">
             <div>
-              <span className="accessEyebrow">PERMISSION-BASED ACCESS</span>
-              <h2>Authority follows scope, never title alone.</h2>
-              <p>Department administrators manage only their authorised domain. Technical, financial, legal and security access remain independently assigned and audited.</p>
+              <span className="accessEyebrow">ACESSO BASEADO EM PERMISSÕES</span>
+              <h2>A autoridade segue o âmbito, nunca apenas o cargo.</h2>
+              <p>Administradores departamentais gerem apenas a sua área autorizada. Os acessos técnico, financeiro, jurídico e de segurança são atribuídos e auditados separadamente.</p>
             </div>
             <div className="accessLadder">
               {[
-                ["01", "Super Admin", "Global exception"],
-                ["02", "Administrators", "Scoped by module"],
-                ["03", "Department Managers", "Department scope"],
-                ["04", "Supervisors", "Operational scope"],
-                ["05", "Employees / Collaborators", "Assigned permissions"],
-                ["06", "External Collaborators", "Time-bound access"],
+                ["01", "Super Administrador", "Excepção global"],
+                ["02", "Administradores", "Limitados por módulo"],
+                ["03", "Gestores de Departamento", "Âmbito departamental"],
+                ["04", "Supervisores", "Âmbito operacional"],
+                ["05", "Trabalhadores / Colaboradores", "Permissões atribuídas"],
+                ["06", "Colaboradores Externos", "Acesso temporário"],
               ].map(([n, role, scope]) => <div key={role}><i>{n}</i><strong>{role}</strong><span>{scope}</span></div>)}
             </div>
           </section>
-          <footer><span>DeliGo Triunfal HQ</span><span>Central Management & Operations · Prepared for hq.deligo.co.mz</span></footer>
+          <footer><span>DeliGo Triunfal HQ</span><span>Central de Gestão e Operações · Preparada para hq.deligo.co.mz</span></footer>
         </div>
       </section>
 
       {commandOpen && <div className="modal" onClick={() => setCommandOpen(false)}>
         <div className="command" onClick={(e) => e.stopPropagation()}>
-          <input autoFocus placeholder="Search employees, platforms, tickets…" />
-          <p>QUICK ACTIONS</p>
-          {["Open Finance", "View employees", "Open reports", "System health"].map((item) => <button key={item} onClick={() => { setActive(item.replace("Open ", "").replace("View ", "")); setCommandOpen(false); }}>{item}<span>↵</span></button>)}
-          <small>Search only returns items permitted by your role.</small>
+          <input autoFocus placeholder="Pesquisar trabalhadores, plataformas, tickets…" />
+          <p>ACÇÕES RÁPIDAS</p>
+          {["Abrir Finanças", "Ver trabalhadores", "Abrir relatórios", "Estado do sistema"].map((item) => <button key={item} onClick={() => setCommandOpen(false)}>{item}<span>↵</span></button>)}
+          <small>A pesquisa mostra apenas os resultados permitidos pelo seu role.</small>
         </div>
       </div>}
     </main>
