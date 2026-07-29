@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
 const nav = [
@@ -55,6 +55,31 @@ const moduleDetails: Record<string, string[]> = {
   "BI / Análises": ["Crescimento", "Receita", "Despesas", "Performance", "KPIs"],
   "Relatórios": ["Corporativos", "Financeiros", "RH", "Operações", "Auditoria"],
   "Registo de Auditoria": ["Actividade", "Logins", "Segurança", "Alterações", "Exportações"],
+};
+
+const modulePresentation: Record<string, { description: string; action: string; primary: string; secondary: string; visual: string; status: string; color: string }> = {
+  "Plataformas": { description: "Gere o portefólio digital e o estado operacional de cada produto do grupo.", action: "Adicionar plataforma", primary: "Plataformas", secondary: "Integrações", visual: "Disponibilidade por plataforma", status: "Adapters das plataformas", color: "#e53935" },
+  "Direcção Executiva": { description: "Centraliza decisões societárias, deliberações e acompanhamento estratégico.", action: "Nova deliberação", primary: "Deliberações", secondary: "Decisões pendentes", visual: "Execução estratégica", status: "Governação corporativa", color: "#a47722" },
+  "Pessoas": { description: "Mantém a estrutura organizacional, identidades internas e âmbitos de acesso.", action: "Novo trabalhador", primary: "Pessoas", secondary: "Acessos pendentes", visual: "Distribuição organizacional", status: "Directório corporativo", color: "#466bba" },
+  "Recursos Humanos": { description: "Acompanha contratos, assiduidade, férias e todo o ciclo do trabalhador.", action: "Iniciar onboarding", primary: "Trabalhadores", secondary: "Pedidos de RH", visual: "Ciclo de pessoas", status: "Serviços de RH", color: "#9b5a8d" },
+  "Finanças": { description: "Controla tesouraria, orçamento, receitas e despesas com segregação de funções.", action: "Novo lançamento", primary: "Movimentos", secondary: "Aprovações financeiras", visual: "Fluxo financeiro", status: "Serviços financeiros", color: "#258260" },
+  "Contabilidade": { description: "Organiza lançamentos, reconciliações, impostos e demonstrações contabilísticas.", action: "Novo lançamento", primary: "Lançamentos", secondary: "Reconciliações", visual: "Fecho contabilístico", status: "Motor contabilístico", color: "#4c73a8" },
+  "Jurídico": { description: "Protege contratos, licenças, documentos societários e obrigações legais.", action: "Novo processo", primary: "Processos", secondary: "Prazos legais", visual: "Exposição jurídica", status: "Arquivo jurídico", color: "#7559b7" },
+  "Conformidade e Risco": { description: "Regista riscos, controlos, incidentes e revisões periódicas.", action: "Registar risco", primary: "Riscos", secondary: "Revisões pendentes", visual: "Mapa de risco", status: "Controlos de conformidade", color: "#c17836" },
+  "Tecnologia / IT": { description: "Supervisiona sistemas, APIs, bases de dados, backups e incidentes técnicos.", action: "Abrir incidente", primary: "Sistemas", secondary: "Incidentes técnicos", visual: "Saúde tecnológica", status: "Monitorização técnica", color: "#3e70b8" },
+  "Compras": { description: "Executa o ciclo controlado do pedido de compra até à factura e pagamento.", action: "Novo pedido", primary: "Pedidos de compra", secondary: "Aprovações pendentes", visual: "Ciclo de aquisição", status: "Fluxo de compras", color: "#b77931" },
+  "Património": { description: "Controla equipamentos, veículos, cartões SIM, atribuições e devoluções.", action: "Registar activo", primary: "Activos", secondary: "Devoluções pendentes", visual: "Estado do património", status: "Inventário corporativo", color: "#667085" },
+  "Marketing": { description: "Planeia campanhas, conteúdos, promoções, leads e desempenho de comunicação.", action: "Nova campanha", primary: "Campanhas", secondary: "Conteúdos pendentes", visual: "Desempenho de campanhas", status: "Canais de marketing", color: "#d14f6f" },
+  "Field": { description: "Coordena equipas no terreno, visitas, verificações e relatórios operacionais.", action: "Nova missão", primary: "Missões Field", secondary: "Visitas pendentes", visual: "Execução no terreno", status: "Operações Field", color: "#2b8a7b" },
+  "Apoio ao Cliente": { description: "Centraliza tickets, reclamações, conversas e histórico de atendimento.", action: "Novo ticket", primary: "Tickets", secondary: "Por responder", visual: "Qualidade do atendimento", status: "Canais de suporte", color: "#4b7bec" },
+  "Aquisição de Parceiros": { description: "Gere leads comerciais, visitas, negociações e conversão de parceiros.", action: "Novo lead", primary: "Leads", secondary: "Negociações", visual: "Funil de aquisição", status: "Pipeline de parceiros", color: "#8c63b8" },
+  "Embaixadores": { description: "Acompanha embaixadores, referências, conversões e comissões.", action: "Novo embaixador", primary: "Embaixadores", secondary: "Comissões pendentes", visual: "Conversão por referência", status: "Programa de embaixadores", color: "#d18b22" },
+  "Projectos e Tarefas": { description: "Organiza objectivos, responsáveis, prazos, dependências e progresso.", action: "Novo projecto", primary: "Projectos", secondary: "Tarefas em atraso", visual: "Progresso dos projectos", status: "Gestão de trabalho", color: "#5f66c9" },
+  "Apoio Interno": { description: "Recebe pedidos internos dirigidos a IT, RH, Finanças, Jurídico e Operações.", action: "Abrir pedido", primary: "Pedidos internos", secondary: "Por atender", visual: "Tempo de resolução", status: "Filas internas", color: "#487b78" },
+  "Aprovações": { description: "Reúne somente decisões que o utilizador actual tem permissão para aprovar.", action: "Rever pendências", primary: "Aprovações", secondary: "A vencer", visual: "Fluxo de decisão", status: "Motor de aprovações", color: "#c05b4f" },
+  "BI / Análises": { description: "Consolida KPIs, crescimento e desempenho autorizado de todo o grupo.", action: "Criar análise", primary: "Indicadores", secondary: "Relatórios agendados", visual: "Evolução dos KPIs", status: "Camada analítica", color: "#6c5bb5" },
+  "Relatórios": { description: "Produz relatórios corporativos, financeiros, operacionais e de auditoria.", action: "Gerar relatório", primary: "Relatórios", secondary: "Agendados", visual: "Produção de relatórios", status: "Serviço documental", color: "#537493" },
+  "Registo de Auditoria": { description: "Consulta eventos imutáveis de acesso, segurança e alterações críticas.", action: "Exportar auditoria", primary: "Eventos", secondary: "Alertas críticos", visual: "Actividade auditada", status: "Trilho de auditoria", color: "#555b66" },
 };
 
 const routeByModule: Record<string, string> = {
@@ -189,6 +214,7 @@ export function HQApp() {
   const [accountOpen, setAccountOpen] = useState(false);
   const currentPersona = personas[persona];
   const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
+  const activePresentation = modulePresentation[active];
   const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never));
 
   useEffect(() => {
@@ -294,7 +320,7 @@ export function HQApp() {
           </div>
           {active !== "Visão geral" && !isAccountScreen && (
             <section className="moduleContext">
-              <div><span>MÓDULO</span><h2>{active}</h2><p>O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador.</p></div>
+              <div><span>MÓDULO</span><h2>{active}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
                 {(moduleDetails[active] || ["Visão geral", "Actividade", "Relatórios", "Definições"]).map((item) => <button key={item}>{item}<b>→</b></button>)}
               </div>
@@ -304,18 +330,18 @@ export function HQApp() {
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}</h2></div>
-                <div><button>Exportar</button><button className="primaryAction" disabled>Nova acção</button></div>
+                <div><button>Exportar</button><button className="primaryAction" disabled>{activePresentation?.action || "Nova acção"}</button></div>
               </div>
               <div className="workspaceStats">
-                <div><span>{moduleDetails[active]?.[0] || "Registos"}</span><strong>0</strong><small>Fonte desta área não ligada</small></div>
-                <div><span>{moduleDetails[active]?.[1] || "Pendentes"}</span><strong>0</strong><small>Sem dados reais desta área</small></div>
+                <div><span>{activePresentation?.primary || moduleDetails[active]?.[0] || "Registos"}</span><strong>0</strong><small>Fonte desta área não ligada</small></div>
+                <div><span>{activePresentation?.secondary || moduleDetails[active]?.[1] || "Pendentes"}</span><strong>0</strong><small>Sem dados reais desta área</small></div>
                 <div><span>Estado</span><strong className="textStatus">Preparado</strong><small>Adapter bloqueado</small></div>
                 <div><span>Última sincronização</span><strong className="textStatus">—</strong><small>Nunca executada</small></div>
               </div>
               <div className="moduleVisualRow">
-                <div className="moduleDonut"><div><strong>0%</strong><span>Dados ligados</span></div></div>
-                <div className="moduleBars">{[42,68,54,82,61,74,48,70].map((height,index) => <i key={index} style={{height:`${height}%`}} />)}<span>{active} · visualização preparada sem valores reais</span></div>
-                <div className="modulePulse"><span>ESTADO DO ADAPTER</span><strong><i /> Preparado</strong><small>Ligação bloqueada por segurança</small></div>
+                <div className="moduleDonut" style={{"--module-color": activePresentation?.color || "#e65351"} as CSSProperties}><div><strong>0%</strong><span>Dados ligados</span></div></div>
+                <div className="moduleBars" style={{"--module-color": activePresentation?.color || "#e65351"} as CSSProperties}>{[42,68,54,82,61,74,48,70].map((height,index) => <i key={index} style={{height:`${height}%`}} />)}<span>{activePresentation?.visual || active} · sem valores reais</span></div>
+                <div className="modulePulse" style={{"--module-color": activePresentation?.color || "#39a475"} as CSSProperties}><span>{activePresentation?.status || "ESTADO DO ADAPTER"}</span><strong><i /> Preparado</strong><small>Ligação bloqueada por segurança</small></div>
               </div>
               <div className="workspaceTable">
                 <div className="tableHeader"><span>Área</span><span>Estado</span><span>Valor</span><span>Permissão</span></div>
