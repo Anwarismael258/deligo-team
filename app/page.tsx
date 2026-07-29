@@ -30,6 +30,9 @@ const nav = [
 ];
 
 const moduleDetails: Record<string, string[]> = {
+  "Meu Perfil": ["Dados pessoais", "Perfil profissional", "Organização", "Permissões"],
+  "Definições": ["Geral", "Aparência", "Dashboard", "Notificações"],
+  "Segurança": ["Autenticação", "2FA", "Dispositivos e sessões", "Alertas de segurança"],
   "Plataformas": ["DeliGo", "Comunhão", "TaoMoz", "SARCA"],
   "Direcção Executiva": ["Perfil da empresa", "Sócios", "Deliberações", "Gestão corporativa"],
   "Pessoas": ["Trabalhadores", "Colaboradores externos", "Departamentos", "Roles e permissões"],
@@ -56,6 +59,9 @@ const moduleDetails: Record<string, string[]> = {
 
 const routeByModule: Record<string, string> = {
   "Visão geral": "/",
+  "Meu Perfil": "/perfil",
+  "Definições": "/definicoes",
+  "Segurança": "/seguranca",
   "Plataformas": "/plataformas",
   "Direcção Executiva": "/executivo",
   "Pessoas": "/pessoas",
@@ -83,6 +89,24 @@ const routeByModule: Record<string, string> = {
 const moduleByRoute = Object.fromEntries(Object.entries(routeByModule).map(([module, route]) => [route, module]));
 
 const workspaceRows: Record<string, string[][]> = {
+  "Meu Perfil": [
+    ["Identidade corporativa", "Configurada localmente", "DG-0001", "profile.view"],
+    ["Dados pessoais", "Protegidos", "—", "profile.personal.view"],
+    ["Perfil profissional", "Activo", "2026", "profile.professional.view"],
+    ["Permissões atribuídas", "Simulação local", "Por role", "profile.permissions.view"],
+  ],
+  "Definições": [
+    ["Idioma", "Português", "PT", "settings.locale.manage"],
+    ["Fuso horário", "África/Joanesburgo", "UTC+2", "settings.timezone.manage"],
+    ["Tema", "Claro", "Sistema", "settings.appearance.manage"],
+    ["Página inicial", "Visão geral", "/", "settings.home.manage"],
+  ],
+  "Segurança": [
+    ["Password", "Alteração bloqueada", "—", "security.password.manage"],
+    ["Autenticação de dois factores", "Não verificado", "—", "security.2fa.manage"],
+    ["Dispositivos autorizados", "Backend desligado", "—", "security.sessions.view"],
+    ["Códigos de recuperação", "Não gerados", "—", "security.recovery.manage"],
+  ],
   "Aprovações": [
     ["Finanças", "Revisão financeira", "0", "finance.approve"],
     ["Recursos Humanos", "Contratos e payroll", "0", "hr.approve"],
@@ -162,6 +186,7 @@ export function HQApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [persona, setPersona] = useState<keyof typeof personas>("anwar");
+  const [accountOpen, setAccountOpen] = useState(false);
   const currentPersona = personas[persona];
   const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never));
 
@@ -199,8 +224,8 @@ export function HQApp() {
             </button>
           ))}
           <p className="navLabel">SISTEMA</p>
-          <button className="navItem"><span>♧</span>Segurança</button>
-          <button className="navItem"><span>⚙</span>Definições</button>
+          <button className={active === "Segurança" ? "navItem active" : "navItem"} onClick={() => navigate("Segurança")}><span>♧</span>Segurança</button>
+          <button className={active === "Definições" ? "navItem active" : "navItem"} onClick={() => navigate("Definições")}><span>⚙</span>Definições</button>
         </nav>
         <div className="user">
           <div className="avatar">{currentPersona.initials}</div>
@@ -234,7 +259,25 @@ export function HQApp() {
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
             <button className="iconButton" aria-label="Notifications">♢<i /></button>
-            <div className="miniAvatar">{currentPersona.initials}</div>
+            <button className="accountTrigger" onClick={() => setAccountOpen(!accountOpen)} aria-label="Abrir menu da conta">
+              <div className="miniAvatar">{currentPersona.initials}</div>
+              <div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span></div><b>⌄</b>
+            </button>
+            {accountOpen && <div className="accountMenu">
+              <div className="accountMenuHead"><div className="avatar">{currentPersona.initials}</div><div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span><small>DeliGo Triunfal, Lda.</small></div></div>
+              <div className="accountMenuGroup">
+                <button onClick={() => { navigate("Meu Perfil"); setAccountOpen(false); }}><span>♙</span>Meu Perfil</button>
+                <button onClick={() => { navigate("Definições"); setAccountOpen(false); }}><span>⚙</span>Definições</button>
+                <button onClick={() => { navigate("Segurança"); setAccountOpen(false); }}><span>♧</span>Segurança</button>
+                <button onClick={() => { navigate("Registo de Auditoria"); setAccountOpen(false); }}><span>▤</span>Minha Actividade</button>
+              </div>
+              {persona === "anwar" && <div className="accountMenuGroup"><p>ADMINISTRAÇÃO</p>
+                <button onClick={() => { navigate("Pessoas"); setAccountOpen(false); }}><span>♙</span>Trabalhadores</button>
+                <button onClick={() => { navigate("Pessoas"); setAccountOpen(false); }}><span>⌘</span>Roles e Permissões</button>
+                <button onClick={() => { navigate("Registo de Auditoria"); setAccountOpen(false); }}><span>◎</span>Audit Log</button>
+              </div>}
+              <div className="accountMenuGroup"><button disabled className="logout"><span>↪</span>Terminar sessão</button></div>
+            </div>}
           </div>
         </header>
 
@@ -277,6 +320,36 @@ export function HQApp() {
               <div className="safeNotice"><b>Modo de preparação</b><span>As acções de criação, aprovação e alteração permanecem desactivadas até existir staging aprovado e uma sessão validada pelo backend.</span></div>
             </section>
           )}
+          {active === "Meu Perfil" && <section className="accountDetailGrid">
+            <article className="profileCard">
+              <div className="profileHero"><div className="profileAvatar">{currentPersona.initials}</div><div><h2>{currentPersona.name}</h2><p>{currentPersona.role}</p><span>● Activo</span></div></div>
+              <div className="profileFields">
+                <div><span>ID do trabalhador</span><strong>{persona === "anwar" ? "DG-0001" : "A atribuir"}</strong></div>
+                <div><span>Departamento</span><strong>{currentPersona.role}</strong></div>
+                <div><span>Organização</span><strong>DeliGo Triunfal, Lda.</strong></div>
+                <div><span>Data de entrada</span><strong>2026</strong></div>
+                <div><span>Gestor directo</span><strong>{persona === "anwar" ? "—" : "A configurar"}</strong></div>
+                <div><span>Local de trabalho</span><strong>Moçambique</strong></div>
+              </div>
+            </article>
+            <article className="permissionCard"><h2>Âmbito de acesso</h2><p>Permissões simuladas a partir do perfil seleccionado.</p><div>{currentPersona.modules.map((item) => <span key={item}>✓ {item}</span>)}</div></article>
+          </section>}
+          {active === "Definições" && <section className="settingsGrid">
+            {[
+              ["Preferências gerais", ["Idioma: Português", "Fuso horário: UTC+2", "Formato de data: DD/MM/AAAA", "Densidade: Confortável"]],
+              ["Notificações corporativas", ["Avisos da empresa", "Segurança", "Tarefas atribuídas", "Menções e mensagens"]],
+              ["Preferências do dashboard", ["Página inicial: Visão geral", "Plataforma: Todas", "Período padrão: 30 dias", "Widgets: por permissão"]],
+            ].map(([title, items]) => <article className="settingsCard" key={title as string}><h2>{title}</h2>{(items as string[]).map((item) => <label key={item}><span>{item}</span><input type="checkbox" defaultChecked disabled /></label>)}</article>)}
+          </section>}
+          {active === "Segurança" && <section className="securityGrid">
+            <article className="securityCard"><div className="securityIcon">◉</div><div><h2>Autenticação de dois factores</h2><p>Protecção reforçada para contas corporativas e cargos críticos.</p><span className="warningBadge">Estado não verificado</span></div><button disabled>Configurar 2FA</button></article>
+            <article className="securityCard"><div className="securityIcon">▣</div><div><h2>Password corporativa</h2><p>Alteração segura, recuperação e códigos de emergência.</p><span>Última alteração: —</span></div><button disabled>Alterar password</button></article>
+            <article className="sessionsCard"><div className="panelTitle"><div><h2>Dispositivos e sessões</h2><p>As sessões reais aparecerão quando a autenticação central for ligada.</p></div><button disabled>Terminar outras sessões</button></div>
+              <div className="sessionRow"><i>▤</i><div><strong>Este navegador</strong><span>Windows · Sessão local de demonstração</span></div><b>Dispositivo actual</b></div>
+              <div className="sessionRow disabledSession"><i>▯</i><div><strong>Outros dispositivos</strong><span>Nenhuma fonte de sessões ligada</span></div><b>—</b></div>
+            </article>
+            <article className="sessionsCard"><div className="panelTitle"><div><h2>Alertas de segurança</h2><p>Login, password, dispositivos, 2FA e permissões.</p></div></div><div className="empty compactEmpty"><div>♧</div><strong>Sem alertas disponíveis</strong><p>O backend de auditoria está desligado.</p></div></article>
+          </section>}
 
           <section className="metrics">
             {[
