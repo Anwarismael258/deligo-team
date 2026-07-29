@@ -1,0 +1,11 @@
+Unable to fetch the `Request.cf` object! Falling back to a default placeholder...
+TimeoutError: The operation was aborted due to timeout
+    at new DOMException (node:internal/per_context/domexception:76:18)
+    at Timeout._onTimeout (node:internal/abort_controller:154:9)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+    at C:\Users\Administrator\Documents\Deligo Triunfal, Lda\node_modules\undici\index.js:157:7
+    at async setupCf (C:\Users\Administrator\Documents\Deligo Triunfal, Lda\node_modules\miniflare\dist\src\index.js:56947:17)
+    at async #assembleConfig (C:\Users\Administrator\Documents\Deligo Triunfal, Lda\node_modules\miniflare\dist\src\index.js:88777:26)
+    at async #assembleAndUpdateConfig (C:\Users\Administrator\Documents\Deligo Triunfal, Lda\node_modules\miniflare\dist\src\index.js:89117:20)
+    at async Mutex.runWith (C:\Users\Administrator\Documents\Deligo Triunfal, Lda\node_modules\miniflare\dist\src\index.js:58160:48)

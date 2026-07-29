@@ -1,0 +1,8 @@
+
+  vinext dev  (Vite 8.0.13)
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m3000[22m/[39m
+  [32m➜[39m  [1mDebug[22m:   [2m[33mhttp://localhost:[1m3000[22m[2m/__debug[39m[22m
+[2m23:20:10[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [optimizer] bundling dependencies...
+[2m23:20:51[22m [36m[1m[vite][22m[39m [32m.openai/hosting.json changed, restarting server...[39m
+[2m23:20:57[22m [36m[1m[vite][22m[39m server restarted.
