@@ -188,6 +188,7 @@ export function HQApp() {
   const [persona, setPersona] = useState<keyof typeof personas>("anwar");
   const [accountOpen, setAccountOpen] = useState(false);
   const currentPersona = personas[persona];
+  const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
   const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never));
 
   useEffect(() => {
@@ -287,11 +288,11 @@ export function HQApp() {
           <div className="titleRow">
             <div>
               <h1>{active === "Visão geral" ? "Visão geral do grupo" : active}</h1>
-              <p>Gestão consolidada da DeliGo Triunfal, Lda.</p>
+              <p>{active === "Visão geral" ? "Gestão consolidada da DeliGo Triunfal, Lda." : `Área dedicada a ${active}, sem conteúdos de outros departamentos.`}</p>
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
-          {active !== "Visão geral" && (
+          {active !== "Visão geral" && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{active}</h2><p>O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador.</p></div>
               <div className="moduleLinks">
@@ -299,21 +300,21 @@ export function HQApp() {
               </div>
             </section>
           )}
-          {active !== "Visão geral" && (
+          {active !== "Visão geral" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}</h2></div>
                 <div><button>Exportar</button><button className="primaryAction" disabled>Nova acção</button></div>
               </div>
               <div className="workspaceStats">
-                <div><span>Registos</span><strong>0</strong><small>Fonte não ligada</small></div>
-                <div><span>Pendentes</span><strong>0</strong><small>Sem dados reais</small></div>
+                <div><span>{moduleDetails[active]?.[0] || "Registos"}</span><strong>0</strong><small>Fonte desta área não ligada</small></div>
+                <div><span>{moduleDetails[active]?.[1] || "Pendentes"}</span><strong>0</strong><small>Sem dados reais desta área</small></div>
                 <div><span>Estado</span><strong className="textStatus">Preparado</strong><small>Adapter bloqueado</small></div>
                 <div><span>Última sincronização</span><strong className="textStatus">—</strong><small>Nunca executada</small></div>
               </div>
               <div className="moduleVisualRow">
                 <div className="moduleDonut"><div><strong>0%</strong><span>Dados ligados</span></div></div>
-                <div className="moduleBars">{[42,68,54,82,61,74,48,70].map((height,index) => <i key={index} style={{height:`${height}%`}} />)}<span>Visualização preparada · sem valores reais</span></div>
+                <div className="moduleBars">{[42,68,54,82,61,74,48,70].map((height,index) => <i key={index} style={{height:`${height}%`}} />)}<span>{active} · visualização preparada sem valores reais</span></div>
                 <div className="modulePulse"><span>ESTADO DO ADAPTER</span><strong><i /> Preparado</strong><small>Ligação bloqueada por segurança</small></div>
               </div>
               <div className="workspaceTable">
@@ -356,6 +357,7 @@ export function HQApp() {
             <article className="sessionsCard"><div className="panelTitle"><div><h2>Alertas de segurança</h2><p>Login, password, dispositivos, 2FA e permissões.</p></div></div><div className="empty compactEmpty"><div>♧</div><strong>Sem alertas disponíveis</strong><p>O backend de auditoria está desligado.</p></div></article>
           </section>}
 
+          {active === "Visão geral" && <>
           <section className="metrics">
             {[
               ["Total de utilizadores", "0", "Nas plataformas autorizadas"],
@@ -517,6 +519,7 @@ export function HQApp() {
               ].map(([n, role, scope]) => <div key={role}><i>{n}</i><strong>{role}</strong><span>{scope}</span></div>)}
             </div>
           </section>
+          </>}
           <footer><span>DeliGo Triunfal HQ</span><span>Central de Gestão e Operações · Preparada para hq.deligo.co.mz</span></footer>
         </div>
       </section>
