@@ -19,7 +19,7 @@ test("renderiza a Central HQ em português", async () => {
   const html = await response.text();
   assert.match(html, /<title>DeliGo Triunfal HQ<\/title>/i);
   assert.match(html, /Visão geral do grupo/);
-  assert.match(html, /integrações com o backend temporariamente desligadas/);
+  assert.match(html, /A ligar ao backend Deligo Staging/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 

@@ -205,6 +205,20 @@ const platformCards = [
   { name: "SARCA", color: "#e69b22", metrics: ["Utilizadores", "Operações", "Transacções", "Receita"] },
 ];
 
+type DashboardMetric = { key: string; label: string; value: number };
+type DashboardPlatform = {
+  slug: "deligo" | "comunhao" | "taomoz" | "sarca";
+  name: string;
+  connected: boolean;
+  metrics: DashboardMetric[];
+};
+type DashboardData = {
+  environment: string;
+  checkedAt: string;
+  platforms: DashboardPlatform[];
+  operations: { supportCases: number; campaigns: number; fieldVisits: number; auditEvents: number };
+};
+
 export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
   const [active, setActive] = useState("Visão geral");
@@ -213,6 +227,8 @@ export function HQApp() {
   const [persona, setPersona] = useState<keyof typeof personas>("anwar");
   const [accountOpen, setAccountOpen] = useState(false);
   const [subArea, setSubArea] = useState("");
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [connectionError, setConnectionError] = useState("");
   const currentPersona = personas[persona];
   const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
   const activePresentation = modulePresentation[active];
@@ -229,6 +245,18 @@ export function HQApp() {
     return () => window.removeEventListener("popstate", syncRoute);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/dashboard", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error((await response.json()).error || "Falha de ligação");
+        return response.json() as Promise<DashboardData>;
+      })
+      .then((data) => { if (!cancelled) setDashboard(data); })
+      .catch((error: Error) => { if (!cancelled) setConnectionError(error.message); });
+    return () => { cancelled = true; };
+  }, []);
+
   const navigate = (label: string) => {
     setActive(label);
     setSubArea(moduleDetails[label]?.[0] || "");
@@ -237,10 +265,18 @@ export function HQApp() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  const liveCards = dashboard?.platforms.map((item) => ({
+    ...item,
+    color: platformCards.find((card) => card.name === item.name)?.color || "#667085",
+  })) || [];
   const visibleCards = useMemo(
-    () => platform === "Todas as plataformas" ? platformCards : platformCards.filter((item) => item.name === platform),
-    [platform],
+    () => platform === "Todas as plataformas" ? liveCards : liveCards.filter((item) => item.name === platform),
+    [platform, liveCards],
   );
+  const totalUsers = dashboard?.platforms.reduce((sum, item) => {
+    const users = item.metrics.find((metric) => ["users", "members", "buyers", "passengers"].includes(metric.key));
+    return sum + (users?.value || 0);
+  }, 0) || 0;
 
   return (
     <main className="shell">
@@ -316,7 +352,7 @@ export function HQApp() {
 
         <div className="content">
           <div className="eyebrow"><span>HQ</span> / {active}</div>
-          <div className="frozenBanner"><i /> Modo seguro: integrações com o backend temporariamente desligadas</div>
+          <div className="frozenBanner"><i /> {dashboard ? `Dados reais ligados a ${dashboard.environment} · actualizados ${new Date(dashboard.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}` : connectionError || "A ligar ao backend Deligo Staging…"}</div>
           <div className="titleRow">
             <div>
               <h1>{active === "Visão geral" ? "Visão geral do grupo" : active}</h1>
@@ -392,10 +428,10 @@ export function HQApp() {
           {active === "Visão geral" && <>
           <section className="metrics">
             {[
-              ["Total de utilizadores", "0", "Nas plataformas autorizadas"],
+              ["Total de utilizadores", String(totalUsers), "Nas quatro plataformas"],
               ["Receita corporativa", "—", "Contabilidade não ligada"],
               ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
-              ["Trabalhadores activos", "3", "Liderança configurada"],
+              ["Operações transversais", String((dashboard?.operations.supportCases || 0) + (dashboard?.operations.campaigns || 0) + (dashboard?.operations.fieldVisits || 0)), "Suporte, marketing e field"],
             ].map(([label, value, note], index) => (
               <article className="metric" key={label}>
                 <div className={`metricIcon m${index}`}>{["♙", "↗", "⇄", "◎"][index]}</div>
@@ -416,13 +452,8 @@ export function HQApp() {
             </article>
             <article className="readinessPanel">
               <div className="panelTitle"><div><h2>Preparação das integrações</h2><p>Estado da camada de ligação</p></div><span className="readinessScore">4/4</span></div>
-              {[
-                ["DeliGo", "#e53935", "Adapter preparado"],
-                ["Comunhão", "#7c5ce5", "Adapter preparado"],
-                ["TaoMoz", "#129a72", "Adapter preparado"],
-                ["SARCA", "#e69b22", "Adapter preparado"],
-              ].map(([name, color, state]) => <div className="readinessRow" key={name}><i style={{background: color}}>{name.charAt(0)}</i><div><strong>{name}</strong><span>{state}</span></div><b>Bloqueado</b></div>)}
-              <div className="readinessNote"><i /> Ligações permanecem seguras até aprovação de staging.</div>
+              {(dashboard?.platforms || []).map((item) => { const color = platformCards.find((card) => card.name === item.name)?.color || "#667085"; return <div className="readinessRow" key={item.slug}><i style={{background: color}}>{item.name.charAt(0)}</i><div><strong>{item.name}</strong><span>{item.metrics.length} indicadores reais</span></div><b>Ligado</b></div>; })}
+              <div className="readinessNote"><i /> Leitura segura e agregada do ambiente de staging.</div>
             </article>
           </section>
 
@@ -435,11 +466,11 @@ export function HQApp() {
               <article className="platformCard" key={card.name}>
                 <div className="platformAccent" style={{ background: card.color }} />
                 <div className="platformTop">
-                  <div className="platformIdentity"><i style={{ background: card.color }}>{card.name.charAt(0)}</i><div><strong>{card.name}</strong><span>A aguardar ligação</span></div></div>
-                  <span className="status"><i /> Preparada</span>
+                  <div className="platformIdentity"><i style={{ background: card.color }}>{card.name.charAt(0)}</i><div><strong>{card.name}</strong><span>Deligo Staging</span></div></div>
+                  <span className="status"><i /> Ligada</span>
                 </div>
                 <div className="platformMetrics">
-                  {card.metrics.map((metric) => <div key={metric}><span>{metric}</span><strong>{metric === "Receita" ? "—" : "0"}</strong></div>)}
+                  {card.metrics.map((metric) => <div key={metric.key}><span>{metric.label}</span><strong>{Number(metric.value).toLocaleString("pt-MZ")}</strong></div>)}
                 </div>
                 <button onClick={() => setPlatform(card.name)}>Abrir {card.name}<span>→</span></button>
               </article>
