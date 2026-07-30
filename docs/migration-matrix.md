@@ -18,5 +18,6 @@ A primeira entrega operacional está identificada como versão 10 do HQ.
 - DeliGo: estafetas e restaurantes seguem submissão, verificação Field e decisão Operações/Supervisor.
 - SARCA: condutores seguem onboarding, documentos do condutor, veículo e decisão Operações/Supervisor.
 - Comunhão: igrejas seguem candidatura, validação documental e decisão Operações/Supervisor; a activação deve chamar o fluxo nativo que cria igreja, código e subscrição.
+- TaoMoz: vendedores submetem BI/NUIT, comprovativos e selfie; apenas após aprovação a loja fica activa e pode publicar produtos.
 - O Super Admin não é a fila normal de aprovação: trata excepções, conflitos, fraude, alto risco e reversões protegidas.
 - Field pode pedir correcções e recomendar uma decisão, mas não deve aprovar sozinho o trabalho que verificou.

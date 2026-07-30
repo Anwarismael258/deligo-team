@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Headphones, MapPinned, Megaphone, RefreshCw } from "lucide-react";
 type ModuleKey="marketing"|"support"|"field"; type Row=Record<string,unknown>; type Payload={collections:Record<string,Row[]>;checkedAt:string};
-const config={marketing:{title:"Centro de Marketing",icon:Megaphone,sets:{requests:"Pedidos",campaigns:"Campanhas",events:"Eventos"}},support:{title:"Centro de Suporte",icon:Headphones,sets:{tickets:"Tickets",disputes:"Disputas"}},field:{title:"Operações Field",icon:MapPinned,sets:{verifications:"Todos os KYC",deligoKyc:"DeliGo",sarcaDrivers:"SARCA",comunhaoChurches:"Comunhão",restaurants:"Restaurantes",couriers:"Estafetas",notes:"Notas internas"}}} as const;
+const config={marketing:{title:"Centro de Marketing",icon:Megaphone,sets:{requests:"Pedidos",campaigns:"Campanhas",events:"Eventos"}},support:{title:"Centro de Suporte",icon:Headphones,sets:{tickets:"Tickets",disputes:"Disputas"}},field:{title:"Operações Field",icon:MapPinned,sets:{verifications:"Todos os KYC",deligoKyc:"DeliGo",sarcaDrivers:"SARCA",comunhaoChurches:"Comunhão",taomozSellers:"TaoMoz",restaurants:"Restaurantes",couriers:"Estafetas",notes:"Notas internas"}}} as const;
 const pick=(r:Row,k:string[])=>k.map(x=>r[x]).find(x=>x!==null&&x!==undefined&&String(x).trim())?.toString()||"—";
 export default function OperationalModule({module}:{module:ModuleKey}){
  const [data,setData]=useState<Payload|null>(null),[selected,setSelected]=useState(""),[query,setQuery]=useState(""),[notice,setNotice]=useState("A ligar ao backend…"); const meta=config[module],Icon=meta.icon;
