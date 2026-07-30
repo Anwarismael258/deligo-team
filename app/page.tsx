@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { Activity, BarChart3, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 
 const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
@@ -256,6 +256,8 @@ type DashboardData = {
     reservedMatters: string[];
   };
 };
+type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; last_login_at:string|null };
+type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; metadata:Record<string,unknown> };
 
 export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
@@ -268,6 +270,11 @@ export function HQApp() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
+  const [sessionRole, setSessionRole] = useState("");
+  const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
+  const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
+  const [employeeNotice, setEmployeeNotice] = useState("");
+  const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const currentPersona = personas[persona];
   const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
   const activePresentation = modulePresentation[active];
@@ -278,9 +285,28 @@ export function HQApp() {
       if (!response.ok) { window.location.replace("/login"); return; }
       const session = await response.json() as { user?: { hq_role?: keyof typeof personaByRole } };
       const sessionPersona = session.user?.hq_role && personaByRole[session.user.hq_role];
+      setSessionRole(session.user?.hq_role || "");
       if (sessionPersona) setPersona(sessionPersona);
     }).catch(() => window.location.replace("/login"));
   }, []);
+
+  useEffect(() => {
+    if (!["Pessoas","Recursos Humanos"].includes(active)) return;
+    fetch("/api/employees", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => setManagedEmployees(data.employees || [])).catch(() => setManagedEmployees([]));
+  }, [active]);
+
+  useEffect(() => {
+    if (active !== "Registo de Auditoria") return;
+    fetch("/api/audit", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => setAuditRecords(data.events || [])).catch(() => setAuditRecords([]));
+  }, [active]);
+
+  const refreshEmployees = async () => { const response=await fetch("/api/employees",{cache:"no-store"}); if(response.ok){const data=await response.json();setManagedEmployees(data.employees||[]);} };
+  const createEmployee = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setEmployeeNotice("A criar cadastro…"); const form=new FormData(event.currentTarget);
+    const response=await fetch("/api/employees",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:form.get("name"),phone:form.get("phone"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),activate:form.get("activate")==="on"})});
+    const result=await response.json(); setEmployeeNotice(response.ok ? `Cadastro ${result.employee.status === "active" ? "activo" : "enviado para aprovação"}.` : result.error); if(response.ok){setShowEmployeeForm(false);await refreshEmployees();}
+  };
+  const employeeAction = async (employeeId:string, action:string) => { setEmployeeNotice("A processar…"); const response=await fetch("/api/employees",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId,action})});const result=await response.json();setEmployeeNotice(response.ok?"Conta actualizada e auditada.":result.error);if(response.ok)await refreshEmployees(); };
 
   useEffect(() => {
     const syncRoute = () => {
@@ -481,7 +507,26 @@ export function HQApp() {
               <div className="reservedPanel"><div className="panelTitle"><div><h2>Matérias reservadas</h2><p>Exigem aprovação distinta dos dois sócios</p></div><span className="protected">{dashboard.governance.reservedMatterApprovalsRequired} aprovações</span></div><div className="reservedGrid">{dashboard.governance.reservedMatters.map((matter) => <div key={matter}><CheckCircle2 aria-hidden="true" /><span>{matter.replaceAll("_", " ")}</span><b>Ambos</b></div>)}</div></div>
             </section>
           )}
-          {active !== "Visão geral" && active !== "Plataformas" && active !== "Finanças" && active !== "Direcção Executiva" && !isAccountScreen && (
+          {["Pessoas","Recursos Humanos"].includes(active) && (
+            <section className="employeeAdmin">
+              <div className="employeeAdminHead"><div><span>GESTÃO DE TRABALHADORES</span><h2>{managedEmployees.length} cadastros</h2><p>RH prepara o cadastro; o Super Admin aprova acessos e gere contas protegidas.</p></div><button className="primaryAction" onClick={()=>setShowEmployeeForm(!showEmployeeForm)}>Novo trabalhador</button></div>
+              <div className="employeeSummary">{[
+                ["Activos",managedEmployees.filter(e=>e.status==="active").length], ["Convidados",managedEmployees.filter(e=>e.status==="invited").length], ["Suspensos",managedEmployees.filter(e=>e.status==="suspended").length], ["Arquivados",managedEmployees.filter(e=>e.status==="offboarded").length],
+              ].map(([label,value])=><div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div>
+              {showEmployeeForm && <form className="employeeForm" onSubmit={createEmployee}>
+                <label><span>Nome completo</span><input name="name" required /></label><label><span>Telefone</span><input name="phone" placeholder="84 999 0020" required /></label><label><span>Cargo</span><input name="jobTitle" required /></label>
+                <label><span>Departamento</span><select name="department" required>{[["ACCOUNTING","Contabilidade"],["HR","Recursos Humanos"],["LEGAL","Jurídico"],["OPERATIONS","Operações"],["MARKETING","Marketing"],["FIELD","Field"],["SUPPORT","Suporte"],["ACQUISITION","Aquisição"],["AMBASSADORS","Embaixadores"],["PROCUREMENT","Compras"],["ASSETS","Património"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label>
+                <label><span>Role único</span><select name="role" required>{["ACCOUNTING","HUMAN_RESOURCES","LEGAL","OPERATIONS","CUSTOMER_SUPPORT","MARKETING","FIELD","PARTNER_ACQUISITION","AMBASSADOR","PROCUREMENT","ASSETS_LOGISTICS"].map(role=><option key={role}>{role}</option>)}</select></label>
+                {sessionRole==="SUPER_ADMIN"&&<label className="activateCheck"><input name="activate" type="checkbox"/><span>Activar imediatamente</span></label>}<button className="primaryAction" type="submit">Guardar cadastro</button>
+              </form>}
+              {employeeNotice&&<div className="safeNotice"><b>Estado</b><span>{employeeNotice}</span></div>}
+              <div className="employeeTable"><div className="employeeAdminRow employeeAdminHeader"><span>Trabalhador</span><span>Role</span><span>Estado</span><span>Acções</span></div>{managedEmployees.map(employee=><div className="employeeAdminRow" key={employee.id}><div><strong>{employee.name}</strong><small>{employee.employee_code} · {employee.phone} · {employee.department}</small></div><span>{employee.role||employee.requested_role||"Pendente"}</span><b className={`employeeStatus ${employee.status}`}>{employee.status}</b><div className="employeeActions">{sessionRole==="SUPER_ADMIN"&&employee.employee_code!=="DG-0001"&&<>{employee.status==="invited"&&<button onClick={()=>employeeAction(employee.id,"activate")}>Activar</button>}{employee.status==="active"&&<button onClick={()=>employeeAction(employee.id,"suspend")}>Suspender</button>}{employee.status==="suspended"&&<button onClick={()=>employeeAction(employee.id,"reactivate")}>Reactivar</button>}{employee.status!=="offboarded"&&<button onClick={()=>employeeAction(employee.id,"archive")}>Arquivar</button>}</>}</div></div>)}</div>
+            </section>
+          )}
+          {active === "Registo de Auditoria" && (
+            <section className="auditWorkspace"><div className="employeeAdminHead"><div><span>REGISTO IMUTÁVEL</span><h2>Auditoria e histórico</h2><p>Criação, aprovação, suspensão, arquivo e operações sensíveis.</p></div><b>{auditRecords.length} eventos</b></div><div className="auditTable"><div className="auditRow auditHeader"><span>Data</span><span>Actor</span><span>Acção</span><span>Resultado</span></div>{auditRecords.map(event=><div className="auditRow" key={event.id}><span>{new Date(event.occurred_at).toLocaleString("pt-MZ")}</span><strong>{event.actor}</strong><span>{event.action.replaceAll("_"," ")}</span><b>{event.result}</b></div>)}{!auditRecords.length&&<div className="peopleEmpty">Sem eventos disponíveis para este perfil.</div>}</div></section>
+          )}
+          {active !== "Visão geral" && active !== "Plataformas" && active !== "Finanças" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>

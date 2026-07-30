@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { hqRpc } from "@/lib/hq-server";
 
 const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
 
@@ -19,6 +20,9 @@ export async function POST(request: NextRequest) {
   if (!authResponse.ok || !payload.access_token || !payload.refresh_token) {
     return NextResponse.json({ error: "Telefone ou palavra-passe inválidos." }, { status: 401 });
   }
+  const authUserId = (payload as { user?: { id?: string } }).user?.id;
+  const actor = authUserId ? await hqRpc("hq_actor_context_v1", { p_auth_user_id: authUserId }) : null;
+  if (!actor || actor.status !== "active") return NextResponse.json({ error: actor?.status === "suspended" ? "Esta conta está suspensa." : "A conta ainda não foi activada pelo Super Administrador." }, { status: 403 });
   const response = NextResponse.json({ user: { email: payload.user?.email, ...payload.user?.user_metadata } });
   const secure = process.env.NODE_ENV === "production";
   response.cookies.set("hq_access_token", payload.access_token, { httpOnly: true, secure, sameSite: "strict", path: "/", maxAge: payload.expires_in || 3600 });

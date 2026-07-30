@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deligoTriunfalGovernance } from "@/lib/governance";
+import { corporateActor } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
@@ -15,10 +16,8 @@ export async function GET() {
   }
 
   try {
-    const identityResponse = await fetch(`${process.env.SUPABASE_URL || STAGING_URL}/auth/v1/user`, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}` }, cache: "no-store", signal: AbortSignal.timeout(8_000),
-    });
-    if (!identityResponse.ok) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
+    const actor = await corporateActor();
+    if (!actor) return NextResponse.json({ error: "Sessão inválida, suspensa ou expirada." }, { status: 401 });
     const rpcHeaders = {
         apikey: anonKey,
         Authorization: `Bearer ${anonKey}`,
