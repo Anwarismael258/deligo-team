@@ -292,6 +292,18 @@ export function HQApp() {
   }, []);
 
   useEffect(() => {
+    if (!sessionRole || sessionRole === "SUPER_ADMIN") return;
+    const rolePersonaKey = personaByRole[sessionRole as keyof typeof personaByRole];
+    const allowedModules = rolePersonaKey ? personas[rolePersonaKey].modules as readonly string[] : [];
+    const universallyAllowed = ["Meu Perfil", "DefiniÃ§Ãµes", "SeguranÃ§a"];
+    if (!allowedModules.includes(active) && !universallyAllowed.includes(active)) {
+      setActive("VisÃ£o geral");
+      setSubArea("");
+      window.history.replaceState({}, "", "/");
+    }
+  }, [active, sessionRole]);
+
+  useEffect(() => {
     if (!["Pessoas","Recursos Humanos"].includes(active)) return;
     fetch("/api/employees", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => setManagedEmployees(data.employees || [])).catch(() => setManagedEmployees([]));
   }, [active]);
@@ -392,7 +404,7 @@ export function HQApp() {
             <span>⌕</span><span>Pesquisar em toda a Central…</span><kbd>⌘ K</kbd>
           </button>
           <div className="headerActions">
-            <label className="viewAs">
+            {sessionRole === "SUPER_ADMIN" && <label className="viewAs">
               <span>Ver como</span>
               <select aria-label="Simular perfil" value={persona} onChange={(e) => {
                 const next = e.target.value as keyof typeof personas;
@@ -415,7 +427,7 @@ export function HQApp() {
                 <option value="procurement">Compras</option>
                 <option value="assets">Património</option>
               </select>
-            </label>
+            </label>}
             <select aria-label="Plataforma actual" value={platform} onChange={(e) => setPlatform(e.target.value)}>
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
