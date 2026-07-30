@@ -10,3 +10,5 @@ O HQ usa o mesmo backend DeliGo staging e não duplica dados. Cada painel é ada
 | Suporte | Apoio ao Cliente | `support_tickets`, `support_messages`, `order_disputes` | fila, chat, reclamações, incidentes, disputas, utilizadores e histórico |
 
 Próximas etapas: formulários completos, decisão KYC, notas Field, chat, uploads, mapas, tempo real, notificações e painéis de Comunhão, SARCA e TaoMoz. Toda escrita valida actor, role, módulo e acção no servidor e deve gerar auditoria.
+
+A primeira entrega operacional está identificada como versão 10 do HQ.
