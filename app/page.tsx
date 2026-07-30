@@ -212,9 +212,16 @@ const personas = {
   marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Marketing", "Projectos e Tarefas", "BI / Análises", "Relatórios"] },
   field: { name: "Agente Field", role: "Field", initials: "AF", modules: ["Visão geral", "Field", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
   support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Apoio ao Cliente", "Projectos e Tarefas", "Relatórios"] },
+  hr: { name: "Recursos Humanos", role: "Recursos Humanos", initials: "RH", modules: ["Visão geral", "Pessoas", "Recursos Humanos", "Projectos e Tarefas", "Relatórios"] },
+  legal: { name: "Jurídico", role: "Jurídico", initials: "JL", modules: ["Visão geral", "Jurídico", "Conformidade e Risco", "Relatórios"] },
+  operations: { name: "Operações", role: "Operações", initials: "OP", modules: ["Visão geral", "Pessoas", "Field", "Apoio ao Cliente", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
+  acquisition: { name: "Aquisição", role: "Aquisição de Parceiros", initials: "AP", modules: ["Visão geral", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
+  ambassador: { name: "Embaixador", role: "Embaixadores", initials: "EM", modules: ["Visão geral", "Embaixadores", "Relatórios"] },
+  procurement: { name: "Compras", role: "Compras", initials: "CP", modules: ["Visão geral", "Compras", "Aprovações", "Relatórios"] },
+  assets: { name: "Património", role: "Património e Logística", initials: "PL", modules: ["Visão geral", "Património", "Relatórios"] },
 } as const;
 
-const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support" } as const;
+const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
@@ -373,6 +380,13 @@ export function HQApp() {
                 <option value="marketing">Marketing</option>
                 <option value="field">Field</option>
                 <option value="support">Suporte</option>
+                <option value="hr">Recursos Humanos</option>
+                <option value="legal">Jurídico</option>
+                <option value="operations">Operações</option>
+                <option value="acquisition">Aquisição</option>
+                <option value="ambassador">Embaixador</option>
+                <option value="procurement">Compras</option>
+                <option value="assets">Património</option>
               </select>
             </label>
             <select aria-label="Plataforma actual" value={platform} onChange={(e) => setPlatform(e.target.value)}>
