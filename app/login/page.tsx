@@ -4,11 +4,17 @@ import { FormEvent, useState } from "react";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
-  const [notice, setNotice] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const submit = (event: FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setNotice(true);
+    setLoading(true); setNotice("");
+    const form = new FormData(event.currentTarget);
+    const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) });
+    const result = await response.json() as { error?: string };
+    if (!response.ok) { setNotice(result.error || "Não foi possível entrar."); setLoading(false); return; }
+    window.location.assign("/");
   };
 
   return (
@@ -40,19 +46,19 @@ export default function LoginPage() {
             <p>Entre com os dados atribuídos pela DeliGo Triunfal.</p>
           </div>
           <label className="loginField">
-            <span>Número de telefone</span>
-            <div className="phoneInput"><b>+258</b><input type="tel" inputMode="tel" placeholder="84 000 0000" autoComplete="tel" required /></div>
+            <span>Email corporativo</span>
+            <div className="phoneInput"><b>@</b><input name="email" type="email" placeholder="nome@staging.deligo.co.mz" autoComplete="username" required /></div>
           </label>
           <label className="loginField">
             <span>Palavra-passe</span>
-            <div className="passwordInput"><input type={showPassword ? "text" : "password"} placeholder="Introduza a sua palavra-passe" autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Ocultar" : "Mostrar"}</button></div>
+            <div className="passwordInput"><input name="password" type={showPassword ? "text" : "password"} placeholder="Introduza a sua palavra-passe" autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Ocultar" : "Mostrar"}</button></div>
           </label>
           <div className="loginOptions">
             <label><input type="checkbox" /> <span>Confiar neste dispositivo</span></label>
             <button type="button">Esqueceu a palavra-passe?</button>
           </div>
-          <button className="loginSubmit" type="submit">Entrar <span>→</span></button>
-          {notice && <div className="loginNotice"><b>Autenticação ainda não ligada</b><span>Este ecrã está preparado, mas nenhuma credencial foi enviada ou guardada. A ligação será feita apenas depois da aprovação do backend.</span></div>}
+          <button className="loginSubmit" type="submit" disabled={loading}>{loading ? "A validar…" : "Entrar"} <span>→</span></button>
+          {notice && <div className="loginNotice"><b>Acesso não autorizado</b><span>{notice}</span></div>}
           <div className="loginSecurity"><i>♧</i><div><strong>Protecção em duas etapas</strong><span>Após a palavra-passe, cargos protegidos confirmarão o acesso com Authenticator ou OTP.</span></div></div>
           <p className="noSignup">Não possui conta? Contacte Recursos Humanos ou a Administração.</p>
         </form>

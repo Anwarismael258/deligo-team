@@ -43,7 +43,7 @@ test("renderiza o login corporativo sem registo público", async () => {
   const response = await render("/login");
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /Número de telefone/);
+  assert.match(html, /Email corporativo/);
   assert.match(html, /Palavra-passe/);
   assert.match(html, /deligo-icon\.png/);
   assert.match(html, /Contacte Recursos Humanos ou a Administração/);

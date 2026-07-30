@@ -209,7 +209,12 @@ const personas = {
     initials: "IT",
     modules: ["Visão geral", "Plataformas", "Tecnologia / IT", "Património", "Projectos e Tarefas", "Apoio Interno", "Relatórios", "Registo de Auditoria"],
   },
+  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Marketing", "Projectos e Tarefas", "BI / Análises", "Relatórios"] },
+  field: { name: "Agente Field", role: "Field", initials: "AF", modules: ["Visão geral", "Field", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
+  support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Apoio ao Cliente", "Projectos e Tarefas", "Relatórios"] },
 } as const;
+
+const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support" } as const;
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
@@ -260,6 +265,15 @@ export function HQApp() {
   const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
   const activePresentation = modulePresentation[active];
   const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never));
+
+  useEffect(() => {
+    fetch("/api/auth/session", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) { window.location.replace("/login"); return; }
+      const session = await response.json() as { user?: { hq_role?: keyof typeof personaByRole } };
+      const sessionPersona = session.user?.hq_role && personaByRole[session.user.hq_role];
+      if (sessionPersona) setPersona(sessionPersona);
+    }).catch(() => window.location.replace("/login"));
+  }, []);
 
   useEffect(() => {
     const syncRoute = () => {
@@ -356,6 +370,9 @@ export function HQApp() {
                 <option value="sansao">Sansão</option>
                 <option value="contabilista">Contabilista</option>
                 <option value="tecnologia">Técnico IT</option>
+                <option value="marketing">Marketing</option>
+                <option value="field">Field</option>
+                <option value="support">Suporte</option>
               </select>
             </label>
             <select aria-label="Plataforma actual" value={platform} onChange={(e) => setPlatform(e.target.value)}>
@@ -379,7 +396,7 @@ export function HQApp() {
                 <button onClick={() => { navigate("Pessoas"); setAccountOpen(false); }}><span>⌘</span>Roles e Permissões</button>
                 <button onClick={() => { navigate("Registo de Auditoria"); setAccountOpen(false); }}><span>◎</span>Audit Log</button>
               </div>}
-              <div className="accountMenuGroup"><button disabled className="logout"><span>↪</span>Terminar sessão</button></div>
+              <div className="accountMenuGroup"><button className="logout" onClick={async () => { await fetch("/api/auth/logout", { method: "POST" }); window.location.assign("/login"); }}><span>↪</span>Terminar sessão</button></div>
             </div>}
           </div>
         </header>

@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deligoTriunfalGovernance } from "@/lib/governance";
 
@@ -5,6 +6,8 @@ export const dynamic = "force-dynamic";
 const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
 
 export async function GET() {
+  const accessToken = (await cookies()).get("hq_access_token")?.value;
+  if (!accessToken) return NextResponse.json({ error: "Sessão corporativa necessária." }, { status: 401 });
   const anonKey = process.env.SUPABASE_ANON_KEY;
   const integrationSecret = process.env.DELIGO_STAGING_DB_PASSWORD;
   if (!anonKey || !integrationSecret) {
@@ -12,6 +15,10 @@ export async function GET() {
   }
 
   try {
+    const identityResponse = await fetch(`${process.env.SUPABASE_URL || STAGING_URL}/auth/v1/user`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}` }, cache: "no-store", signal: AbortSignal.timeout(8_000),
+    });
+    if (!identityResponse.ok) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
     const rpcHeaders = {
         apikey: anonKey,
         Authorization: `Bearer ${anonKey}`,
