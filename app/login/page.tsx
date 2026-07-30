@@ -11,7 +11,7 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true); setNotice("");
     const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: form.get("email"), password: form.get("password") }) });
+    const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: form.get("phone"), password: form.get("password") }) });
     const result = await response.json() as { error?: string };
     if (!response.ok) { setNotice(result.error || "Não foi possível entrar."); setLoading(false); return; }
     window.location.assign("/");
@@ -46,8 +46,8 @@ export default function LoginPage() {
             <p>Entre com os dados atribuídos pela DeliGo Triunfal.</p>
           </div>
           <label className="loginField">
-            <span>Email corporativo</span>
-            <div className="phoneInput"><b>@</b><input name="email" type="email" placeholder="nome@staging.deligo.co.mz" autoComplete="username" required /></div>
+            <span>Número de telefone</span>
+            <div className="phoneInput"><b>+258</b><input name="phone" type="tel" inputMode="tel" placeholder="84 999 0001" autoComplete="tel" required /></div>
           </label>
           <label className="loginField">
             <span>Palavra-passe</span>

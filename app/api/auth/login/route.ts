@@ -5,16 +5,19 @@ const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
 export async function POST(request: NextRequest) {
   const anonKey = process.env.SUPABASE_ANON_KEY;
   if (!anonKey) return NextResponse.json({ error: "Autenticação de staging não configurada." }, { status: 503 });
-  const { email, password } = await request.json() as { email?: string; password?: string };
-  if (!email || !password) return NextResponse.json({ error: "Email e palavra-passe são obrigatórios." }, { status: 400 });
+  const { phone, password } = await request.json() as { phone?: string; password?: string };
+  if (!phone || !password) return NextResponse.json({ error: "Telefone e palavra-passe são obrigatórios." }, { status: 400 });
+  const digits = phone.replace(/\D/g, "");
+  const normalizedPhone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
+  if (!/^\+258\d{9}$/.test(normalizedPhone)) return NextResponse.json({ error: "Introduza um número moçambicano válido." }, { status: 400 });
 
   const authResponse = await fetch(`${process.env.SUPABASE_URL || STAGING_URL}/auth/v1/token?grant_type=password`, {
     method: "POST", headers: { apikey: anonKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ email: email.trim().toLowerCase(), password }), cache: "no-store",
+    body: JSON.stringify({ phone: normalizedPhone, password }), cache: "no-store",
   });
   const payload = await authResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; user?: { email?: string; user_metadata?: Record<string, unknown> }; error_description?: string; msg?: string };
   if (!authResponse.ok || !payload.access_token || !payload.refresh_token) {
-    return NextResponse.json({ error: "Email ou palavra-passe inválidos." }, { status: 401 });
+    return NextResponse.json({ error: "Telefone ou palavra-passe inválidos." }, { status: 401 });
   }
   const response = NextResponse.json({ user: { email: payload.user?.email, ...payload.user?.user_metadata } });
   const secure = process.env.NODE_ENV === "production";
