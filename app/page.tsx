@@ -236,6 +236,13 @@ type DashboardData = {
     platforms: Array<{ slug: string; name: string; value: number; people: Array<{ id: string; name: string; role: string; created_at: string }> }>;
     departments: Record<string, { total: number; active?: number; open?: number }>;
   };
+  governance: {
+    legalName: string;
+    legalForm: string;
+    reservedMatterApprovalsRequired: number;
+    shareholders: Array<{ employeeId: string; displayName: string; quotaPercent: number; corporateTitle: string; isManagingPartner: boolean; isSuperAdministrator: boolean }>;
+    reservedMatters: string[];
+  };
 };
 
 export function HQApp() {
@@ -302,6 +309,8 @@ export function HQApp() {
   const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
   const shownPeople = (selectedPlatformModule?.people || []).filter((person) => person.name.toLocaleLowerCase("pt").includes(peopleSearch.toLocaleLowerCase("pt")));
   const money = (value: number) => new Intl.NumberFormat("pt-MZ", { style: "currency", currency: "MZN", maximumFractionDigits: 2 }).format(value || 0);
+  const selectedFinancialPlatforms = dashboard?.modules.platforms.filter((item) => platform === "Todas as plataformas" || item.name === platform) || [];
+  const selectedOperationalValue = selectedFinancialPlatforms.reduce((sum, item) => sum + item.value, 0);
 
   return (
     <main className="shell">
@@ -413,7 +422,35 @@ export function HQApp() {
               </div>
             </section>
           )}
-          {active !== "Visão geral" && active !== "Plataformas" && !isAccountScreen && (
+          {active === "Finanças" && (
+            <section className="financeWorkspace">
+              <div className="financeHero">
+                <div><span>VOLUME OPERACIONAL OBSERVADO</span><strong>{money(selectedOperationalValue)}</strong><small>{platform} · valor processado no staging, não representa receita, tesouraria ou lucro.</small></div>
+                <div className="financeGuard"><ShieldCheck aria-hidden="true" /><div><b>Separação financeira activa</b><span>Carteiras de utilizadores não são tratadas como dinheiro da empresa.</span></div></div>
+              </div>
+              <div className="financialBreakdown">
+                {selectedFinancialPlatforms.map((item) => <article key={item.slug}><span>{item.name}</span><strong>{money(item.value)}</strong><small>Volume operacional</small></article>)}
+                {!selectedFinancialPlatforms.length && <div className="peopleEmpty">Sem valores financeiros disponíveis para este contexto.</div>}
+              </div>
+              <div className="financeColumns">
+                <article className="financePanel"><div className="panelTitle"><div><h2>Posição financeira</h2><p>Somente fontes confirmadas pelo backend</p></div></div>{[
+                  ["Tesouraria corporativa", "—", "Fonte ainda não ligada"], ["Receitas reconhecidas", "—", "Contabilidade ainda não ligada"], ["Despesas", "—", "Contabilidade ainda não ligada"], ["Lucro líquido", "—", "Exige fecho contabilístico"],
+                ].map(([label,value,note]) => <div className="financeLine" key={label}><div><strong>{label}</strong><span>{note}</span></div><b>{value}</b></div>)}</article>
+                <article className="financePanel"><div className="panelTitle"><div><h2>Aprovações protegidas</h2><p>Decisões financeiras e societárias</p></div></div>{[
+                  ["Distribuição de lucros", "2 sócios"], ["Dívida material", "2 sócios"], ["Venda de património material", "2 sócios"], ["Alteração de quotas", "2 sócios"],
+                ].map(([label,rule]) => <div className="financeLine" key={label}><div><strong>{label}</strong><span>Sem proposta activa</span></div><em>{rule}</em></div>)}</article>
+              </div>
+              <div className="safeNotice"><b>Escrita protegida</b><span>Consulta real disponível. Criar, aprovar, pagar e reconciliar permanecem bloqueados até a autenticação corporativa validar cada actor no servidor.</span></div>
+            </section>
+          )}
+          {active === "Direcção Executiva" && dashboard?.governance && (
+            <section className="governanceWorkspace">
+              <div className="companyRecord"><div><span>ENTIDADE JURÍDICA</span><h2>{dashboard.governance.legalName}</h2><p>Sociedade por quotas · governação corporativa separada das permissões técnicas.</p></div><b>50 / 50</b></div>
+              <div className="shareholderGrid">{dashboard.governance.shareholders.map((shareholder) => <article key={shareholder.employeeId}><div className="shareholderTop"><i>{shareholder.displayName.split(" ").slice(0,2).map((part) => part[0]).join("")}</i><span>{shareholder.quotaPercent}%</span></div><h3>{shareholder.displayName}</h3><p>{shareholder.corporateTitle}</p><div className="shareholderFlags"><span>{shareholder.isManagingPartner ? "Gerente executivo" : "Gestão financeira"}</span><span>{shareholder.isSuperAdministrator ? "Super Administrador" : "Sem acesso global"}</span></div></article>)}</div>
+              <div className="reservedPanel"><div className="panelTitle"><div><h2>Matérias reservadas</h2><p>Exigem aprovação distinta dos dois sócios</p></div><span className="protected">{dashboard.governance.reservedMatterApprovalsRequired} aprovações</span></div><div className="reservedGrid">{dashboard.governance.reservedMatters.map((matter) => <div key={matter}><CheckCircle2 aria-hidden="true" /><span>{matter.replaceAll("_", " ")}</span><b>Ambos</b></div>)}</div></div>
+            </section>
+          )}
+          {active !== "Visão geral" && active !== "Plataformas" && active !== "Finanças" && active !== "Direcção Executiva" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>

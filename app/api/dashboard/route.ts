@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { deligoTriunfalGovernance } from "@/lib/governance";
 
 export const dynamic = "force-dynamic";
 const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
@@ -26,7 +27,7 @@ export async function GET() {
       return NextResponse.json({ error: "O backend de staging não respondeu correctamente." }, { status: 502 });
     }
     const [dashboard, modules] = await Promise.all([dashboardResponse.json(), modulesResponse.json()]);
-    return NextResponse.json({ ...dashboard, modules }, {
+    return NextResponse.json({ ...dashboard, modules, governance: deligoTriunfalGovernance }, {
       headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });
   } catch (error) {
