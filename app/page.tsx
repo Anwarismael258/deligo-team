@@ -187,7 +187,7 @@ const personas = {
   },
   sara: {
     name: "Sara Ismael",
-    role: "Finanças e Gestão",
+    role: "Sócia · Diretora Financeira",
     initials: "SI",
     modules: ["Visão geral", "Direcção Executiva", "Finanças", "Contabilidade", "Aprovações", "BI / Análises", "Relatórios"],
   },
@@ -567,7 +567,7 @@ export function HQApp() {
               <div className="panelTitle"><div><h2>Estrutura da empresa</h2><p>Liderança e responsabilidade operacional</p></div><button>Gerir pessoas</button></div>
               {[
                 ["AA", "Anwar Abubacar Ismael", "CEO e Fundador", "SUPER ADMIN", "50% participação"],
-                ["SI", "Sara Vitorino Feniosse Ismael", "Co-Fundadora · Finanças e Gestão", "FINANÇAS · GESTÃO", "50% participação"],
+                ["SI", "Sara Vitorino Feniosse Ismael", "Sócia · Diretora Financeira", "FINANÇAS", "50% participação"],
                 ["SC", "Sansão Chume", "Supervisor de Operações", "SUPERVISOR", "Operações"],
               ].map((person, index) => (
                 <div className="person" key={person[1]}>

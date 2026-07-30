@@ -11,6 +11,8 @@ export const sensitiveDataClasses = {
 export const separationOfDuties = [
   ["procurement.request.create", "procurement.payment.execute"],
   ["finance.result.prepare", "profit_distribution.approve"],
+  ["finance.expense.create", "payment.execute"],
+  ["finance.transactions.approve", "payment.reconcile"],
   ["payment.execute", "payment.reconcile"],
   ["hr.employee.create", "security.super_admin.assign"],
   ["technology.integrations.manage", "finance.transactions.approve"],

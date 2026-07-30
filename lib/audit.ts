@@ -9,7 +9,11 @@ export type AuditAction =
   | "PERMISSION_GRANTED"
   | "PERMISSION_REVOKED"
   | "APPROVAL_SUBMITTED"
-  | "APPROVAL_DECIDED";
+  | "APPROVAL_DECIDED"
+  | "RESERVED_MATTER_SUBMITTED"
+  | "RESERVED_MATTER_APPROVED"
+  | "OWNERSHIP_RECORD_VIEWED"
+  | "OWNERSHIP_CHANGE_ATTEMPTED";
 
 export type AuditEvent = {
   id: string;
@@ -35,4 +39,3 @@ export class FrozenAuditWriter implements AuditWriter {
     throw new Error("BACKEND_FROZEN");
   }
 }
-

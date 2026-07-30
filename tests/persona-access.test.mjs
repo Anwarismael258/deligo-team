@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const access = {
-  sara: new Set(["finance.view", "accounting.view", "approvals.finance", "reports.view"]),
+  sara: new Set(["finance.view", "finance.transactions.approve", "accounting.view", "approvals.finance", "reports.view", "reserved_matters.approve"]),
   sansao: new Set(["operations.view", "field.view", "support.view", "tasks.assign"]),
   accountant: new Set(["accounting.view", "finance.result.prepare", "reports.export"]),
   technology: new Set(["technology.view", "integrations.view", "incidents.manage", "assets.view"]),
@@ -24,6 +24,12 @@ test("Contabilista prepara, mas não aprova distribuição", () => {
 
 test("Sara não recebe Super Admin implicitamente", () => {
   assert.equal(access.sara.has("security.super_admin.assign"), false);
+  assert.equal(access.sara.has("security.permissions.manage"), false);
+});
+
+test("A Diretora Financeira pode rever finanças e decisões reservadas", () => {
+  assert.equal(access.sara.has("finance.transactions.approve"), true);
+  assert.equal(access.sara.has("reserved_matters.approve"), true);
 });
 
 test("Perfis operacionais não executam pagamentos", () => {
