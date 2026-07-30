@@ -230,6 +230,12 @@ type DashboardData = {
   checkedAt: string;
   platforms: DashboardPlatform[];
   operations: { supportCases: number; campaigns: number; fieldVisits: number; auditEvents: number };
+  modules: {
+    currency: "MZN";
+    totalValue: number;
+    platforms: Array<{ slug: string; name: string; value: number; people: Array<{ id: string; name: string; role: string; created_at: string }> }>;
+    departments: Record<string, { total: number; active?: number; open?: number }>;
+  };
 };
 
 export function HQApp() {
@@ -242,6 +248,7 @@ export function HQApp() {
   const [subArea, setSubArea] = useState("");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [connectionError, setConnectionError] = useState("");
+  const [peopleSearch, setPeopleSearch] = useState("");
   const currentPersona = personas[persona];
   const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
   const activePresentation = modulePresentation[active];
@@ -249,8 +256,10 @@ export function HQApp() {
 
   useEffect(() => {
     const syncRoute = () => {
-      const nextModule = moduleByRoute[window.location.pathname] || "Visão geral";
+      const platformMatch = window.location.pathname.match(/^\/plataformas\/(deligo|comunhao|sarca|taomoz)$/);
+      const nextModule = platformMatch ? "Plataformas" : moduleByRoute[window.location.pathname] || "Visão geral";
       setActive(nextModule);
+      if (platformMatch) setPlatform(({ deligo: "DeliGo", comunhao: "Comunhão", sarca: "SARCA", taomoz: "TaoMoz" } as const)[platformMatch[1] as "deligo" | "comunhao" | "sarca" | "taomoz"]);
       setSubArea(moduleDetails[nextModule]?.[0] || "");
     };
     syncRoute();
@@ -290,6 +299,9 @@ export function HQApp() {
     const users = item.metrics.find((metric) => ["users", "members", "buyers", "passengers"].includes(metric.key));
     return sum + (users?.value || 0);
   }, 0) || 0;
+  const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
+  const shownPeople = (selectedPlatformModule?.people || []).filter((person) => person.name.toLocaleLowerCase("pt").includes(peopleSearch.toLocaleLowerCase("pt")));
+  const money = (value: number) => new Intl.NumberFormat("pt-MZ", { style: "currency", currency: "MZN", maximumFractionDigits: 2 }).format(value || 0);
 
   return (
     <main className="shell">
@@ -381,7 +393,27 @@ export function HQApp() {
               </div>
             </section>
           )}
-          {active !== "Visão geral" && !isAccountScreen && (
+          {active === "Plataformas" && selectedPlatformModule && (
+            <section className="platformModule">
+              <div className="platformModuleHero">
+                <div><span>MÓDULO DA PLATAFORMA</span><h2>{selectedPlatformModule.name}</h2><p>Painel administrativo adaptado ao HQ, com dados agregados do schema dedicado.</p></div>
+                <div className="platformValue"><span>Valor total processado</span><strong>{money(selectedPlatformModule.value)}</strong><small>Volume operacional · não representa lucro</small></div>
+              </div>
+              <div className="moduleToolbar">
+                <div className="moduleTabs"><button className="active">Resumo</button><button>Utilizadores</button><button>Operações</button><button>Financeiro</button><button>Auditoria</button></div>
+                <input value={peopleSearch} onChange={(event) => setPeopleSearch(event.target.value)} placeholder={`Pesquisar pessoas em ${selectedPlatformModule.name}…`} aria-label="Pesquisar utilizadores" />
+              </div>
+              <div className="peoplePanel">
+                <div className="peoplePanelHead"><div><h3>Utilizadores recentes</h3><p>Nomes reais disponíveis no backend central.</p></div><b>{shownPeople.length} resultados</b></div>
+                <div className="peopleTable">
+                  <div className="peopleRow peopleHeader"><span>Utilizador</span><span>Função</span><span>Registo</span><span>Estado</span></div>
+                  {shownPeople.map((person) => <button className="peopleRow" key={person.id}><span className="personIdentity"><i>{person.name.split(" ").slice(0,2).map((part) => part[0]).join("")}</i><strong>{person.name}</strong></span><span className="rolePill">{person.role.replaceAll("_", " ")}</span><span>{new Date(person.created_at).toLocaleDateString("pt-MZ")}</span><span className="connectedPill">Activo</span></button>)}
+                  {!shownPeople.length && <div className="peopleEmpty">Nenhum utilizador corresponde à pesquisa.</div>}
+                </div>
+              </div>
+            </section>
+          )}
+          {active !== "Visão geral" && active !== "Plataformas" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
@@ -442,7 +474,7 @@ export function HQApp() {
           <section className="metrics">
             {[
               ["Total de utilizadores", String(totalUsers), "Nas quatro plataformas"],
-              ["Receita corporativa", "—", "Contabilidade não ligada"],
+              ["Valor total processado", money(dashboard?.modules.totalValue || 0), "Soma operacional das quatro plataformas"],
               ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
               ["Operações transversais", String((dashboard?.operations.supportCases || 0) + (dashboard?.operations.campaigns || 0) + (dashboard?.operations.fieldVisits || 0)), "Suporte, marketing e field"],
             ].map(([label, value, note], index) => (
@@ -485,7 +517,7 @@ export function HQApp() {
                 <div className="platformMetrics">
                   {card.metrics.map((metric) => <div key={metric.key}><span>{metric.label}</span><strong>{Number(metric.value).toLocaleString("pt-MZ")}</strong></div>)}
                 </div>
-                <button onClick={() => setPlatform(card.name)}>Abrir {card.name}<span><ChevronRight aria-hidden="true" /></span></button>
+                <button onClick={() => { setPlatform(card.name); navigate("Plataformas"); window.history.replaceState({}, "", `/plataformas/${card.slug}`); }}>Abrir {card.name}<span><ChevronRight aria-hidden="true" /></span></button>
               </article>
             ))}
           </section>
