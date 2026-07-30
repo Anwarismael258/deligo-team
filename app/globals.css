@@ -47,3 +47,8 @@ footer{display:flex;justify-content:space-between;border-top:1px solid var(--lin
 .moduleBars i{background:var(--module-color,#d85957);opacity:.38}
 .modulePulse strong i{background:var(--module-color,#39a475)}
 @media(max-width:800px){.loginPage{grid-template-columns:1fr}.loginBrandPanel{display:none}.loginFormPanel{min-height:100vh;padding:28px 22px}.loginMobileBrand{display:flex;align-items:center;gap:8px;position:absolute;top:24px;left:24px;font-size:10px}.loginMobileBrand img{width:31px;height:31px;object-fit:contain}.loginFooter{left:22px;right:22px}.loginFooter span:last-child{display:none}}
+
+/* Consistent product icon system */
+.navItem span{height:17px;display:grid;place-items:center}.navItem span svg{width:15px;height:15px;stroke-width:1.8}
+.metricIcon svg,.readinessRow>i svg,.platformIdentity>i svg{width:15px;height:15px;stroke-width:1.8}
+.platformCard>button span{display:grid;place-items:center}.platformCard>button span svg{width:12px;height:12px;stroke-width:2}

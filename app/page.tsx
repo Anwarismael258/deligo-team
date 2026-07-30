@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { Activity, BarChart3, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 
 const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
 const nav = [
@@ -28,6 +29,18 @@ const nav = [
   ["▤", "Relatórios"],
   ["◎", "Registo de Auditoria"],
 ];
+
+const moduleIcons: Record<string, LucideIcon> = {
+  "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Direcção Executiva": Landmark,
+  "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Contabilidade": Coins,
+  "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
+  "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Field": Route,
+  "Apoio ao Cliente": Headphones, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
+  "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Aprovações": CheckCircle2,
+  "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
+};
+
+const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Users, TaoMoz: ShoppingBag, SARCA: Smartphone };
 
 const moduleDetails: Record<string, string[]> = {
   "Meu Perfil": ["Dados pessoais", "Perfil profissional", "Organização", "Permissões"],
@@ -289,12 +302,12 @@ export function HQApp() {
           <p className="navLabel">ÁREAS DA EMPRESA</p>
           {visibleNav.map(([icon, label]) => (
             <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}>
-              <span>{icon}</span>{label}
+              <span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{label}
             </button>
           ))}
           <p className="navLabel">SISTEMA</p>
-          <button className={active === "Segurança" ? "navItem active" : "navItem"} onClick={() => navigate("Segurança")}><span>♧</span>Segurança</button>
-          <button className={active === "Definições" ? "navItem active" : "navItem"} onClick={() => navigate("Definições")}><span>⚙</span>Definições</button>
+          <button className={active === "Segurança" ? "navItem active" : "navItem"} onClick={() => navigate("Segurança")}><span><ShieldCheck aria-hidden="true" /></span>Segurança</button>
+          <button className={active === "Definições" ? "navItem active" : "navItem"} onClick={() => navigate("Definições")}><span><Settings aria-hidden="true" /></span>Definições</button>
         </nav>
         <div className="user">
           <div className="avatar">{currentPersona.initials}</div>
@@ -434,7 +447,7 @@ export function HQApp() {
               ["Operações transversais", String((dashboard?.operations.supportCases || 0) + (dashboard?.operations.campaigns || 0) + (dashboard?.operations.fieldVisits || 0)), "Suporte, marketing e field"],
             ].map(([label, value, note], index) => (
               <article className="metric" key={label}>
-                <div className={`metricIcon m${index}`}>{["♙", "↗", "⇄", "◎"][index]}</div>
+                <div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div>
                 <p>{label}</p><strong>{value}</strong><span>{note}</span>
                 <div className={`miniTrend trend${index}`}><i /><i /><i /><i /><i /><i /></div>
               </article>
@@ -452,7 +465,7 @@ export function HQApp() {
             </article>
             <article className="readinessPanel">
               <div className="panelTitle"><div><h2>Preparação das integrações</h2><p>Estado da camada de ligação</p></div><span className="readinessScore">4/4</span></div>
-              {(dashboard?.platforms || []).map((item) => { const color = platformCards.find((card) => card.name === item.name)?.color || "#667085"; return <div className="readinessRow" key={item.slug}><i style={{background: color}}>{item.name.charAt(0)}</i><div><strong>{item.name}</strong><span>{item.metrics.length} indicadores reais</span></div><b>Ligado</b></div>; })}
+              {(dashboard?.platforms || []).map((item) => { const color = platformCards.find((card) => card.name === item.name)?.color || "#667085"; const Icon = platformIcons[item.name] || Sparkles; return <div className="readinessRow" key={item.slug}><i style={{background: color}}><Icon aria-hidden="true" /></i><div><strong>{item.name}</strong><span>{item.metrics.length} indicadores reais</span></div><b>Ligado</b></div>; })}
               <div className="readinessNote"><i /> Leitura segura e agregada do ambiente de staging.</div>
             </article>
           </section>
@@ -466,13 +479,13 @@ export function HQApp() {
               <article className="platformCard" key={card.name}>
                 <div className="platformAccent" style={{ background: card.color }} />
                 <div className="platformTop">
-                  <div className="platformIdentity"><i style={{ background: card.color }}>{card.name.charAt(0)}</i><div><strong>{card.name}</strong><span>Deligo Staging</span></div></div>
+                  <div className="platformIdentity"><i style={{ background: card.color }}>{(() => { const Icon = platformIcons[card.name] || Sparkles; return <Icon aria-hidden="true" />; })()}</i><div><strong>{card.name}</strong><span>Deligo Staging</span></div></div>
                   <span className="status"><i /> Ligada</span>
                 </div>
                 <div className="platformMetrics">
                   {card.metrics.map((metric) => <div key={metric.key}><span>{metric.label}</span><strong>{Number(metric.value).toLocaleString("pt-MZ")}</strong></div>)}
                 </div>
-                <button onClick={() => setPlatform(card.name)}>Abrir {card.name}<span>→</span></button>
+                <button onClick={() => setPlatform(card.name)}>Abrir {card.name}<span><ChevronRight aria-hidden="true" /></span></button>
               </article>
             ))}
           </section>

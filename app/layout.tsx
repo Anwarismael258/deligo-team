@@ -9,6 +9,17 @@ export const metadata: Metadata = {
     shortcut: "/deligo-icon.png",
     apple: "/deligo-icon.png",
   },
+  openGraph: {
+    title: "DeliGo Triunfal HQ",
+    description: "Central de Gestão e Operações com dados reais das quatro plataformas.",
+    images: [{ url: "/og.png", width: 1536, height: 1024, alt: "DeliGo Triunfal HQ" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DeliGo Triunfal HQ",
+    description: "Central de Gestão e Operações",
+    images: ["/og.png"],
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
