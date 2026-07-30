@@ -12,3 +12,11 @@ O HQ usa o mesmo backend DeliGo staging e não duplica dados. Cada painel é ada
 Próximas etapas: formulários completos, decisão KYC, notas Field, chat, uploads, mapas, tempo real, notificações e painéis de Comunhão, SARCA e TaoMoz. Toda escrita valida actor, role, módulo e acção no servidor e deve gerar auditoria.
 
 A primeira entrega operacional está identificada como versão 10 do HQ.
+
+## Aprovação transversal de identidades operacionais
+
+- DeliGo: estafetas e restaurantes seguem submissão, verificação Field e decisão Operações/Supervisor.
+- SARCA: condutores seguem onboarding, documentos do condutor, veículo e decisão Operações/Supervisor.
+- Comunhão: igrejas seguem candidatura, validação documental e decisão Operações/Supervisor; a activação deve chamar o fluxo nativo que cria igreja, código e subscrição.
+- O Super Admin não é a fila normal de aprovação: trata excepções, conflitos, fraude, alto risco e reversões protegidas.
+- Field pode pedir correcções e recomendar uma decisão, mas não deve aprovar sozinho o trabalho que verificou.

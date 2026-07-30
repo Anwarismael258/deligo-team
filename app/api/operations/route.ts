@@ -24,11 +24,17 @@ export async function GET(request: NextRequest) {
     const [requests, campaigns, events] = await Promise.all([getRows("marketing_requests?select=*&order=created_at.desc&limit=150"), getRows("marketing_campaigns?select=*&order=created_at.desc&limit=120"), getRows("marketing_events?select=*&order=created_at.desc&limit=120")]);
     collections = { requests, campaigns, events };
   } else {
-    const [verifications, restaurants, couriers, notes] = await Promise.all([
+    const [deligoKyc, sarcaDrivers, comunhaoChurches, restaurants, couriers, notes] = await Promise.all([
       getRows("profiles?select=id,full_name,phone,role,city,address,email,kyc_status,kyc_rejection_reason,approval_submitted_at,approval_sla_deadline,verification_score,is_blocked,created_at,updated_at&role=in.(restaurant,courier)&order=updated_at.desc&limit=250"),
+      getRows("driver_profiles?select=*&order=updated_at.desc&limit=250"),
+      getRows("church_applications?select=*&order=updated_at.desc&limit=250"),
       getRows("restaurants?select=*&order=created_at.desc&limit=120"), getRows("couriers?select=*&order=created_at.desc&limit=120"), getRows("field_internal_notes?select=*&order=created_at.desc&limit=100"),
     ]);
-    collections = { verifications, restaurants, couriers, notes };
+    const tag = (rows: Row[], platform: string, subjectType: string) => rows.map(row => ({ ...row, _platform: platform, _subject_type: subjectType }));
+    collections = {
+      verifications: [...tag(deligoKyc, "DeliGo", "Estafeta / Restaurante"), ...tag(sarcaDrivers, "SARCA", "Condutor"), ...tag(comunhaoChurches, "Comunhão", "Igreja")],
+      deligoKyc: tag(deligoKyc, "DeliGo", "Estafeta / Restaurante"), sarcaDrivers: tag(sarcaDrivers, "SARCA", "Condutor"), comunhaoChurches: tag(comunhaoChurches, "Comunhão", "Igreja"), restaurants, couriers, notes,
+    };
   }
   return NextResponse.json({ module, collections, checkedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });
 }
