@@ -23,3 +23,16 @@ export async function hqRpc(name: string, body: Record<string, unknown> = {}) {
   if (!response.ok) throw new Error((await response.text()) || "HQ_RPC_FAILED");
   return response.json();
 }
+
+export async function stagingRest(path: string, init: RequestInit = {}) {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
+  const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
+    ...init,
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=representation", ...(init.headers || {}) },
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error((await response.text()) || "STAGING_REST_FAILED");
+  if (response.status === 204) return null;
+  return response.json();
+}
