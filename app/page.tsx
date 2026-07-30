@@ -618,7 +618,8 @@ export function HQApp() {
           <section className="insightGrid">
             <article className="chartPanel">
               <div className="panelTitle"><div><h2>Desempenho do grupo</h2><p>Receita, operações e crescimento consolidados</p></div><div className="chartLegend"><span><i /> Receita</span><span><i /> Operações</span></div></div>
-              <div className="emptyChart">
+              <div className="groupRealChart">{(dashboard?.modules.platforms || []).map(item => { const maximum = Math.max(...(dashboard?.modules.platforms || []).map(platform => platform.value), 1); return <div className="groupBar" key={item.slug}><div><strong>{item.name}</strong><span>{money(item.value)}</span></div><i><b style={{width:`${Math.max((item.value/maximum)*100,item.value>0?3:0)}%`}} /></i><small>Volume operacional observado</small></div>; })}{!dashboard?.modules.platforms.length && <div className="peopleEmpty">A aguardar indicadores do backend.</div>}</div>
+              <div className="emptyChart legacyChart">
                 <div className="chartAxis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0</span></div>
                 <div className="chartCanvas"><div className="chartGlow" /><div className="chartZeroLine" />{["Jan","Fev","Mar","Abr","Mai","Jun","Jul"].map((m) => <span key={m}>{m}</span>)}</div>
                 <div className="chartMessage"><i>⌁</i><strong>Pronto para dados reais</strong><span>O gráfico será preenchido pelo adapter analítico.</span></div>
