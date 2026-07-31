@@ -259,6 +259,7 @@ type DashboardData = {
 };
 type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; last_login_at:string|null };
 type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; metadata:Record<string,unknown> };
+type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
 
 export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
@@ -276,6 +277,7 @@ export function HQApp() {
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [employeeNotice, setEmployeeNotice] = useState("");
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [platformSnapshot, setPlatformSnapshot] = useState<PlatformSnapshot | null>(null);
   const currentPersona = personas[persona];
   const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
   const activePresentation = modulePresentation[active];
@@ -346,6 +348,13 @@ export function HQApp() {
     return () => { cancelled = true; };
   }, []);
 
+
+  useEffect(() => {
+    if (active !== "Plataformas" || platform === "Todas as plataformas") { setPlatformSnapshot(null); return; }
+    const slug = ({ DeliGo: "deligo", "ComunhÃ£o": "comunhao", SARCA: "sarca", TaoMoz: "taomoz" } as Record<string, string>)[platform];
+    if (!slug) return;
+    fetch(`/api/platforms/${slug}`, { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<PlatformSnapshot>; }).then(setPlatformSnapshot).catch(() => setPlatformSnapshot(null));
+  }, [active, platform]);
 
   const navigate = (label: string) => {
     setActive(label);
@@ -483,6 +492,7 @@ export function HQApp() {
                 <div className="moduleTabs"><button className="active">Resumo</button><button>Utilizadores</button><button>Operações</button><button>Financeiro</button><button>Auditoria</button></div>
                 <input value={peopleSearch} onChange={(event) => setPeopleSearch(event.target.value)} placeholder={`Pesquisar pessoas em ${selectedPlatformModule.name}…`} aria-label="Pesquisar utilizadores" />
               </div>
+              {platformSnapshot && <div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Estado administrativo ligado</h3><p>Dados reais do backend dedicado de {selectedPlatformModule.name}.</p></div><b>{Object.values(platformSnapshot.data).filter(Array.isArray).length} fontes</b></div><div className="peopleTable"><div className="peopleRow peopleHeader"><span>Fonte</span><span>Registos</span><span>Estado</span><span>Actualização</span></div>{Object.entries(platformSnapshot.data).map(([source, value]) => <div className="peopleRow" key={source}><span className="personIdentity"><i>{source.slice(0, 2).toUpperCase()}</i><strong>{source.replaceAll("_", " ")}</strong></span><span>{Array.isArray(value) ? value.length : "—"}</span><span className="connectedPill">Backend real</span><span>{new Date(platformSnapshot.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</span></div>)}</div></div>}
               <div className="peoplePanel">
                 <div className="peoplePanelHead"><div><h3>Utilizadores recentes</h3><p>Nomes reais disponíveis no backend central.</p></div><b>{shownPeople.length} resultados</b></div>
                 <div className="peopleTable">
