@@ -65,7 +65,7 @@ export type ApprovalActor = { employeeId: EmployeeId; permissions: readonly stri
 
 export function canApproveReservedMatter(matter: ReservedMatter, actors: readonly ApprovalActor[]) {
   if (!deligoTriunfalGovernance.reservedMatters.includes(matter)) return false;
-  const shareholderIds = new Set(deligoTriunfalGovernance.shareholders.map(({ employeeId }) => employeeId));
+  const shareholderIds = new Set<EmployeeId>(deligoTriunfalGovernance.shareholders.map(({ employeeId }) => employeeId));
   const validApprovers = new Set(actors
     .filter(({ employeeId, permissions }) => shareholderIds.has(employeeId) && permissions.includes("reserved_matters.approve"))
     .map(({ employeeId }) => employeeId));

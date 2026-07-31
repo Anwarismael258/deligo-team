@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
 import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { Activity, BarChart3, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
@@ -257,7 +258,7 @@ type DashboardData = {
     reservedMatters: string[];
   };
 };
-type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; last_login_at:string|null };
+type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; updated_at:string; last_login_at:string|null };
 type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; metadata:Record<string,unknown> };
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
@@ -283,6 +284,7 @@ export function HQApp() {
   const [profileDetail, setProfileDetail] = useState<PlatformProfile | null>(null);
   const [employeeNotice, setEmployeeNotice] = useState("");
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<ManagedEmployee | null>(null);
   const [platformSnapshot, setPlatformSnapshot] = useState<PlatformSnapshot | null>(null);
   const currentPersona = personas[persona];
   const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
@@ -328,6 +330,7 @@ export function HQApp() {
     const result=await response.json(); setEmployeeNotice(response.ok ? `Cadastro ${result.employee.status === "active" ? "activo" : "enviado para aprovação"}.` : result.error); if(response.ok){setShowEmployeeForm(false);await refreshEmployees();}
   };
   const employeeAction = async (employeeId:string, action:string) => { setEmployeeNotice("A processar…"); const response=await fetch("/api/employees",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId,action})});const result=await response.json();setEmployeeNotice(response.ok?"Conta actualizada e auditada.":result.error);if(response.ok)await refreshEmployees(); };
+  const updateEmployee = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!editingEmployee) return; setEmployeeNotice("A guardar alterações…"); const form=new FormData(event.currentTarget); const response=await fetch("/api/employees",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId:editingEmployee.id,name:form.get("name"),phone:form.get("phone"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),updatedAt:editingEmployee.updated_at})}); const result=await response.json(); setEmployeeNotice(response.ok?"Trabalhador actualizado e auditado.":result.error); if(response.ok){setEditingEmployee(null);await refreshEmployees();} };
 
   useEffect(() => {
     const syncRoute = () => {
@@ -575,8 +578,14 @@ export function HQApp() {
                 <label><span>Role único</span><select name="role" required>{["ACCOUNTING","HUMAN_RESOURCES","LEGAL","OPERATIONS","CUSTOMER_SUPPORT","MARKETING","FIELD","PARTNER_ACQUISITION","AMBASSADOR","PROCUREMENT","ASSETS_LOGISTICS"].map(role=><option key={role}>{role}</option>)}</select></label>
                 {sessionRole==="SUPER_ADMIN"&&<label className="activateCheck"><input name="activate" type="checkbox"/><span>Activar imediatamente</span></label>}<button className="primaryAction" type="submit">Guardar cadastro</button>
               </form>}
+              {editingEmployee && <form className="employeeForm" onSubmit={updateEmployee}>
+                <label><span>Nome completo</span><input name="name" defaultValue={editingEmployee.name} required /></label><label><span>Telefone</span><input name="phone" defaultValue={editingEmployee.phone} required /></label><label><span>Cargo</span><input name="jobTitle" defaultValue={editingEmployee.job_title} required /></label>
+                <label><span>Departamento</span><select name="department" defaultValue={editingEmployee.department_code} required>{[["ACCOUNTING","Contabilidade"],["HR","Recursos Humanos"],["LEGAL","Jurídico"],["OPERATIONS","Operações"],["MARKETING","Marketing"],["FIELD","Field"],["SUPPORT","Suporte"],["ACQUISITION","Aquisição"],["AMBASSADORS","Embaixadores"],["PROCUREMENT","Compras"],["ASSETS","Património"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label>
+                <label><span>Role único</span><select name="role" defaultValue={editingEmployee.role||editingEmployee.requested_role||"OPERATIONS"} required>{["ACCOUNTING","HUMAN_RESOURCES","LEGAL","OPERATIONS","CUSTOMER_SUPPORT","MARKETING","FIELD","PARTNER_ACQUISITION","AMBASSADOR","PROCUREMENT","ASSETS_LOGISTICS"].map(role=><option key={role}>{role}</option>)}</select></label>
+                <button type="button" onClick={()=>setEditingEmployee(null)}>Cancelar</button><button className="primaryAction" type="submit">Guardar alterações</button>
+              </form>}
               {employeeNotice&&<div className="safeNotice"><b>Estado</b><span>{employeeNotice}</span></div>}
-              <div className="employeeTable"><div className="employeeAdminRow employeeAdminHeader"><span>Trabalhador</span><span>Role</span><span>Estado</span><span>Acções</span></div>{managedEmployees.map(employee=><div className="employeeAdminRow" key={employee.id}><div><strong>{employee.name}</strong><small>{employee.employee_code} · {employee.phone} · {employee.department}</small></div><span>{employee.role||employee.requested_role||"Pendente"}</span><b className={`employeeStatus ${employee.status}`}>{employee.status}</b><div className="employeeActions">{sessionRole==="SUPER_ADMIN"&&employee.employee_code!=="DG-0001"&&<>{employee.status==="invited"&&<button onClick={()=>employeeAction(employee.id,"activate")}>Activar</button>}{employee.status==="active"&&<button onClick={()=>employeeAction(employee.id,"suspend")}>Suspender</button>}{employee.status==="suspended"&&<button onClick={()=>employeeAction(employee.id,"reactivate")}>Reactivar</button>}{employee.status!=="offboarded"&&<button onClick={()=>employeeAction(employee.id,"archive")}>Arquivar</button>}</>}</div></div>)}</div>
+              <div className="employeeTable"><div className="employeeAdminRow employeeAdminHeader"><span>Trabalhador</span><span>Role</span><span>Estado</span><span>Acções</span></div>{managedEmployees.map(employee=><div className="employeeAdminRow" key={employee.id}><div><strong>{employee.name}</strong><small>{employee.employee_code} · {employee.phone} · {employee.department}</small></div><span>{employee.role||employee.requested_role||"Pendente"}</span><b className={`employeeStatus ${employee.status}`}>{employee.status}</b><div className="employeeActions"><button onClick={()=>{setEditingEmployee(employee);setShowEmployeeForm(false)}}>Editar</button>{sessionRole==="SUPER_ADMIN"&&employee.employee_code!=="DG-0001"&&<>{employee.status==="invited"&&<button onClick={()=>employeeAction(employee.id,"activate")}>Activar</button>}{employee.status==="active"&&<button onClick={()=>employeeAction(employee.id,"suspend")}>Suspender</button>}{employee.status==="suspended"&&<button onClick={()=>employeeAction(employee.id,"reactivate")}>Reactivar</button>}{employee.status!=="offboarded"&&<button onClick={()=>{if(window.confirm(`Arquivar ${employee.name}? O acesso será revogado.`))void employeeAction(employee.id,"archive")}}>Arquivar</button>}</>}</div></div>)}</div>
             </section>
           )}
           {active === "Registo de Auditoria" && (
@@ -824,12 +833,12 @@ function PlatformAdminPanel({ snapshot, platform, onAction, onOpenProfile }: { s
   const entries = Object.entries(snapshot.data);
   const records = entries.flatMap(([collection, value]) => Array.isArray(value) ? value.slice(0, 20).map(item => ({ collection, row: item as Record<string, unknown> })) : []);
   const reviewable = platform === "DeliGo" || platform === "TaoMoz" || platform.includes("Comun") || platform === "SARCA";
-  const actionFor = () => platform.includes("Comun") ? "review_application" : platform === "SARCA" ? "review_driver" : platform === "TaoMoz" ? "review_kyc" : "approve";
+  const actionFor = (decision: "approve" | "reject") => platform.includes("Comun") ? "review_application" : platform === "SARCA" ? "review_driver" : platform === "TaoMoz" ? "review_kyc" : decision;
   const decide = async (decision: "approve" | "reject", id: string, name: string) => {
     const reason = decision === "reject" ? window.prompt(`Motivo da rejeição de ${name}:`) : "";
     if (decision === "reject" && !reason?.trim()) return;
     if (!window.confirm(`${decision === "approve" ? "Aprovar" : "Rejeitar"} ${name}? Esta decisão será auditada.`)) return;
-    try { await onAction(actionFor(), decision, id, reason || ""); }
+    try { await onAction(actionFor(decision), decision, id, reason || ""); }
     catch (error) { window.alert(error instanceof Error ? error.message : "Não foi possível concluir a decisão."); }
   };
   return <div className="platformAdminPanel"><div className="platformAdminHead"><div><span>ADMINISTRAÇÃO REAL</span><h3>{platform} · operações</h3><p>Dados sincronizados do backend da plataforma e ações protegidas pelo HQ.</p></div><b>{new Date(snapshot.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</b></div><div className="platformAdminStats">{entries.map(([key, value]) => <article key={key}><span>{key.replaceAll("_", " ")}</span><strong>{Array.isArray(value) ? value.length : "Ligado"}</strong></article>)}</div>{reviewable && records.length > 0 && <div className="platformAdminQueue"><div className="platformAdminQueueTitle"><h4>Fila de administração</h4><span>{records.length} registos</span></div>{records.map(({ collection, row }, index) => { const id = String(row.id || row.user_id || row.profile_id || index); const name = String(row.full_name || row.name || row.church_name || row.store_name || row.order_number || id); const status = String(row.status || row.kyc_status || row.moderation_status || row.account_status || "—"); return <div className="platformAdminRow" key={`${collection}-${id}`}><button className="profileLink" onClick={() => onOpenProfile(id, name)}><strong>{name}</strong><small>{collection} · {status}</small></button>{(status === "pending" || status === "submitted" || status === "under_review") && <div className="platformAdminActions"><button onClick={() => void decide("approve", id, name)}>Aprovar</button><button className="danger" onClick={() => void decide("reject", id, name)}>Rejeitar</button></div>}</div>; })}</div>}</div>;

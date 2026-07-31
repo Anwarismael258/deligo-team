@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRpc } from "@/lib/hq-server";
 import { platformFunction, platformRest, platformRpc, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
+import { buildPlatformDecision, type PlatformDecision } from "@/lib/platform-decisions";
 
 export const dynamic = "force-dynamic";
 const allowed = ["deligo", "comunhao", "sarca", "taomoz"] as const;
@@ -40,12 +41,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ p
   if (!["approve", "reject", "correction"].includes(decision)) return NextResponse.json({ error: "Decisão inválida." }, { status: 400 });
   if (["reject", "correction"].includes(decision) && !body.reason?.trim()) return NextResponse.json({ error: "Indique o motivo da rejeição ou correcção." }, { status: 400 });
   try {
-    let result: unknown;
-    if (platform === "sarca" && body.action === "review_driver") result = await platformFunction(platform, "admin-review-driver-onboarding", { id: body.id, decision, reason: body.reason || null, ...body.payload });
-    else if (platform === "comunhao" && body.action === "review_application") result = await platformRpc(platform, "review_church_application", { p_application_id: body.id, p_action: decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "correction", p_notes: body.reason || null });
-    else if (platform === "taomoz" && body.action === "review_kyc") result = await platformRpc(platform, "admin_review_kyc", { submission_id: body.id, decision: decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "changes_requested", reason: body.reason || "" });
-    else if (platform === "deligo" && ["approve", "reject", "correction"].includes(body.action)) result = await platformRest(platform, `profiles?id=eq.${encodeURIComponent(body.id)}`, { method: "PATCH", body: JSON.stringify({ kyc_status: decision === "approve" ? "approved" : decision === "reject" ? "rejected" : "pending", kyc_rejection_reason: body.reason || null, updated_at: new Date().toISOString() }) });
-    else return NextResponse.json({ error: "Acção ainda não configurada para esta plataforma." }, { status: 400 });
+    const expectedAction = platform === "comunhao" ? "review_application" : platform === "sarca" ? "review_driver" : platform === "taomoz" ? "review_kyc" : decision;
+    if (body.action !== expectedAction) return NextResponse.json({ error: "Acção incompatível com a plataforma." }, { status: 400 });
+    const operation = buildPlatformDecision(platform, decision as PlatformDecision, body.id, body.reason);
+    const result = operation.transport === "function"
+      ? await platformFunction(platform, operation.name, operation.body)
+      : operation.transport === "rpc"
+        ? await platformRpc(platform, operation.name, operation.body)
+        : await platformRest(platform, operation.name, { method: "PATCH", body: JSON.stringify({ ...operation.body, updated_at: new Date().toISOString() }) });
     await hqRpc("hq_log_platform_action_v1", { p_actor_auth_user_id: actor.authUserId, p_platform: platform, p_action: `${body.action}_${decision}`, p_target_type: "platform_record", p_target_id: body.id, p_metadata: { decision, reason: body.reason || null } });
     return NextResponse.json({ ok: true, result });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Falha ao executar a acção." }, { status: 502 }); }

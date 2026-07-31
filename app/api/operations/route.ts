@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRpc, stagingRest } from "@/lib/hq-server";
+import { buildPlatformDecision, type PlatformDecision } from "@/lib/platform-decisions";
+import { platformFunction, platformRest, platformRpc, type PlatformBackend } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
 type Module = "marketing" | "support" | "field";
@@ -22,13 +24,13 @@ const getRows = async (path: string) => { try { return await stagingRest(path) a
 export async function GET(request: NextRequest) {
   const actor = await corporateActor();
   if (!actor) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
-  const module = request.nextUrl.searchParams.get("module") as Module;
-  if (!access[module]?.includes(actor.role)) return NextResponse.json({ error: "Sem permissão para este módulo." }, { status: 403 });
+  const requestedModule = request.nextUrl.searchParams.get("module") as Module;
+  if (!access[requestedModule]?.includes(actor.role)) return NextResponse.json({ error: "Sem permissão para este módulo." }, { status: 403 });
   let collections: Record<string, Row[]>;
-  if (module === "support") {
+  if (requestedModule === "support") {
     const [tickets, messages, disputes] = await Promise.all([getRows("support_tickets?select=*&order=updated_at.desc&limit=120"), getRows("support_messages?select=*&order=created_at.desc&limit=160"), getRows("order_disputes?select=*&order=created_at.desc&limit=80")]);
     collections = { tickets, messages, disputes };
-  } else if (module === "marketing") {
+  } else if (requestedModule === "marketing") {
     const [requests, campaigns, events] = await Promise.all([getRows("marketing_requests?select=*&order=created_at.desc&limit=150"), getRows("marketing_campaigns?select=*&order=created_at.desc&limit=120"), getRows("marketing_events?select=*&order=created_at.desc&limit=120")]);
     collections = { requests, campaigns, events };
   } else {
@@ -48,7 +50,7 @@ export async function GET(request: NextRequest) {
       deligoKyc: tag(deligoKyc, "DeliGo", "Estafeta / Restaurante"), sarcaDrivers: tag(sarcaDrivers, "SARCA", "Condutor"), comunhaoChurches: tag(comunhaoChurches, "Comunhão", "Igreja"), taomozSellers: tag(taomozKyc, "TaoMoz", "Vendedor"), restaurants, couriers, notes,
     };
   }
-  return NextResponse.json({ module, collections, checkedAt: new Date().toISOString(), permissions: { canDecideKyc: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role) } }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ module: requestedModule, collections, checkedAt: new Date().toISOString(), permissions: { canDecideKyc: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role) } }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -67,7 +69,17 @@ export async function PATCH(request: NextRequest) {
   if (body.module === "field" && body.entity === "kyc" && ["approve", "reject", "correction"].includes(body.action || "")) {
     if (!["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role)) return NextResponse.json({ error: "Field verifica; a decisão exige Operações ou Supervisor." }, { status: 403 });
     if (["reject", "correction"].includes(body.action || "") && (body.reason || "").trim().length < 6) return NextResponse.json({ error: "Indique um motivo com pelo menos 6 caracteres." }, { status: 400 });
-    const now = new Date().toISOString(), platform = body.platform || "";
+    const platformLabel = body.platform || "";
+    const platform: PlatformBackend | null = platformLabel === "DeliGo" ? "deligo" : platformLabel === "SARCA" ? "sarca" : platformLabel === "TaoMoz" ? "taomoz" : platformLabel.includes("Comun") ? "comunhao" : null;
+    if (!platform) return NextResponse.json({ error: "Plataforma KYC inválida." }, { status: 400 });
+    const operation = buildPlatformDecision(platform, body.action as PlatformDecision, body.id, body.reason);
+    if (operation.transport === "function") await platformFunction(platform, operation.name, operation.body);
+    else if (operation.transport === "rpc") await platformRpc(platform, operation.name, operation.body);
+    else await platformRest(platform, operation.name, { method: "PATCH", body: JSON.stringify({ ...operation.body, updated_at: new Date().toISOString() }) });
+    await hqRpc("hq_log_platform_action_v1", { p_actor_auth_user_id: actor.authUserId, p_platform: platform, p_action: `KYC_${body.action}`, p_target_type: "kyc", p_target_id: body.id, p_metadata: { reason: body.reason || null } });
+    return NextResponse.json({ ok: true });
+    /* Legacy direct-table flow disabled after migration to native platform contracts.
+    const now = new Date().toISOString(), legacyPlatform = body.platform || "";
     if (platform === "DeliGo") {
       const kyc_status = body.action === "approve" ? "approved" : body.action === "reject" ? "rejected" : "pending";
       await stagingRest(`profiles?id=eq.${encodeURIComponent(body.id)}`, { method: "PATCH", body: JSON.stringify({ kyc_status, kyc_rejection_reason: body.action === "approve" ? null : body.reason || null, updated_at: now }) });
@@ -85,7 +97,7 @@ export async function PATCH(request: NextRequest) {
       await stagingRest(`church_applications?id=eq.${encodeURIComponent(body.id)}`, { method: "PATCH", body: JSON.stringify({ status: body.action === "reject" ? "rejected" : "changes_requested", review_notes: body.reason || null, reviewed_at: now }) });
     } else return NextResponse.json({ error: "Plataforma KYC inválida." }, { status: 400 });
     await hqRpc("hq_log_platform_action_v1", { p_actor_auth_user_id: actor.authUserId, p_platform: platform, p_action: `KYC_${body.action}`, p_target_type: "kyc", p_target_id: body.id, p_metadata: { reason: body.reason || null } });
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }); */
   }
   return NextResponse.json({ error: "Acção ainda não autorizada neste fluxo." }, { status: 400 });
 }
