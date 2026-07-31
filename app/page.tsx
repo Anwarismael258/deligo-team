@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Activity, BarChart3, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 import OperationalModule from "@/components/OperationalModule";
 
@@ -331,6 +331,7 @@ export function HQApp() {
   };
   const employeeAction = async (employeeId:string, action:string) => { setEmployeeNotice("A processar…"); const response=await fetch("/api/employees",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId,action})});const result=await response.json();setEmployeeNotice(response.ok?"Conta actualizada e auditada.":result.error);if(response.ok)await refreshEmployees(); };
   const updateEmployee = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!editingEmployee) return; setEmployeeNotice("A guardar alterações…"); const form=new FormData(event.currentTarget); const response=await fetch("/api/employees",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId:editingEmployee.id,name:form.get("name"),phone:form.get("phone"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),updatedAt:editingEmployee.updated_at})}); const result=await response.json(); setEmployeeNotice(response.ok?"Trabalhador actualizado e auditado.":result.error); if(response.ok){setEditingEmployee(null);await refreshEmployees();} };
+  const exportAudit = () => { const anchor=document.createElement("a"); anchor.href="/api/audit/export"; anchor.download="deligo-auditoria.csv"; document.body.appendChild(anchor); anchor.click(); anchor.remove(); };
 
   useEffect(() => {
     const syncRoute = () => {
@@ -397,13 +398,15 @@ export function HQApp() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const liveCards = dashboard?.platforms.map((item) => ({
-    ...item,
-    color: platformCards.find((card) => card.name === item.name)?.color || "#667085",
-  })) || [];
   const visibleCards = useMemo(
-    () => platform === "Todas as plataformas" ? liveCards : liveCards.filter((item) => item.name === platform),
-    [platform, liveCards],
+    () => {
+      const cards = dashboard?.platforms.map((item) => ({
+        ...item,
+        color: platformCards.find((card) => card.name === item.name)?.color || "#667085",
+      })) || [];
+      return platform === "Todas as plataformas" ? cards : cards.filter((item) => item.name === platform);
+    },
+    [dashboard?.platforms, platform],
   );
   const totalUsers = dashboard?.platforms.reduce((sum, item) => {
     const users = item.metrics.find((metric) => ["users", "members", "buyers", "passengers"].includes(metric.key));
@@ -589,7 +592,7 @@ export function HQApp() {
             </section>
           )}
           {active === "Registo de Auditoria" && (
-            <section className="auditWorkspace"><div className="employeeAdminHead"><div><span>REGISTO IMUTÁVEL</span><h2>Auditoria e histórico</h2><p>Criação, aprovação, suspensão, arquivo e operações sensíveis.</p></div><b>{auditRecords.length} eventos</b></div><div className="auditTable"><div className="auditRow auditHeader"><span>Data</span><span>Actor</span><span>Acção</span><span>Resultado</span></div>{auditRecords.map(event=><div className="auditRow" key={event.id}><span>{new Date(event.occurred_at).toLocaleString("pt-MZ")}</span><strong>{event.actor}</strong><span>{event.action.replaceAll("_"," ")}</span><b>{event.result}</b></div>)}{!auditRecords.length&&<div className="peopleEmpty">Sem eventos disponíveis para este perfil.</div>}</div></section>
+            <section className="auditWorkspace"><div className="employeeAdminHead"><div><span>REGISTO IMUTÁVEL</span><h2>Auditoria e histórico</h2><p>Criação, aprovação, suspensão, arquivo e operações sensíveis.</p></div><div><button onClick={exportAudit}>Exportar CSV</button><b>{auditRecords.length} eventos</b></div></div><div className="auditTable"><div className="auditRow auditHeader"><span>Data</span><span>Actor</span><span>Acção</span><span>Resultado</span></div>{auditRecords.map(event=><div className="auditRow" key={event.id}><span>{new Date(event.occurred_at).toLocaleString("pt-MZ")}</span><strong>{event.actor}</strong><span>{event.action.replaceAll("_"," ")}</span><b>{event.result}</b></div>)}{!auditRecords.length&&<div className="peopleEmpty">Sem eventos disponíveis para este perfil.</div>}</div></section>
           )}
           {active === "Marketing" && <OperationalModule module="marketing" />}
           {active === "Field" && <OperationalModule module="field" />}
@@ -598,26 +601,15 @@ export function HQApp() {
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
-                <div><button>Exportar</button><button className="primaryAction" disabled>{activePresentation?.action || "Nova acção"}</button></div>
-              </div>
-              <div className="workspaceStats">
-                <div><span>{activePresentation?.primary || moduleDetails[active]?.[0] || "Registos"}</span><strong>0</strong><small>Fonte desta área não ligada</small></div>
-                <div><span>{activePresentation?.secondary || moduleDetails[active]?.[1] || "Pendentes"}</span><strong>0</strong><small>Sem dados reais desta área</small></div>
-                <div><span>Estado</span><strong className="textStatus">Preparado</strong><small>Adapter bloqueado</small></div>
-                <div><span>Última sincronização</span><strong className="textStatus">—</strong><small>Nunca executada</small></div>
-              </div>
-              <div className="moduleVisualRow">
-                <div className="moduleDonut" style={{"--module-color": activePresentation?.color || "#e65351"} as CSSProperties}><div><strong>0%</strong><span>Dados ligados</span></div></div>
-                <div className="moduleBars" style={{"--module-color": activePresentation?.color || "#e65351"} as CSSProperties}>{[42,68,54,82,61,74,48,70].map((height,index) => <i key={index} style={{height:`${height}%`}} />)}<span>{activePresentation?.visual || active} · sem valores reais</span></div>
-                <div className="modulePulse" style={{"--module-color": activePresentation?.color || "#39a475"} as CSSProperties}><span>{activePresentation?.status || "ESTADO DO ADAPTER"}</span><strong><i /> Preparado</strong><small>Ligação bloqueada por segurança</small></div>
+                <span className="integrationBadge">INTEGRAÇÃO PENDENTE</span>
               </div>
               <div className="workspaceTable">
-                <div className="tableHeader"><span>Área</span><span>Estado</span><span>Valor</span><span>Permissão</span></div>
-                {(workspaceRows[active] || (moduleDetails[active] || []).map((item) => [item, "Preparado", "0", `${active.toLowerCase()}.view`])).map((row) => (
-                  <button className={`tableRow ${subArea === row[0] ? "selected" : ""}`} onClick={() => setSubArea(row[0])} key={row[0]}><strong>{row[0]}</strong><span>{row[1]}</span><b>{row[2]}</b><code>{row[3]}</code></button>
+                <div className="tableHeader"><span>Área prevista</span><span>Estado</span><span>Fonte</span><span>Permissão</span></div>
+                {(moduleDetails[active] || []).map((item) => (
+                  <button className={`tableRow ${subArea === item ? "selected" : ""}`} onClick={() => setSubArea(item)} key={item}><strong>{item}</strong><span>Ainda não disponível</span><b>—</b><code>{active.toLowerCase()}.view</code></button>
                 ))}
               </div>
-              <div className="safeNotice"><b>Modo de preparação</b><span>As acções de criação, aprovação e alteração permanecem desactivadas até existir staging aprovado e uma sessão validada pelo backend.</span></div>
+              <div className="safeNotice"><b>Módulo não publicado</b><span>Esta área ainda não tem fonte aprovada e, por isso, não exibe métricas, gráficos, exportações nem acções simuladas.</span></div>
             </section>
           )}
           {active === "Meu Perfil" && <section className="accountDetailGrid">
