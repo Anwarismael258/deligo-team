@@ -11,7 +11,7 @@ O HQ usa o mesmo backend DeliGo staging e não duplica dados. Cada painel é ada
 
 Próximas etapas: formulários completos, decisão KYC, notas Field, chat, uploads, mapas, tempo real, notificações e painéis de Comunhão, SARCA e TaoMoz. Toda escrita valida actor, role, módulo e acção no servidor e deve gerar auditoria.
 
-A primeira entrega operacional está identificada como versão 10 do HQ.
+A versão actual do HQ é a v16: base visual consolidada, autenticação corporativa, administração operacional, KYC com galeria e gateway server-side para as quatro plataformas.
 
 ## Aprovação transversal de identidades operacionais
 

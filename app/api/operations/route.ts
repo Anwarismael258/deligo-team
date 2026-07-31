@@ -4,6 +4,14 @@ import { corporateActor, hqRpc, stagingRest } from "@/lib/hq-server";
 export const dynamic = "force-dynamic";
 type Module = "marketing" | "support" | "field";
 type Row = Record<string, unknown>;
+const mediaKeys = ["photo_url", "image_url", "document_url", "file_url", "selfie_url", "bi_url", "nuit_url", "proof_url", "document_front_path", "document_back_path", "selfie_path", "photos", "documents", "files", "attachments"];
+const mediaFromRow = (row: Row) => mediaKeys.flatMap((key) => {
+  const value = row[key];
+  if (typeof value === "string" && value.trim()) return [{ key, url: value.trim(), label: key.replaceAll("_", " ") }];
+  if (Array.isArray(value)) return value.flatMap((item) => typeof item === "string" && item.trim() ? [{ key, url: item.trim(), label: key.replaceAll("_", " ") }] : item && typeof item === "object" && typeof (item as Row).url === "string" ? [{ key, url: String((item as Row).url), label: String((item as Row).label || key).replaceAll("_", " ") }] : []);
+  return [];
+});
+const withKycMedia = (row: Row) => ({ ...row, _kyc_media: mediaFromRow(row) });
 const access: Record<Module, string[]> = {
   marketing: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "MARKETING"],
   support: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "CUSTOMER_SUPPORT"],
@@ -32,7 +40,7 @@ export async function GET(request: NextRequest) {
       getRows("seller_profiles?select=*&order=updated_at.desc&limit=250"),
       getRows("restaurants?select=*&order=created_at.desc&limit=120"), getRows("couriers?select=*&order=created_at.desc&limit=120"), getRows("field_internal_notes?select=*&order=created_at.desc&limit=100"),
     ]);
-    const tag = (rows: Row[], platform: string, subjectType: string) => rows.map(row => ({ ...row, _platform: platform, _subject_type: subjectType }));
+    const tag = (rows: Row[], platform: string, subjectType: string) => rows.map(row => withKycMedia({ ...row, _platform: platform, _subject_type: subjectType }));
     const sellerByProfile = new Map(taomozSellers.map(row => [String(row.profile_id || ""), row]));
     const taomozKyc = taomozSellerKyc.map(row => ({ ...sellerByProfile.get(String(row.profile_id || "")), ...row }));
     collections = {

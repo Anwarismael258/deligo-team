@@ -346,6 +346,7 @@ export function HQApp() {
     return () => { cancelled = true; };
   }, []);
 
+
   const navigate = (label: string) => {
     setActive(label);
     setSubArea(moduleDetails[label]?.[0] || "");
