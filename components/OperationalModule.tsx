@@ -1,22 +1,99 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Headphones, MapPinned, Megaphone, RefreshCw } from "lucide-react";
 
 type ModuleKey = "marketing" | "support" | "field";
 type Row = Record<string, unknown>;
 type KycMedia = { key: string; url: string; label: string };
 type Payload = { collections: Record<string, Row[]>; checkedAt: string; permissions?: { canDecideKyc?: boolean } };
-const config = { marketing: { title: "Centro de Marketing", icon: Megaphone, sets: { requests: "Pedidos", campaigns: "Campanhas", events: "Eventos" } }, support: { title: "Centro de Suporte", icon: Headphones, sets: { tickets: "Tickets", messages: "Conversas", disputes: "Disputas" } }, field: { title: "Operações Field", icon: MapPinned, sets: { verifications: "Todos os KYC", deligoKyc: "DeliGo", sarcaDrivers: "SARCA", comunhaoChurches: "Comunhão", taomozSellers: "TaoMoz", restaurants: "Restaurantes", couriers: "Estafetas", notes: "Notas internas" } } } as const;
-const pick = (row: Row, keys: string[]) => keys.map(key => row[key]).find(item => item !== null && item !== undefined && String(item).trim())?.toString() || "—";
+
+const config = {
+  marketing: { title: "Centro de Marketing", icon: Megaphone, sets: { requests: "Pedidos", campaigns: "Campanhas", events: "Eventos" } },
+  support: { title: "Centro de Suporte", icon: Headphones, sets: { tickets: "Tickets", messages: "Conversas", disputes: "Disputas" } },
+  field: { title: "Operações Field", icon: MapPinned, sets: { verifications: "Todos os KYC", deligoKyc: "DeliGo", sarcaDrivers: "SARCA", comunhaoChurches: "Comunhão", taomozSellers: "TaoMoz", restaurants: "Restaurantes", couriers: "Estafetas", notes: "Notas internas" } },
+} as const;
+
+const pick = (row: Row, keys: string[]) => keys.map((key) => row[key]).find((item) => item !== null && item !== undefined && String(item).trim())?.toString() || "—";
 
 export default function OperationalModule({ module }: { module: ModuleKey }) {
-  const [data, setData] = useState<Payload | null>(null), [selected, setSelected] = useState(""), [query, setQuery] = useState(""), [notice, setNotice] = useState("A ligar ao backend…"), [gallery, setGallery] = useState<{ name: string; media: KycMedia[] } | null>(null);
-  const meta = config[module], Icon = meta.icon;
-  const load = async () => { setNotice("A sincronizar…"); const response = await fetch(`/api/operations?module=${module}`, { cache: "no-store" }); const result = await response.json(); if (!response.ok) { setNotice(result.error || "Falha ao carregar."); return; } setData(result); setSelected(current => current || Object.keys(result.collections)[0]); setNotice(""); };
-  useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [module]);
-  const rows = useMemo(() => (data?.collections[selected] || []).filter(row => JSON.stringify(row).toLowerCase().includes(query.toLowerCase())), [data, selected, query]);
+  const [data, setData] = useState<Payload | null>(null);
+  const [selected, setSelected] = useState("");
+  const [query, setQuery] = useState("");
+  const [notice, setNotice] = useState("A ligar ao backend…");
+  const [gallery, setGallery] = useState<{ name: string; media: KycMedia[] } | null>(null);
+  const [ticketId, setTicketId] = useState("");
+  const [message, setMessage] = useState("");
+  const meta = config[module];
+  const Icon = meta.icon;
+
+  const load = useCallback(async () => {
+    setNotice("A sincronizar…");
+    const response = await fetch(`/api/operations?module=${module}`, { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok) { setNotice(result.error || "Falha ao carregar."); return; }
+    setData(result);
+    setSelected((current) => current || Object.keys(result.collections)[0]);
+    setNotice("");
+  }, [module]);
+
+  useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
+
+  const rows = useMemo(() => (data?.collections[selected] || []).filter((row) => JSON.stringify(row).toLowerCase().includes(query.toLowerCase())), [data, selected, query]);
   const all = data ? Object.values(data.collections).flat() : [];
-  const decideKyc = async (row: Row, action: string) => { const reason = action === "approve" ? "" : window.prompt(action === "reject" ? "Motivo da rejeição" : "Correções necessárias") || ""; if (action !== "approve" && reason.trim().length < 6) return setNotice("Indique um motivo com pelo menos 6 caracteres."); setNotice("A registar decisão KYC…"); const response = await fetch("/api/operations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ module: "field", entity: "kyc", id: String(row.id || row.user_id), platform: String(row._platform || ""), action, reason }) }); const result = await response.json(); if (!response.ok) return setNotice(result.error); await load(); };
-  return <section className="operationalModule"><div className="operationalHero"><div className="operationalIcon"><Icon /></div><div><span>DADOS REAIS · DELIGO STAGING</span><h2>{meta.title}</h2><p>Fluxos administrativos adaptados ao HQ central.</p></div><button onClick={load}><RefreshCw /> Actualizar</button></div><div className="operationalStats"><div><span>Total carregado</span><strong>{all.length}</strong></div><div><span>Colecções ligadas</span><strong>{data ? Object.keys(data.collections).length : 0}</strong></div></div><div className="operationalToolbar"><div>{Object.entries(meta.sets).map(([key, label]) => <button key={key} className={selected === key ? "active" : ""} onClick={() => setSelected(key)}>{label}<b>{data?.collections[key]?.length || 0}</b></button>)}</div><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Pesquisar…" /></div>{notice && <div className="operationalNotice">{notice}</div>}<div className="operationalTable"><div className="operationalRow operationalHeader"><span>Nome / referência</span><span>Plataforma / detalhe</span><span>Estado</span><span>Actualização</span><span>Acções</span></div>{rows.map((row, index) => { const isKyc = module === "field" && !["restaurants", "couriers", "notes"].includes(selected); const media = Array.isArray(row._kyc_media) ? row._kyc_media as KycMedia[] : []; const name = pick(row, ["full_name", "church_name", "store_name", "name", "user_id"]); return <div className="operationalRow" key={String(row.id || row.user_id || index)}><div><strong>{name}</strong><small>{pick(row, ["_subject_type", "id", "user_id"])}</small></div><span>{pick(row, ["_platform", "phone", "city", "location", "role"])}</span><b className="operationalStatus">{pick(row, ["status", "kyc_status", "is_active"])}</b><span>{pick(row, ["updated_at", "created_at"])}</span><div className="rowActions">{isKyc && <button disabled={!media.length} onClick={() => setGallery({ name, media })}>Galeria ({media.length})</button>}{isKyc && data?.permissions?.canDecideKyc && <><button onClick={() => decideKyc(row, "correction")}>Corrigir</button><button onClick={() => decideKyc(row, "reject")}>Rejeitar</button><button onClick={() => decideKyc(row, "approve")}><CheckCircle2 /> Aprovar</button></>}</div></div>; })}</div>{gallery && <div className="kycGalleryBackdrop" role="dialog" aria-modal="true" onClick={() => setGallery(null)}><div className="kycGallery" onClick={event => event.stopPropagation()}><div className="kycGalleryHead"><div><span>DOCUMENTOS KYC</span><h3>{gallery.name}</h3></div><button onClick={() => setGallery(null)}>Fechar</button></div><div className="kycGalleryGrid">{gallery.media.map((item, index) => <a href={item.url} target="_blank" rel="noreferrer" key={`${item.url}-${index}`}><img src={item.url} alt={item.label} /><strong>{item.label}</strong></a>)}</div></div></div>}</section>;
+  const ticketMessages = useMemo(() => (data?.collections.messages || []).filter((row) => String(row.ticket_id || "") === ticketId), [data, ticketId]);
+  const activeTicket = useMemo(() => (data?.collections.tickets || []).find((row) => String(row.id) === ticketId) || null, [data, ticketId]);
+
+  const decideKyc = async (row: Row, action: "approve" | "reject" | "correction") => {
+    const reason = action === "approve" ? "" : window.prompt(action === "reject" ? "Motivo da rejeição" : "Correções necessárias") || "";
+    if (action !== "approve" && reason.trim().length < 6) { setNotice("Indique um motivo com pelo menos 6 caracteres."); return; }
+    setNotice("A registar decisão KYC…");
+    const response = await fetch("/api/operations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ module: "field", entity: "kyc", id: String(row.id || row.user_id), platform: String(row._platform || ""), action, reason }) });
+    const result = await response.json();
+    if (!response.ok) { setNotice(result.error || "Não foi possível concluir a decisão."); return; }
+    await load();
+  };
+
+  const setTicketStatus = async (id: string, action: string) => {
+    const response = await fetch("/api/operations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ module: "support", entity: "tickets", id, action }) });
+    const result = await response.json();
+    if (!response.ok) { setNotice(result.error || "Não foi possível atualizar o ticket."); return; }
+    await load();
+  };
+
+  const sendMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!ticketId || message.trim().length < 2) return;
+    setNotice("A enviar mensagem…");
+    const response = await fetch("/api/operations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ module: "support", entity: "message", id: ticketId, text: message.trim() }) });
+    const result = await response.json();
+    if (!response.ok) { setNotice(result.error || "Não foi possível enviar a mensagem."); return; }
+    setMessage("");
+    await load();
+  };
+
+  return <section className="operationalModule">
+    <div className="operationalHero"><div className="operationalIcon"><Icon /></div><div><span>DADOS REAIS · DELIGO STAGING</span><h2>{meta.title}</h2><p>Fluxos administrativos adaptados ao HQ central.</p></div><button onClick={() => void load()}><RefreshCw /> Actualizar</button></div>
+    <div className="operationalStats"><div><span>Total carregado</span><strong>{all.length}</strong></div><div><span>Colecções ligadas</span><strong>{data ? Object.keys(data.collections).length : 0}</strong></div></div>
+    <div className="operationalToolbar"><div>{Object.entries(meta.sets).map(([key, label]) => <button key={key} className={selected === key ? "active" : ""} onClick={() => setSelected(key)}>{label}<b>{data?.collections[key]?.length || 0}</b></button>)}</div><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar…" /></div>
+    {notice && <div className="operationalNotice">{notice}</div>}
+    <div className="operationalTable"><div className="operationalRow operationalHeader"><span>Nome / referência</span><span>Plataforma / detalhe</span><span>Estado</span><span>Actualização</span><span>Acções</span></div>
+      {rows.map((row, index) => {
+        const isKyc = module === "field" && !["restaurants", "couriers", "notes"].includes(selected);
+        const media = Array.isArray(row._kyc_media) ? row._kyc_media as KycMedia[] : [];
+        const name = pick(row, ["full_name", "church_name", "store_name", "name", "subject", "user_id"]);
+        const id = String(row.id || row.user_id || index);
+        const platform = String(row._platform || "");
+        const canCorrect = platform === "DeliGo" || platform.includes("Comun");
+        return <div className="operationalRow" key={id}><div><strong>{name}</strong><small>{pick(row, ["_subject_type", "ticket_number", "id", "user_id"])}</small></div><span>{pick(row, ["_platform", "phone", "city", "location", "role", "priority"])}</span><b className="operationalStatus">{pick(row, ["status", "kyc_status", "is_active"])}</b><span>{pick(row, ["updated_at", "created_at"])}</span><div className="rowActions">
+          {module === "support" && selected === "tickets" && <><button onClick={() => setTicketId(id)}>Abrir conversa</button>{String(row.status) !== "resolved" && <button onClick={() => void setTicketStatus(id, "resolved")}>Resolver</button>}</>}
+          {isKyc && <button disabled={!media.length} onClick={() => setGallery({ name, media })}>Galeria ({media.length})</button>}
+          {isKyc && data?.permissions?.canDecideKyc && <>{canCorrect && <button onClick={() => void decideKyc(row, "correction")}>Corrigir</button>}<button onClick={() => void decideKyc(row, "reject")}>Rejeitar</button><button onClick={() => void decideKyc(row, "approve")}><CheckCircle2 /> Aprovar</button></>}
+        </div></div>;
+      })}
+      {!rows.length && <div className="peopleEmpty">Nenhum registo corresponde à pesquisa.</div>}
+    </div>
+    {module === "support" && ticketId && <section className="supportConversation"><div className="supportConversationHead"><div><span>CONVERSA DO TICKET</span><h3>{pick(activeTicket || {}, ["subject", "title", "id"])}</h3></div><button onClick={() => setTicketId("")}>Fechar</button></div><div className="supportMessages">{ticketMessages.length ? ticketMessages.map((item, index) => <article key={String(item.id || index)}><strong>{pick(item, ["sender_name", "sender_role", "sender_id"])}</strong><p>{pick(item, ["text", "content", "message"])}</p><small>{pick(item, ["created_at", "updated_at"])}</small></article>) : <div className="peopleEmpty">Ainda não existem mensagens neste ticket.</div>}</div><form className="supportComposer" onSubmit={sendMessage}><label htmlFor="support-message">Mensagem</label><textarea id="support-message" value={message} onChange={(event) => setMessage(event.target.value)} minLength={2} maxLength={4000} required /><button className="primaryAction" type="submit">Enviar</button></form></section>}
+    {gallery && <div className="kycGalleryBackdrop" role="dialog" aria-modal="true" onClick={() => setGallery(null)}><div className="kycGallery" onClick={(event) => event.stopPropagation()}><div className="kycGalleryHead"><div><span>DOCUMENTOS KYC</span><h3>{gallery.name}</h3></div><button onClick={() => setGallery(null)}>Fechar</button></div><div className="kycGalleryGrid">{gallery.media.map((item, index) => <a href={item.url} target="_blank" rel="noreferrer" key={`${item.url}-${index}`}><img src={item.url} alt={item.label} /><strong>{item.label}</strong></a>)}</div></div></div>}
+  </section>;
 }
