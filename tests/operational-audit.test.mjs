@@ -17,3 +17,9 @@ test("mensagens e alterações de tickets deixam auditoria", () => {
   assert.match(route, /SUPPORT_TICKET_/);
   assert.match(route, /hq_log_operational_action_v1/);
 });
+
+test("campanhas passam pelo backend e ficam auditadas", () => {
+  assert.match(route, /MARKETING_CAMPAIGN_CREATED/);
+  assert.match(route, /MARKETING_CAMPAIGN_\$\{body\.action\}/);
+  assert.match(route, /\["draft", "published", "archived"\]/);
+});

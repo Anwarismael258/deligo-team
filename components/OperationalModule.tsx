@@ -24,6 +24,8 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
   const [gallery, setGallery] = useState<{ name: string; media: KycMedia[] } | null>(null);
   const [ticketId, setTicketId] = useState("");
   const [message, setMessage] = useState("");
+  const [campaignTitle, setCampaignTitle] = useState("");
+  const [showCampaignForm, setShowCampaignForm] = useState(false);
   const meta = config[module];
   const Icon = meta.icon;
 
@@ -72,11 +74,30 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
     await load();
   };
 
+  const createCampaign = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (campaignTitle.trim().length < 3) return;
+    setNotice("A criar campanha…");
+    const response = await fetch("/api/operations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ module: "marketing", entity: "campaign", title: campaignTitle.trim() }) });
+    const result = await response.json();
+    if (!response.ok) { setNotice(result.error || "Não foi possível criar a campanha."); return; }
+    setCampaignTitle(""); setShowCampaignForm(false); setSelected("campaigns"); await load();
+  };
+
+  const updateCampaign = async (id: string, action: "published" | "archived") => {
+    if (action === "archived" && !window.confirm("Arquivar esta campanha? Ela deixará de ficar ativa.")) return;
+    const response = await fetch("/api/operations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ module: "marketing", entity: "campaign", id, action }) });
+    const result = await response.json();
+    if (!response.ok) { setNotice(result.error || "Não foi possível atualizar a campanha."); return; }
+    await load();
+  };
+
   return <section className="operationalModule">
-    <div className="operationalHero"><div className="operationalIcon"><Icon /></div><div><span>DADOS REAIS · DELIGO STAGING</span><h2>{meta.title}</h2><p>Fluxos administrativos adaptados ao HQ central.</p></div><button onClick={() => void load()}><RefreshCw /> Actualizar</button></div>
+    <div className="operationalHero"><div className="operationalIcon"><Icon /></div><div><span>DADOS REAIS · DELIGO STAGING</span><h2>{meta.title}</h2><p>Fluxos administrativos adaptados ao HQ central.</p></div><div>{module === "marketing" && <button onClick={() => setShowCampaignForm((value) => !value)}>Nova campanha</button>}<button onClick={() => void load()}><RefreshCw /> Actualizar</button></div></div>
     <div className="operationalStats"><div><span>Total carregado</span><strong>{all.length}</strong></div><div><span>Colecções ligadas</span><strong>{data ? Object.keys(data.collections).length : 0}</strong></div></div>
     <div className="operationalToolbar"><div>{Object.entries(meta.sets).map(([key, label]) => <button key={key} className={selected === key ? "active" : ""} onClick={() => setSelected(key)}>{label}<b>{data?.collections[key]?.length || 0}</b></button>)}</div><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Pesquisar…" /></div>
     {notice && <div className="operationalNotice">{notice}</div>}
+    {module === "marketing" && showCampaignForm && <form className="supportComposer" onSubmit={createCampaign}><label htmlFor="campaign-title">Título da campanha</label><input id="campaign-title" value={campaignTitle} onChange={(event) => setCampaignTitle(event.target.value)} minLength={3} maxLength={160} required /><button className="primaryAction" type="submit">Criar rascunho</button></form>}
     <div className="operationalTable"><div className="operationalRow operationalHeader"><span>Nome / referência</span><span>Plataforma / detalhe</span><span>Estado</span><span>Actualização</span><span>Acções</span></div>
       {rows.map((row, index) => {
         const isKyc = module === "field" && !["restaurants", "couriers", "notes"].includes(selected);
@@ -87,6 +108,7 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
         const canCorrect = platform === "DeliGo" || platform.includes("Comun");
         return <div className="operationalRow" key={id}><div><strong>{name}</strong><small>{pick(row, ["_subject_type", "ticket_number", "id", "user_id"])}</small></div><span>{pick(row, ["_platform", "phone", "city", "location", "role", "priority"])}</span><b className="operationalStatus">{pick(row, ["status", "kyc_status", "is_active"])}</b><span>{pick(row, ["updated_at", "created_at"])}</span><div className="rowActions">
           {module === "support" && selected === "tickets" && <><button onClick={() => setTicketId(id)}>Abrir conversa</button>{String(row.status) !== "resolved" && <button onClick={() => void setTicketStatus(id, "resolved")}>Resolver</button>}</>}
+          {module === "marketing" && selected === "campaigns" && <>{String(row.status) !== "published" && <button onClick={() => void updateCampaign(id, "published")}>Publicar</button>}{String(row.status) !== "archived" && <button onClick={() => void updateCampaign(id, "archived")}>Arquivar</button>}</>}
           {isKyc && <button disabled={!media.length} onClick={() => setGallery({ name, media })}>Galeria ({media.length})</button>}
           {isKyc && data?.permissions?.canDecideKyc && <>{canCorrect && <button onClick={() => void decideKyc(row, "correction")}>Corrigir</button>}<button onClick={() => void decideKyc(row, "reject")}>Rejeitar</button><button onClick={() => void decideKyc(row, "approve")}><CheckCircle2 /> Aprovar</button></>}
         </div></div>;

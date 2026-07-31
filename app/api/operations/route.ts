@@ -86,6 +86,12 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
+  if (body.module === "marketing" && body.entity === "campaign" && ["draft", "published", "archived"].includes(body.action || "")) {
+    await stagingRest(`marketing_campaigns?id=eq.${encodeURIComponent(body.id)}`, { method: "PATCH", body: JSON.stringify({ status: body.action, active: body.action === "published", updated_at: new Date().toISOString() }) });
+    await hqRpc("hq_log_operational_action_v1", { p_actor_auth_user_id: actor.authUserId, p_module: "marketing", p_action: `MARKETING_CAMPAIGN_${body.action}`, p_target_type: "campaign", p_target_id: body.id, p_metadata: {} });
+    return NextResponse.json({ ok: true });
+  }
+
   if (body.module === "field" && body.entity === "kyc" && ["approve", "reject", "correction"].includes(body.action || "")) {
     if (!['SUPER_ADMIN', 'SUPERVISOR', 'OPERATIONS'].includes(actor.role)) return NextResponse.json({ error: "A decisão KYC exige Operações ou Supervisor." }, { status: 403 });
     if (["reject", "correction"].includes(body.action || "") && (body.reason || "").trim().length < 6) return NextResponse.json({ error: "Indique um motivo com pelo menos 6 caracteres." }, { status: 400 });
