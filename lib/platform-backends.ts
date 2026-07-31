@@ -13,6 +13,17 @@ const headers = () => {
   return { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 };
 
+const storageBuckets: Record<PlatformBackend, string[]> = { deligo: ["kyc"], comunhao: ["church-application-branding", "profile-media"], sarca: ["driver-kyc", "profile-media"], taomoz: ["kyc-documents"] };
+
+export async function signPlatformPath(platform: PlatformBackend, path: string) {
+  if (!path || /^https?:\/\//i.test(path)) return path;
+  for (const bucket of storageBuckets[platform]) {
+    const response = await fetch(`${backendUrl(platform)}/storage/v1/object/sign/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`, { method: "POST", headers: headers(), body: JSON.stringify({ expiresIn: 900 }), cache: "no-store" });
+    if (response.ok) { const result = await response.json() as { signedURL?: string }; if (result.signedURL) return result.signedURL.startsWith("http") ? result.signedURL : `${backendUrl(platform)}${result.signedURL}`; }
+  }
+  return path;
+}
+
 export async function platformRest(platform: PlatformBackend, path: string, init: RequestInit = {}) {
   const response = await fetch(`${backendUrl(platform)}/rest/v1/${path}`, { ...init, headers: { ...headers(), ...(init.headers || {}) }, cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_${platform.toUpperCase()}_FAILED`);

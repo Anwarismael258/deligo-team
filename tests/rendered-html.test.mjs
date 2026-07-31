@@ -29,14 +29,15 @@ test("renderiza rotas de módulos", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 });
 
-test("inclui navegação e simulação de perfis", async () => {
+test("inclui navegação corporativa sem expor simulação de perfis", async () => {
   const response = await render();
   const html = await response.text();
-  assert.match(html, /Simular perfil/);
-  assert.match(html, /Anwar/);
-  assert.match(html, /Sara/);
-  assert.match(html, /Sansão/);
-  assert.match(html, /Técnico IT/);
+  assert.match(html, /Plataformas/);
+  assert.match(html, /DeliGo/);
+  assert.match(html, /Comunhão/);
+  assert.match(html, /TaoMoz/);
+  assert.match(html, /SARCA/);
+  assert.doesNotMatch(html, /Simular perfil/);
 });
 
 test("renderiza o login corporativo sem registo público", async () => {

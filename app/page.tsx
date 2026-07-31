@@ -259,7 +259,9 @@ type DashboardData = {
 };
 type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; last_login_at:string|null };
 type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; metadata:Record<string,unknown> };
+type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
+type PlatformProfile = { platform:string; id:string; profile:Record<string, unknown>|null; kyc:unknown[]; wallets:unknown[]; orders:unknown[]; disputes:unknown[]; activity:unknown[] };
 
 export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
@@ -275,6 +277,10 @@ export function HQApp() {
   const [sessionRole, setSessionRole] = useState("");
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
+  const [platformAdminSnapshot, setPlatformAdminSnapshot] = useState<PlatformAdminSnapshot | null>(null);
+  const [platformAdminError, setPlatformAdminError] = useState("");
+  const [selectedProfile, setSelectedProfile] = useState<{ platform:string; id:string; name:string } | null>(null);
+  const [profileDetail, setProfileDetail] = useState<PlatformProfile | null>(null);
   const [employeeNotice, setEmployeeNotice] = useState("");
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [platformSnapshot, setPlatformSnapshot] = useState<PlatformSnapshot | null>(null);
@@ -347,6 +353,30 @@ export function HQApp() {
       .catch((error: Error) => { if (!cancelled) setConnectionError(error.message); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(() => {
+    const slug = platform === "Todas as plataformas" ? "" : platformSlug(platform);
+    if (!slug || active !== "Plataformas") { setPlatformAdminSnapshot(null); setPlatformAdminError(""); return; }
+    setPlatformAdminError("");
+    fetch(`/api/platforms/${slug}`, { cache: "no-store" }).then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.error || "Falha ao sincronizar a plataforma."); return result as PlatformAdminSnapshot; }).then(result => setPlatformAdminSnapshot(result)).catch(error => setPlatformAdminError(error instanceof Error ? error.message : "Falha ao sincronizar a plataforma."));
+  }, [active, platform]);
+
+  const platformAction = async (action: string, decision: "approve" | "reject" | "correction", id: string, reason = "") => {
+    const slug = platformSlug(platform);
+    const response = await fetch(`/api/platforms/${slug}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, decision, id, reason }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Acção não concluída.");
+    const refreshed = await fetch(`/api/platforms/${slug}`, { cache: "no-store" });
+    if (refreshed.ok) setPlatformAdminSnapshot(await refreshed.json() as PlatformAdminSnapshot);
+    setPlatformAdminError("Decisão concluída e auditada.");
+  };
+
+  useEffect(() => {
+    if (!selectedProfile) { setProfileDetail(null); return; }
+    fetch(`/api/platforms/${selectedProfile.platform}/${encodeURIComponent(selectedProfile.id)}`, { cache: "no-store" })
+      .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.error || "Falha ao abrir o perfil."); return result as PlatformProfile; })
+      .then(setProfileDetail).catch(() => setProfileDetail(null));
+  }, [selectedProfile]);
 
 
   useEffect(() => {
@@ -501,6 +531,8 @@ export function HQApp() {
                   {!shownPeople.length && <div className="peopleEmpty">Nenhum utilizador corresponde à pesquisa.</div>}
                 </div>
               </div>
+              {platformAdminError && <div className="operationalNotice">{platformAdminError}</div>}
+              {platformAdminSnapshot && <><button className="profileQuickOpen" onClick={() => { const first = Object.values(platformAdminSnapshot.data).find(value => Array.isArray(value) && value.length) as Record<string,unknown>[] | undefined; const row = first?.[0]; if (row) { const id = String(row.id || row.user_id || row.profile_id || "0"); setSelectedProfile({ platform: platformSlug(platform), id, name: String(row.full_name || row.name || row.church_name || row.store_name || id) }); } }}>Abrir primeiro perfil com saldo e galeria</button><PlatformAdminPanel snapshot={platformAdminSnapshot} platform={platform} onAction={platformAction} onOpenProfile={(id, name) => setSelectedProfile({ platform: platformSlug(platform), id, name })} /></>}
             </section>
           )}
           {active === "Finanças" && (
@@ -781,8 +813,32 @@ export function HQApp() {
           <small>A pesquisa mostra apenas os resultados permitidos pelo seu role.</small>
         </div>
       </div>}
+      {selectedProfile && <PlatformProfileModal selected={selectedProfile} detail={profileDetail} onClose={() => setSelectedProfile(null)} />}
     </main>
   );
+}
+
+function platformSlug(platform: string) { return platform.includes("Comun") ? "comunhao" : platform === "DeliGo" ? "deligo" : platform === "SARCA" ? "sarca" : "taomoz"; }
+
+function PlatformAdminPanel({ snapshot, platform, onAction, onOpenProfile }: { snapshot: PlatformAdminSnapshot; platform: string; onAction: (action: string, decision: "approve" | "reject" | "correction", id: string, reason?: string) => Promise<void>; onOpenProfile: (id:string, name:string) => void }) {
+  const entries = Object.entries(snapshot.data);
+  const records = entries.flatMap(([collection, value]) => Array.isArray(value) ? value.slice(0, 20).map(item => ({ collection, row: item as Record<string, unknown> })) : []);
+  const reviewable = platform === "DeliGo" || platform === "TaoMoz" || platform.includes("Comun") || platform === "SARCA";
+  const actionFor = () => platform.includes("Comun") ? "review_application" : platform === "SARCA" ? "review_driver" : platform === "TaoMoz" ? "review_kyc" : "approve";
+  const decide = async (decision: "approve" | "reject", id: string, name: string) => {
+    const reason = decision === "reject" ? window.prompt(`Motivo da rejeição de ${name}:`) : "";
+    if (decision === "reject" && !reason?.trim()) return;
+    if (!window.confirm(`${decision === "approve" ? "Aprovar" : "Rejeitar"} ${name}? Esta decisão será auditada.`)) return;
+    try { await onAction(actionFor(), decision, id, reason || ""); }
+    catch (error) { window.alert(error instanceof Error ? error.message : "Não foi possível concluir a decisão."); }
+  };
+  return <div className="platformAdminPanel"><div className="platformAdminHead"><div><span>ADMINISTRAÇÃO REAL</span><h3>{platform} · operações</h3><p>Dados sincronizados do backend da plataforma e ações protegidas pelo HQ.</p></div><b>{new Date(snapshot.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</b></div><div className="platformAdminStats">{entries.map(([key, value]) => <article key={key}><span>{key.replaceAll("_", " ")}</span><strong>{Array.isArray(value) ? value.length : "Ligado"}</strong></article>)}</div>{reviewable && records.length > 0 && <div className="platformAdminQueue"><div className="platformAdminQueueTitle"><h4>Fila de administração</h4><span>{records.length} registos</span></div>{records.map(({ collection, row }, index) => { const id = String(row.id || row.user_id || row.profile_id || index); const name = String(row.full_name || row.name || row.church_name || row.store_name || row.order_number || id); const status = String(row.status || row.kyc_status || row.moderation_status || row.account_status || "—"); return <div className="platformAdminRow" key={`${collection}-${id}`}><button className="profileLink" onClick={() => onOpenProfile(id, name)}><strong>{name}</strong><small>{collection} · {status}</small></button>{(status === "pending" || status === "submitted" || status === "under_review") && <div className="platformAdminActions"><button onClick={() => void decide("approve", id, name)}>Aprovar</button><button className="danger" onClick={() => void decide("reject", id, name)}>Rejeitar</button></div>}</div>; })}</div>}</div>;
+}
+
+function PlatformProfileModal({ selected, detail, onClose }: { selected:{platform:string;id:string;name:string}; detail:PlatformProfile|null; onClose:()=>void }) {
+  const profile = detail?.profile || {};
+  const media = (detail?.kyc || []).flatMap(item => { const row = (item || {}) as Record<string,unknown>; return Object.entries(row).filter(([key, item]) => ["photo_url","image_url","document_url","file_url","selfie_url","document_front_path","document_back_path","selfie_path","proof_url"].includes(key) && typeof item === "string").map(([key, item]) => ({ key, url:item as string })); });
+  return <div className="kycGalleryBackdrop" onClick={onClose}><div className="profileModal" onClick={event => event.stopPropagation()}><div className="kycGalleryHead"><div><span>PERFIL · {selected.platform.toUpperCase()}</span><h3>{selected.name}</h3><p>{String(profile.phone || "—")} · {String(profile.account_status || profile.kyc_status || "—")} · ID {selected.id}</p></div><button onClick={onClose}>Fechar</button></div><div className="profileSummary"><article><span>Saldo</span><strong>{detail?.wallets.length ? detail.wallets.map(item => String((item as Record<string,unknown>).balance || 0)).join(" · ") : "—"}</strong></article><article><span>Operações</span><strong>{detail?.orders.length || 0}</strong></article><article><span>Disputas</span><strong>{detail?.disputes.length || 0}</strong></article><article><span>Actividade</span><strong>{detail?.activity.length || 0}</strong></article></div>{!detail && <div className="peopleEmpty">A carregar perfil, saldo e histórico…</div>}{detail && <><h4 className="profileSectionTitle">Galeria KYC</h4>{media.length ? <div className="kycGalleryGrid">{media.map(item => <a href={item.url} target="_blank" rel="noreferrer" key={`${item.key}-${item.url}`}><img src={item.url} alt={item.key} /><strong>{item.key.replaceAll("_", " ")}</strong></a>)}</div> : <div className="peopleEmpty">Nenhuma fotografia KYC disponível.</div>}<h4 className="profileSectionTitle">Histórico recente</h4><div className="profileHistory">{[...(detail.orders || []), ...(detail.disputes || [])].slice(0, 12).map((item, index) => { const row = item as Record<string,unknown>; return <div key={String(row.id || index)}><strong>{String(row.order_number || row.type || row.status || "Operação")}</strong><span>{String(row.created_at || row.updated_at || "—")}</span></div>; })}</div></>}</div></div>;
 }
 
 export default function Home() {
