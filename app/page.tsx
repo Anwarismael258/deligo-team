@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Activity, BarChart3, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 import OperationalModule from "@/components/OperationalModule";
 import LiveOperationsMap, { type OperationsMapMarker } from "@/components/LiveOperationsMap";
 
@@ -10,6 +10,7 @@ const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SAR
 const nav = [
   ["⌂", "Visão geral"],
   ["◇", "Plataformas"],
+  ["⌖", "Mapa operacional"],
   ["♛", "Direcção Executiva"],
   ["♙", "Pessoas"],
   ["♧", "Recursos Humanos"],
@@ -34,7 +35,7 @@ const nav = [
 ];
 
 const moduleIcons: Record<string, LucideIcon> = {
-  "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Direcção Executiva": Landmark,
+  "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
   "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Contabilidade": Coins,
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
   "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Field": Route,
@@ -50,6 +51,7 @@ const moduleDetails: Record<string, string[]> = {
   "Definições": ["Geral", "Aparência", "Dashboard", "Notificações"],
   "Segurança": ["Autenticação", "2FA", "Dispositivos e sessões", "Alertas de segurança"],
   "Plataformas": ["DeliGo", "Comunhão", "TaoMoz", "SARCA"],
+  "Mapa operacional": ["Mapa ao vivo", "DeliGo", "SARCA", "TaoMoz"],
   "Direcção Executiva": ["Perfil da empresa", "Sócios", "Deliberações", "Gestão corporativa"],
   "Pessoas": ["Trabalhadores", "Colaboradores externos", "Departamentos", "Roles e permissões"],
   "Recursos Humanos": ["Contratos", "Presenças", "Férias", "Payroll", "Onboarding e Offboarding"],
@@ -104,6 +106,7 @@ const routeByModule: Record<string, string> = {
   "Definições": "/definicoes",
   "Segurança": "/seguranca",
   "Plataformas": "/plataformas",
+  "Mapa operacional": "/mapa-operacional",
   "Direcção Executiva": "/executivo",
   "Pessoas": "/pessoas",
   "Recursos Humanos": "/recursos-humanos",
@@ -306,7 +309,7 @@ export function HQApp() {
   }, []);
 
   useEffect(() => {
-    if (active !== "Visão geral") return;
+    if (!["Visão geral", "Mapa operacional"].includes(active)) return;
     let cancelled = false;
     const refreshMap = () => fetch("/api/map", { cache: "no-store" })
       .then(async (response) => { if (!response.ok) throw new Error(); return response.json() as Promise<LiveMapData>; })
@@ -621,7 +624,13 @@ export function HQApp() {
           {active === "Marketing" && <OperationalModule module="marketing" />}
           {active === "Field" && <OperationalModule module="field" />}
           {active === "Apoio ao Cliente" && <OperationalModule module="support" />}
-          {active !== "Visão geral" && active !== "Plataformas" && active !== "Finanças" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && !isAccountScreen && (
+          {active === "Mapa operacional" && <section className="fullMapWorkspace">
+            <div className="fullMapHead"><div><span>TRACKING OPERACIONAL</span><h2>Mapa em tempo real</h2><p>Escolha a plataforma para ver apenas os profissionais que estão online e a enviar GPS.</p></div><div className="mapFilter" role="group" aria-label="Filtrar plataforma do mapa">{["Todas as plataformas", "DeliGo", "SARCA", "TaoMoz"].map((item) => <button key={item} className={platform === item ? "active" : ""} onClick={() => setPlatform(item)}>{item === "Todas as plataformas" ? "Todas" : item}</button>)}</div></div>
+            <div className="mapLegend"><span><i className="deligo" />DeliGo · Estafetas</span><span><i className="sarca" />SARCA · Motoristas</span><span><i className="taomoz" />TaoMoz · Couriers</span><b>{mapMarkers.length} ao vivo</b></div>
+            <div className="fullOperationsMap"><LiveOperationsMap markers={mapMarkers} /></div>
+            <p className="mapPrivacyNote">As posições são atualizadas a cada 10 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
+          </section>}
+          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
@@ -699,7 +708,7 @@ export function HQApp() {
               </div>
               <article className="liveMapCard">
                 <LiveOperationsMap markers={mapMarkers} />
-                <div className="liveMapCopy"><span>MAPA OPERACIONAL · {mapMarkers.length} AO VIVO</span><strong>Tracking em tempo real</strong><p>{mapMarkers.length ? "Posições recentes de estafetas, motoristas e couriers. Actualiza a cada 10 segundos." : "Sem posições recentes para o filtro actual."}</p><button onClick={() => setPlatform("Todas as plataformas")}>Ver todas as plataformas</button></div>
+                <div className="liveMapCopy"><span>MAPA OPERACIONAL · {mapMarkers.length} AO VIVO</span><strong>Tracking em tempo real</strong><p>{mapMarkers.length ? "Posições recentes de estafetas, motoristas e couriers. Actualiza a cada 10 segundos." : "Sem posições recentes para o filtro actual."}</p><button onClick={() => navigate("Mapa operacional")}>Abrir mapa completo</button></div>
               </article>
             </div>
           </section>
