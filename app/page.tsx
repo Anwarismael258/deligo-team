@@ -315,6 +315,7 @@ export function HQApp() {
   const [financeNotice, setFinanceNotice] = useState("");
   const [financeEntryKind, setFinanceEntryKind] = useState("transaction");
   const [showFinanceForm, setShowFinanceForm] = useState(false);
+  const [accountingData,setAccountingData]=useState<Record<string,FinanceRecord[]>>({});
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [platformAdminSnapshot, setPlatformAdminSnapshot] = useState<PlatformAdminSnapshot | null>(null);
   const [platformAdminError, setPlatformAdminError] = useState("");
@@ -372,6 +373,7 @@ export function HQApp() {
 
   const refreshFinance = async () => { const response=await fetch("/api/finance",{cache:"no-store"}); if(!response.ok)throw new Error(); const result=await response.json(); setFinanceData(result.data); };
   useEffect(() => { if(active!=="Finanças")return; refreshFinance().catch(()=>setFinanceNotice("Não foi possível carregar os registos financeiros para este perfil.")); },[active]);
+  useEffect(()=>{if(active!=="Contabilidade")return;fetch("/api/accounting",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(r=>setAccountingData(r.data||{})).catch(()=>setAccountingData({}))},[active]);
 
   useEffect(() => {
     if (active !== "Registo de Auditoria") return;
@@ -683,6 +685,7 @@ export function HQApp() {
               <div className="safeNotice"><b>Controlo protegido</b><span>O HQ regista e aprova; “marcar pago” não movimenta dinheiro no banco nem executa Vodacom/Movitel. Distribuição de lucros continua sujeita à governação societária.</span></div>
             </section>
           )}
+          {active === "Contabilidade"&&<section className="accountingWorkspace"><div className="accountingHero"><div><span>MOTOR CONTABILÍSTICO</span><h2>Razão corporativo e fecho</h2><p>Registos da empresa separados dos ledgers e carteiras das plataformas.</p></div><b>Acesso restrito</b></div><div className="financeKpis">{[["Plano de contas",accountingData.chart_of_accounts?.length||0],["Lançamentos",accountingData.journal_entries?.length||0],["Linhas contabilísticas",accountingData.journal_lines?.length||0],["Reconciliações",accountingData.account_reconciliations?.length||0],["Períodos",accountingData.accounting_periods?.length||0]].map(([l,v])=><article key={String(l)}><span>{l}</span><strong>{v}</strong><small>registos protegidos</small></article>)}</div><div className="accountingGrid"><article><h3>Plano de contas</h3>{(accountingData.chart_of_accounts||[]).map(a=><div className="accountingRow" key={a.id}><b>{String(a.code)}</b><span>{String(a.name)}</span><em>{String(a.account_class)}</em></div>)}</article><article><h3>Fecho e reconciliação</h3>{["Lançamentos equilibrados: débito = crédito","Reconciliação bancária com dupla validação","Períodos abertos, em revisão, fechados ou bloqueados","Demonstrações baseadas apenas em lançamentos publicados","Impostos preparados sem submissão automática"].map(i=><div className="accountingRule" key={i}><CheckCircle2 aria-hidden="true"/><span>{i}</span></div>)}</article></div><div className="safeNotice"><b>Integridade contabilística</b><span>Lançamentos são criados como rascunho. Publicação, reversão, fecho fiscal e entrega de impostos exigem validação contabilística formal.</span></div></section>}
           {active === "Direcção Executiva" && dashboard?.governance && (
             <section className="governanceWorkspace">
               <div className="companyRecord"><div><span>ENTIDADE JURÍDICA</span><h2>{dashboard.governance.legalName}</h2><p>Sociedade por quotas · governação corporativa separada das permissões técnicas.</p></div><b>50 / 50</b></div>
@@ -731,7 +734,7 @@ export function HQApp() {
             {selectedMapWorker && <div className="mapWorkerDetail"><div><span>TRABALHADOR AUTORIZADO</span><h3>{selectedMapWorker.workerName || selectedMapWorker.role}</h3><p>{selectedMapWorker.platform} · {selectedMapWorker.role} · {selectedMapWorker.status?.replaceAll("_", " ") || "disponível"}</p></div><div><small>Última localização</small><strong>{new Date(selectedMapWorker.updatedAt).toLocaleString("pt-MZ")}</strong><small>{selectedMapWorker.service ? `Serviço: ${selectedMapWorker.service}` : "Sem serviço activo identificado"}</small></div><button onClick={() => setSelectedMapWorker(null)}>Fechar</button></div>}
             <p className="mapPrivacyNote">As posições são atualizadas a cada 10 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
           </section>}
-          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
