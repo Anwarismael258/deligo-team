@@ -3,8 +3,8 @@ import { corporateActor, supabaseUrl } from "@/lib/hq-server";
 
 const entity="10000000-0000-0000-0000-000000000001";
 const platforms:Record<string,string>={deligo:"20000000-0000-0000-0000-000000000001",comunhao:"20000000-0000-0000-0000-000000000002",taomoz:"20000000-0000-0000-0000-000000000003",sarca:"20000000-0000-0000-0000-000000000004"};
-const readRoles=new Set(["SUPER_ADMIN","FIELD","OPERATIONS","SUPERVISOR"]),writeRoles=new Set(["SUPER_ADMIN","FIELD","OPERATIONS"]);
-const resources=["field_visits","field_checklists","field_evidence","field_reports","field_history","employees","platforms"];
+const readRoles=new Set(["SUPER_ADMIN","FIELD","OPERATIONS","SUPERVISOR"]),writeRoles=new Set(["SUPER_ADMIN","FIELD","OPERATIONS"]),decisionRoles=new Set(["SUPER_ADMIN","OPERATIONS","SUPERVISOR"]);
+const resources=["field_visits","field_checklists","field_evidence","field_reports","field_verifications","field_kyc_cases","field_form_templates","field_form_responses","field_incidents","field_history","employees","platforms"];
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 async function ctx(){const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;return actor&&key&&readRoles.has(actor.role)?{actor,key}:null}
 async function rest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
@@ -17,27 +17,36 @@ export async function POST(request:NextRequest){
   const body=await request.json() as {resource?:string;record?:Record<string,unknown>};
   try{
     if(body.resource==="visit"&&body.record){
+      if(!body.record.worker_id||!body.record.planned_at||!String(body.record.address||"").trim()||!String(body.record.objective||"").trim())return NextResponse.json({error:"Data, local, responsável e objetivo são obrigatórios."},{status:400});
       const record={...body.record,platform_id:platforms[String(body.record.platform_slug)]||null} as Record<string,unknown>;delete record.platform_slug;
-      const task=(await rest(c.key,"tasks",{method:"POST",body:JSON.stringify({legal_entity_id:entity,platform_id:record.platform_id,title:record.subject,description:record.address||null,priority:record.priority,status:"planned",assigned_to:record.worker_id,assigned_by:c.actor.employee_id,due_at:record.planned_at})}))?.[0];
-      record.task_id=task.id;record.status="planned";
-      if(!record.location_authorized){record.latitude=null;record.longitude=null;record.location=null}
-      const created=(await rest(c.key,"field_visits",{method:"POST",body:JSON.stringify(record)}))?.[0];
-      await log(c.key,created.id,"created","Missão Field criada e atribuída",c.actor.employee_id);return NextResponse.json({record:created},{status:201});
+      const task=(await rest(c.key,"tasks",{method:"POST",body:JSON.stringify({legal_entity_id:entity,platform_id:record.platform_id,title:record.subject,description:record.objective,priority:record.priority,status:"planned",assigned_to:record.worker_id,assigned_by:c.actor.employee_id,due_at:record.planned_at})}))?.[0];
+      record.task_id=task.id;record.status="planned";if(!record.location_authorized){record.latitude=null;record.longitude=null;record.location=null}
+      const created=(await rest(c.key,"field_visits",{method:"POST",body:JSON.stringify(record)}))?.[0];await log(c.key,created.id,"created","Missão Field criada e atribuída",c.actor.employee_id);return NextResponse.json({record:created},{status:201});
     }
     if(!body.record||!body.resource)return NextResponse.json({error:"Registo Field inválido."},{status:400});
-    const mapping:Record<string,string>={checklist:"field_checklists",evidence:"field_evidence",report:"field_reports"},table=mapping[body.resource];if(!table)return NextResponse.json({error:"Tipo de registo inválido."},{status:400});
+    const mapping:Record<string,string>={checklist:"field_checklists",evidence:"field_evidence",report:"field_reports",verification:"field_verifications",kyc:"field_kyc_cases",form:"field_form_templates",response:"field_form_responses",incident:"field_incidents"},table=mapping[body.resource];if(!table)return NextResponse.json({error:"Tipo de registo inválido."},{status:400});
     const record={...body.record} as Record<string,unknown>;
-    if(table==="field_evidence")record.captured_by=c.actor.employee_id;
-    if(table==="field_reports")record.created_by=c.actor.employee_id;
+    if(table==="field_evidence")record.captured_by=c.actor.employee_id;if(table==="field_reports")record.created_by=c.actor.employee_id;
+    if(table==="field_verifications")record.submitted_by=c.actor.employee_id;
+    if(table==="field_kyc_cases"){record.created_by=c.actor.employee_id;record.platform_id=platforms[String(record.platform_slug)]||null;delete record.platform_slug}
+    if(table==="field_form_templates")record.created_by=c.actor.employee_id;if(table==="field_form_responses")record.completed_by=c.actor.employee_id;if(table==="field_incidents")record.reported_by=c.actor.employee_id;
     if(table==="field_checklists"&&record.status!=="pending"){record.verified_by=c.actor.employee_id;record.verified_at=new Date().toISOString()}
-    const created=(await rest(c.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];
-    await log(c.key,String(record.visit_id),`${body.resource}_created`,`${body.resource} registado`,c.actor.employee_id);return NextResponse.json({record:created},{status:201});
+    const created=(await rest(c.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];if(record.visit_id)await log(c.key,String(record.visit_id),`${body.resource}_created`,`${body.resource} registado`,c.actor.employee_id);return NextResponse.json({record:created},{status:201});
   }catch{return NextResponse.json({error:"Não foi possível guardar a operação Field. Confirme os dados e a autorização de localização."},{status:409})}
 }
 
 export async function PATCH(request:NextRequest){
-  const c=await ctx();if(!c||!writeRoles.has(c.actor.role))return NextResponse.json({error:"Sem permissão para atualizar missões."},{status:403});
-  const body=await request.json() as {visitId?:string;action?:string;reason?:string};if(!body.visitId||!body.action)return NextResponse.json({error:"Ação inválida."},{status:400});
-  const statuses:Record<string,string>={assign:"assigned",start:"in_progress",block:"blocked",resume:"in_progress",complete:"completed",cancel:"cancelled"};const status=statuses[body.action];if(!status)return NextResponse.json({error:"Ação inválida."},{status:400});
-  try{const changes:Record<string,unknown>={status};if(status==="cancelled")changes.cancelled_reason=body.reason||"Cancelada pela operação";await rest(c.key,`field_visits?id=eq.${encodeURIComponent(body.visitId)}`,{method:"PATCH",body:JSON.stringify(changes)});await log(c.key,body.visitId,status,`Missão alterada para ${status}`,c.actor.employee_id);return NextResponse.json({ok:true})}catch{return NextResponse.json({error:"A transição foi bloqueada. Conclua checklist, evidência e relatório exigidos."},{status:409})}
+  const c=await ctx();if(!c)return NextResponse.json({error:"Sem acesso a Field."},{status:403});
+  const body=await request.json() as {visitId?:string;entityId?:string;action?:string;reason?:string;result?:string;latitude?:number|null;longitude?:number|null};if(!body.action)return NextResponse.json({error:"Ação inválida."},{status:400});
+  if(["approve_verification","reject_verification","correct_verification","approve_kyc","reject_kyc","correct_kyc"].includes(body.action)){
+    if(!decisionRoles.has(c.actor.role)||!body.entityId)return NextResponse.json({error:"Decisão reservada à supervisão autorizada."},{status:403});
+    const isKyc=body.action.endsWith("_kyc"),table=isKyc?"field_kyc_cases":"field_verifications";
+    try{const current=(await rest(c.key,`${table}?id=eq.${encodeURIComponent(body.entityId)}&select=*`))?.[0];if(!current)return NextResponse.json({error:"Verificação não encontrada."},{status:404});if((current.submitted_by||current.created_by)===c.actor.employee_id)return NextResponse.json({error:"O autor não pode decidir a própria verificação."},{status:409});const status=body.action.startsWith("approve")?"approved":body.action.startsWith("reject")?"rejected":"correction_requested";if(status!=="approved"&&String(body.reason||"").trim().length<6)return NextResponse.json({error:"Indique um motivo com pelo menos 6 caracteres."},{status:400});await rest(c.key,`${table}?id=eq.${body.entityId}`,{method:"PATCH",body:JSON.stringify({status,reviewed_by:c.actor.employee_id,review_reason:body.reason||null,reviewed_at:new Date().toISOString()})});if(current.visit_id)await log(c.key,current.visit_id,`${table}_${status}`,`Verificação ${status}`,c.actor.employee_id,{reason:body.reason||null});return NextResponse.json({ok:true})}catch{return NextResponse.json({error:"Não foi possível concluir a decisão."},{status:409})}
+  }
+  if(!writeRoles.has(c.actor.role)||!body.visitId)return NextResponse.json({error:"Sem permissão para atualizar missões."},{status:403});
+  if(["checkin","checkout"].includes(body.action)){
+    try{const visit=(await rest(c.key,`field_visits?id=eq.${encodeURIComponent(body.visitId)}&select=*`))?.[0];if(!visit)return NextResponse.json({error:"Missão não encontrada."},{status:404});if(!visit.location_authorized&&(body.latitude!=null||body.longitude!=null))return NextResponse.json({error:"Esta missão não autorizou localização."},{status:409});const now=new Date().toISOString(),changes=body.action==="checkin"?{status:"in_progress",checked_in_at:now,checkin_latitude:body.latitude??null,checkin_longitude:body.longitude??null}:{checked_out_at:now,checkout_latitude:body.latitude??null,checkout_longitude:body.longitude??null};await rest(c.key,`field_visits?id=eq.${body.visitId}`,{method:"PATCH",body:JSON.stringify(changes)});await log(c.key,body.visitId,body.action,body.action==="checkin"?"Check-in realizado":"Check-out realizado",c.actor.employee_id);return NextResponse.json({ok:true})}catch{return NextResponse.json({error:"Check-in/check-out bloqueado pelo estado ou privacidade da missão."},{status:409})}
+  }
+  const statuses:Record<string,string>={assign:"assigned",start:"in_progress",block:"blocked",resume:"in_progress",complete:"completed",cancel:"cancelled"},status=statuses[body.action];if(!status)return NextResponse.json({error:"Ação inválida."},{status:400});
+  try{const changes:Record<string,unknown>={status};if(status==="cancelled")changes.cancelled_reason=body.reason||"Cancelada pela operação";if(status==="completed")changes.result=body.result;await rest(c.key,`field_visits?id=eq.${encodeURIComponent(body.visitId)}`,{method:"PATCH",body:JSON.stringify(changes)});await log(c.key,body.visitId,status,`Missão alterada para ${status}`,c.actor.employee_id);return NextResponse.json({ok:true})}catch{return NextResponse.json({error:"A transição foi bloqueada. Faça check-in/out e conclua checklist, decisão, evidência e relatório."},{status:409})}
 }
