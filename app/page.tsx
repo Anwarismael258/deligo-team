@@ -258,6 +258,8 @@ type DashboardData = {
     reservedMatters: string[];
   };
 };
+type LiveMapMarker = { id: string; platform: "DeliGo" | "SARCA" | "TaoMoz"; role: string; latitude: number; longitude: number; updatedAt: string };
+type LiveMapData = { checkedAt: string; markers: LiveMapMarker[] };
 type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; updated_at:string; last_login_at:string|null };
 type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; metadata:Record<string,unknown> };
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
@@ -273,6 +275,7 @@ export function HQApp() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [subArea, setSubArea] = useState("");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [liveMap, setLiveMap] = useState<LiveMapData | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
   const [sessionRole, setSessionRole] = useState("");
@@ -300,6 +303,18 @@ export function HQApp() {
       if (sessionPersona) setPersona(sessionPersona);
     }).catch(() => window.location.replace("/login"));
   }, []);
+
+  useEffect(() => {
+    if (active !== "Visão geral") return;
+    let cancelled = false;
+    const refreshMap = () => fetch("/api/map", { cache: "no-store" })
+      .then(async (response) => { if (!response.ok) throw new Error(); return response.json() as Promise<LiveMapData>; })
+      .then((data) => { if (!cancelled) setLiveMap({ checkedAt: data.checkedAt, markers: Array.isArray(data.markers) ? data.markers : [] }); })
+      .catch(() => { if (!cancelled) setLiveMap(null); });
+    void refreshMap();
+    const interval = window.setInterval(() => void refreshMap(), 10_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [active]);
 
   useEffect(() => {
     if (!sessionRole || sessionRole === "SUPER_ADMIN") return;
@@ -424,6 +439,17 @@ export function HQApp() {
     { label: "Marketing", value: dashboard?.operations.campaigns || 0, note: "campanhas registadas", action: "Marketing" },
     { label: "Auditoria", value: dashboard?.operations.auditEvents || 0, note: "eventos no histórico", action: "Registo de Auditoria" },
   ];
+  const mapMarkers = (liveMap?.markers || []).filter((marker) => platform === "Todas as plataformas" || marker.platform === platform);
+  const mapLatitudes = mapMarkers.map((marker) => marker.latitude);
+  const mapLongitudes = mapMarkers.map((marker) => marker.longitude);
+  const minLatitude = Math.min(...mapLatitudes, -25.97);
+  const maxLatitude = Math.max(...mapLatitudes, -25.95);
+  const minLongitude = Math.min(...mapLongitudes, 32.56);
+  const maxLongitude = Math.max(...mapLongitudes, 32.58);
+  const mapPosition = (marker: LiveMapMarker) => ({
+    left: `${12 + ((marker.longitude - minLongitude) / Math.max(maxLongitude - minLongitude, 0.001)) * 76}%`,
+    top: `${15 + (1 - ((marker.latitude - minLatitude) / Math.max(maxLatitude - minLatitude, 0.001))) * 65}%`,
+  });
 
   return (
     <main className="shell">
@@ -681,8 +707,9 @@ export function HQApp() {
                 {operationalItems.map((item) => <button key={item.label} onClick={() => navigate(item.action)}><div><span>{item.label}</span><small>{item.note}</small></div><strong>{item.value}</strong><ChevronRight aria-hidden="true" /></button>)}
               </div>
               <article className="liveMapCard">
-                <div className="mapGrid" /><div className="mapRoute" /><i className="mapPin pinOne" /><i className="mapPin pinTwo" /><i className="mapPin pinThree" />
-                <div className="liveMapCopy"><span>MAPA OPERACIONAL</span><strong>Tracking em tempo real</strong><p>Disponível assim que os adaptadores de localização forem expostos ao HQ.</p><button onClick={() => navigate("Tecnologia / IT")}>Ver estado da integração</button></div>
+                <div className="mapGrid" /><div className="mapRoute" />
+                {mapMarkers.map((marker) => <i key={marker.id} className={`mapPin livePin ${marker.platform.toLowerCase()}`} style={mapPosition(marker)} title={`${marker.role} · ${marker.platform}`} />)}
+                <div className="liveMapCopy"><span>MAPA OPERACIONAL · {mapMarkers.length} AO VIVO</span><strong>Tracking em tempo real</strong><p>{mapMarkers.length ? "Posições recentes de estafetas, motoristas e couriers. Actualiza a cada 10 segundos." : "Sem posições recentes para o filtro actual."}</p><button onClick={() => setPlatform("Todas as plataformas")}>Ver todas as plataformas</button></div>
               </article>
             </div>
           </section>
