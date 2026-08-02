@@ -417,6 +417,13 @@ export function HQApp() {
   const money = (value: number) => new Intl.NumberFormat("pt-MZ", { style: "currency", currency: "MZN", maximumFractionDigits: 2 }).format(value || 0);
   const selectedFinancialPlatforms = dashboard?.modules.platforms.filter((item) => platform === "Todas as plataformas" || item.name === platform) || [];
   const selectedOperationalValue = selectedFinancialPlatforms.reduce((sum, item) => sum + item.value, 0);
+  const connectedPlatforms = dashboard?.platforms.filter((item) => item.connected).length || 0;
+  const operationalItems = [
+    { label: "Suporte", value: dashboard?.operations.supportCases || 0, note: "casos registados", action: "Apoio ao Cliente" },
+    { label: "Field", value: dashboard?.operations.fieldVisits || 0, note: "visitas registadas", action: "Field" },
+    { label: "Marketing", value: dashboard?.operations.campaigns || 0, note: "campanhas registadas", action: "Marketing" },
+    { label: "Auditoria", value: dashboard?.operations.auditEvents || 0, note: "eventos no histórico", action: "Registo de Auditoria" },
+  ];
 
   return (
     <main className="shell">
@@ -657,6 +664,27 @@ export function HQApp() {
                 <div className={`miniTrend trend${index}`}><i /><i /><i /><i /><i /><i /></div>
               </article>
             ))}
+          </section>
+
+          <section className="missionControl">
+            <div className="missionControlHead">
+              <div><span>CENTRAL DE OPERAÇÕES</span><h2>O que precisa de atenção agora</h2><p>Leitura consolidada do backend central, sem simular estados que ainda não foram integrados.</p></div>
+              <button onClick={() => navigate("Tecnologia / IT")}>Ver saúde técnica <ChevronRight aria-hidden="true" /></button>
+            </div>
+            <div className="missionControlGrid">
+              <article className="connectionCard">
+                <div className="connectionPulse"><Activity aria-hidden="true" /></div>
+                <div><span>PLATAFORMAS LIGADAS</span><strong>{connectedPlatforms}/{dashboard?.platforms.length || 4}</strong><p>{connectedPlatforms === (dashboard?.platforms.length || 4) ? "Todas as fontes disponíveis estão a responder." : "Há uma ou mais fontes que precisam de verificação."}</p></div>
+                <button onClick={() => navigate("Plataformas")}>Abrir plataformas</button>
+              </article>
+              <div className="operationalQueue">
+                {operationalItems.map((item) => <button key={item.label} onClick={() => navigate(item.action)}><div><span>{item.label}</span><small>{item.note}</small></div><strong>{item.value}</strong><ChevronRight aria-hidden="true" /></button>)}
+              </div>
+              <article className="liveMapCard">
+                <div className="mapGrid" /><div className="mapRoute" /><i className="mapPin pinOne" /><i className="mapPin pinTwo" /><i className="mapPin pinThree" />
+                <div className="liveMapCopy"><span>MAPA OPERACIONAL</span><strong>Tracking em tempo real</strong><p>Disponível assim que os adaptadores de localização forem expostos ao HQ.</p><button onClick={() => navigate("Tecnologia / IT")}>Ver estado da integração</button></div>
+              </article>
+            </div>
           </section>
 
           <section className="insightGrid">
