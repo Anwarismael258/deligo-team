@@ -292,6 +292,9 @@ export function HQApp() {
   const [liveMap, setLiveMap] = useState<LiveMapData | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
+  const [mapSearch, setMapSearch] = useState("");
+  const [mapStatus, setMapStatus] = useState("todos");
+  const [selectedMapWorker, setSelectedMapWorker] = useState<LiveMapMarker | null>(null);
   const [sessionRole, setSessionRole] = useState("");
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
@@ -459,6 +462,7 @@ export function HQApp() {
     { label: "Auditoria", value: dashboard?.operations.auditEvents || 0, note: "eventos no histórico", action: "Registo de Auditoria" },
   ];
   const mapMarkers = (liveMap?.markers || []).filter((marker) => platform === "Todas as plataformas" || marker.platform === platform);
+  const filteredMapMarkers = mapMarkers.filter((marker) => (mapStatus === "todos" || marker.status === mapStatus) && `${marker.workerName || ""} ${marker.workerId || marker.id}`.toLocaleLowerCase("pt").includes(mapSearch.toLocaleLowerCase("pt")));
 
   return (
     <main className="shell">
@@ -667,7 +671,10 @@ export function HQApp() {
           {active === "Mapa operacional" && <section className="fullMapWorkspace">
             <div className="fullMapHead"><div><span>TRACKING OPERACIONAL</span><h2>Mapa em tempo real</h2><p>Escolha a plataforma para ver apenas os profissionais que estão online e a enviar GPS.</p></div><div className="mapFilter" role="group" aria-label="Filtrar plataforma do mapa">{["Todas as plataformas", "DeliGo", "SARCA", "TaoMoz"].map((item) => <button key={item} className={platform === item ? "active" : ""} onClick={() => setPlatform(item)}>{item === "Todas as plataformas" ? "Todas" : item}</button>)}</div></div>
             <div className="mapLegend"><span><i className="deligo" />DeliGo · Estafetas</span><span><i className="sarca" />SARCA · Motoristas</span><span><i className="taomoz" />TaoMoz · Couriers</span><b>{mapMarkers.length} ao vivo</b></div>
-            <div className="fullOperationsMap"><LiveOperationsMap markers={mapMarkers} /></div>
+            <div className="mapControlBar"><input value={mapSearch} onChange={(event) => setMapSearch(event.target.value)} placeholder="Pesquisar trabalhador ou identificação" aria-label="Pesquisar trabalhador no mapa" /><div className="mapFilter" role="group" aria-label="Filtrar estado">{[["todos","Todos"],["disponivel","Disponível"],["ocupado","Ocupado"],["em_servico","Em serviço"],["offline","Offline"]].map(([value,label]) => <button key={value} className={mapStatus === value ? "active" : ""} onClick={() => setMapStatus(value)}>{label}</button>)}</div></div>
+            <div className="fullOperationsMap"><LiveOperationsMap markers={filteredMapMarkers} /></div>
+            <div className="mapWorkerList">{filteredMapMarkers.map((marker) => <button key={marker.id} onClick={() => setSelectedMapWorker(marker)}><strong>{marker.workerName || marker.role}</strong><span>{marker.platform} · {marker.role} · {marker.status?.replaceAll("_", " ") || "disponível"}</span><small>Atualizado {new Date(marker.updatedAt).toLocaleTimeString("pt-MZ", { hour:"2-digit", minute:"2-digit" })}</small></button>)}{!filteredMapMarkers.length && <div className="peopleEmpty">Sem trabalhadores autorizados com localização recente para este filtro.</div>}</div>
+            {selectedMapWorker && <div className="mapWorkerDetail"><div><span>TRABALHADOR AUTORIZADO</span><h3>{selectedMapWorker.workerName || selectedMapWorker.role}</h3><p>{selectedMapWorker.platform} · {selectedMapWorker.role} · {selectedMapWorker.status?.replaceAll("_", " ") || "disponível"}</p></div><div><small>Última localização</small><strong>{new Date(selectedMapWorker.updatedAt).toLocaleString("pt-MZ")}</strong><small>{selectedMapWorker.service ? `Serviço: ${selectedMapWorker.service}` : "Sem serviço activo identificado"}</small></div><button onClick={() => setSelectedMapWorker(null)}>Fechar</button></div>}
             <p className="mapPrivacyNote">As posições são atualizadas a cada 10 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
           </section>}
           {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && !isAccountScreen && (

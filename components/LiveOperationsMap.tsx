@@ -8,6 +8,10 @@ export type OperationsMapMarker = {
   id: string;
   platform: "DeliGo" | "SARCA" | "TaoMoz";
   role: string;
+  workerId?: string;
+  workerName?: string;
+  status?: "disponivel" | "ocupado" | "offline" | "em_servico";
+  service?: string;
   latitude: number;
   longitude: number;
   updatedAt: string;
