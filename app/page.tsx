@@ -269,6 +269,8 @@ type EmployeeHistory = { id:string; employee_id:string; action:string; created_a
 type EmployeeAccess = { id:string; employee_id:string|null; event_type:string; occurred_at:string };
 type EmployeePermission = { id:string; employee_id:string; permission_code:string; allowed:boolean };
 type HrData = Record<string, Array<Record<string,unknown>>>;
+type FinanceRecord = Record<string, unknown> & { id:string; platform_id?:string|null; status?:string; amount?:number; current_balance?:number; transaction_type?:string; payee?:string; description?:string; due_at?:string; created_at?:string; expected_income?:number; expected_expense?:number; spent_amount?:number };
+type FinanceData = { financial_accounts:FinanceRecord[]; financial_transactions:FinanceRecord[]; budgets:FinanceRecord[]; payment_requests:FinanceRecord[]; cashflow_forecasts:FinanceRecord[]; profit_distributions:FinanceRecord[] };
 type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; metadata:Record<string,unknown> };
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
@@ -309,6 +311,10 @@ export function HQApp() {
   const [hrData, setHrData] = useState<HrData>({});
   const [showHrEventForm, setShowHrEventForm] = useState(false);
   const [hrNotice, setHrNotice] = useState("");
+  const [financeData, setFinanceData] = useState<FinanceData>({ financial_accounts:[], financial_transactions:[], budgets:[], payment_requests:[], cashflow_forecasts:[], profit_distributions:[] });
+  const [financeNotice, setFinanceNotice] = useState("");
+  const [financeEntryKind, setFinanceEntryKind] = useState("transaction");
+  const [showFinanceForm, setShowFinanceForm] = useState(false);
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [platformAdminSnapshot, setPlatformAdminSnapshot] = useState<PlatformAdminSnapshot | null>(null);
   const [platformAdminError, setPlatformAdminError] = useState("");
@@ -364,6 +370,9 @@ export function HQApp() {
 
   useEffect(() => { if(active!=="Recursos Humanos")return; fetch("/api/hr",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setHrData(result.data||{})).catch(()=>setHrData({})); },[active]);
 
+  const refreshFinance = async () => { const response=await fetch("/api/finance",{cache:"no-store"}); if(!response.ok)throw new Error(); const result=await response.json(); setFinanceData(result.data); };
+  useEffect(() => { if(active!=="Finanças")return; refreshFinance().catch(()=>setFinanceNotice("Não foi possível carregar os registos financeiros para este perfil.")); },[active]);
+
   useEffect(() => {
     if (active !== "Registo de Auditoria") return;
     fetch("/api/audit", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => setAuditRecords(data.events || [])).catch(() => setAuditRecords([]));
@@ -379,6 +388,18 @@ export function HQApp() {
   const updateEmployee = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!editingEmployee) return; setEmployeeNotice("A guardar alterações…"); const form=new FormData(event.currentTarget); const response=await fetch("/api/employees",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId:editingEmployee.id,name:form.get("name"),phone:form.get("phone"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),updatedAt:editingEmployee.updated_at})}); const result=await response.json(); setEmployeeNotice(response.ok?"Trabalhador actualizado e auditado.":result.error); if(response.ok){setEditingEmployee(null);await refreshEmployees();} };
   const employeeGovernanceAction = async (payload:Record<string,unknown>) => { setEmployeeNotice("A guardar controlo de acesso…"); const response=await fetch("/api/employees",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}); const result=await response.json(); setEmployeeNotice(response.ok?"Supervisor ou permissão actualizado e auditado.":result.error); if(response.ok)await refreshEmployees(); };
   const createHrEvent = async (event:FormEvent<HTMLFormElement>) => { event.preventDefault(); const form=new FormData(event.currentTarget); setHrNotice("A guardar registo de RH…"); const response=await fetch("/api/hr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource:"hr_employee_events",record:{employee_id:form.get("employeeId"),event_type:form.get("eventType"),title:form.get("title"),occurred_on:form.get("occurredOn"),status:"open"}})}); const result=await response.json(); setHrNotice(response.ok?"Registo criado com sucesso.":result.error); if(response.ok){setShowHrEventForm(false); const refreshed=await fetch("/api/hr",{cache:"no-store"});if(refreshed.ok)setHrData((await refreshed.json()).data||{});} };
+  const createFinanceRecord = async (event:FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); const form=new FormData(event.currentTarget); const amount=Number(form.get("amount")||0); const platform_slug=String(form.get("platform")||"");
+    const configs:Record<string,{resource:string;record:Record<string,unknown>}>= {
+      transaction:{resource:"financial_transactions",record:{platform_slug,transaction_type:form.get("transactionType"),classification:form.get("classification"),description:form.get("description"),amount,currency:"MZN",status:"draft",occurred_at:form.get("occurredAt")}},
+      payment:{resource:"payment_requests",record:{platform_slug,payee:form.get("payee"),description:form.get("description"),amount,currency:"MZN",due_at:form.get("dueAt"),status:"pending"}},
+      account:{resource:"financial_accounts",record:{platform_slug,account_type:"corporate_bank",name:form.get("name"),bank_name:form.get("bankName"),masked_account_number:form.get("maskedAccount"),currency:"MZN",opening_balance:amount,current_balance:amount,status:"active"}},
+      budget:{resource:"budgets",record:{platform_slug,name:form.get("name"),amount,currency:"MZN",financial_year:Number(form.get("financialYear")),period_start:form.get("periodStart")||null,period_end:form.get("periodEnd")||null,status:"draft"}},
+      forecast:{resource:"cashflow_forecasts",record:{platform_slug,period_start:form.get("periodStart"),period_end:form.get("periodEnd"),expected_income:Number(form.get("expectedIncome")||0),expected_expense:Number(form.get("expectedExpense")||0),currency:"MZN"}},
+    };
+    setFinanceNotice("A guardar registo financeiro…"); const config=configs[financeEntryKind]; const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(config)}); const result=await response.json(); setFinanceNotice(response.ok?"Registo guardado e auditado.":result.error); if(response.ok){setShowFinanceForm(false); await refreshFinance();}
+  };
+  const paymentAction = async (paymentId:string,action:"approve"|"reject"|"mark_paid") => { setFinanceNotice("A atualizar pagamento…"); const response=await fetch("/api/finance",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({paymentId,action})});const result=await response.json();setFinanceNotice(response.ok?"Pagamento atualizado e auditado.":result.error);if(response.ok)await refreshFinance(); };
   const exportAudit = () => { const anchor=document.createElement("a"); anchor.href="/api/audit/export"; anchor.download="deligo-auditoria.csv"; document.body.appendChild(anchor); anchor.click(); anchor.remove(); };
 
   useEffect(() => {
@@ -480,6 +501,10 @@ export function HQApp() {
   const mapMarkers = (liveMap?.markers || []).filter((marker) => platform === "Todas as plataformas" || marker.platform === platform);
   const filteredMapMarkers = mapMarkers.filter((marker) => (mapStatus === "todos" || marker.status === mapStatus) && `${marker.workerName || ""} ${marker.workerId || marker.id}`.toLocaleLowerCase("pt").includes(mapSearch.toLocaleLowerCase("pt")));
   const shownEmployees = managedEmployees.filter((employee) => `${employee.name} ${employee.employee_code} ${employee.department} ${employee.job_title}`.toLocaleLowerCase("pt").includes(employeeSearch.toLocaleLowerCase("pt")));
+  const financePlatformIds:Record<string,string>={DeliGo:"20000000-0000-0000-0000-000000000001",Comunhão:"20000000-0000-0000-0000-000000000002",TaoMoz:"20000000-0000-0000-0000-000000000003",SARCA:"20000000-0000-0000-0000-000000000004"};
+  const financeFilter=(rows:FinanceRecord[])=>platform==="Todas as plataformas"?rows:rows.filter(row=>row.platform_id===financePlatformIds[platform]);
+  const financeAccounts=financeFilter(financeData.financial_accounts); const financeTransactions=financeFilter(financeData.financial_transactions); const financePayments=financeFilter(financeData.payment_requests); const financeBudgets=financeFilter(financeData.budgets); const financeForecasts=financeFilter(financeData.cashflow_forecasts);
+  const treasuryBalance=financeAccounts.reduce((sum,row)=>sum+Number(row.current_balance||0),0); const recognizedIncome=financeTransactions.filter(row=>row.transaction_type==="income"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const recognizedExpense=financeTransactions.filter(row=>row.transaction_type==="expense"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const pendingPayments=financePayments.filter(row=>["pending","approved"].includes(row.status||"")); const pendingPaymentTotal=pendingPayments.reduce((sum,row)=>sum+Number(row.amount||0),0); const paidTotal=financePayments.filter(row=>row.status==="paid").reduce((sum,row)=>sum+Number(row.amount||0),0); const budgetTotal=financeBudgets.reduce((sum,row)=>sum+Number(row.amount||0),0); const forecastNet=financeForecasts.reduce((sum,row)=>sum+Number(row.expected_income||0)-Number(row.expected_expense||0),0);
 
   return (
     <main className="shell">
@@ -632,22 +657,30 @@ export function HQApp() {
           {active === "Finanças" && (
             <section className="financeWorkspace">
               <div className="financeHero">
-                <div><span>VOLUME OPERACIONAL OBSERVADO</span><strong>{money(selectedOperationalValue)}</strong><small>{platform} · valor processado no staging, não representa receita, tesouraria ou lucro.</small></div>
+                <div><span>SALDO DE TESOURARIA CORPORATIVA</span><strong>{money(treasuryBalance)}</strong><small>{platform} · soma das contas corporativas registadas no HQ.</small></div>
                 <div className="financeGuard"><ShieldCheck aria-hidden="true" /><div><b>Separação financeira activa</b><span>Carteiras de utilizadores não são tratadas como dinheiro da empresa.</span></div></div>
               </div>
-              <div className="financialBreakdown">
-                {selectedFinancialPlatforms.map((item) => <article key={item.slug}><span>{item.name}</span><strong>{money(item.value)}</strong><small>Volume operacional</small></article>)}
-                {!selectedFinancialPlatforms.length && <div className="peopleEmpty">Sem valores financeiros disponíveis para este contexto.</div>}
+              <div className="financeKpis">
+                {[ ["Receitas reconhecidas",recognizedIncome,"lançamentos publicados"], ["Despesas reconhecidas",recognizedExpense,"lançamentos publicados"], ["Pagamentos pendentes",pendingPaymentTotal,`${pendingPayments.length} pedidos`], ["Pagamentos realizados",paidTotal,"registos pagos"], ["Orçamento",budgetTotal,"período seleccionado"], ["Previsão líquida",forecastNet,"entradas menos saídas"] ].map(([label,value,note])=><article key={String(label)}><span>{label}</span><strong>{money(Number(value))}</strong><small>{note}</small></article>)}
               </div>
+              <div className="financeToolbar"><div><h2>Controlo financeiro</h2><p>Contas, movimentos, pagamentos, orçamentos e previsões consolidados ou por plataforma.</p></div><button className="primaryAction" onClick={()=>setShowFinanceForm(!showFinanceForm)}>{showFinanceForm?"Fechar":"Novo registo"}</button></div>
+              {showFinanceForm&&<form className="financeEntryForm" onSubmit={createFinanceRecord}>
+                <label><span>Tipo de registo</span><select value={financeEntryKind} onChange={event=>setFinanceEntryKind(event.target.value)}>{[["transaction","Entrada ou saída"],["payment","Pagamento pendente"],["account","Conta bancária"],["budget","Orçamento"],["forecast","Previsão financeira"]].map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>
+                <label><span>Plataforma</span><select name="platform"><option value="">Consolidado / empresa</option><option value="deligo">DeliGo</option><option value="comunhao">Comunhão</option><option value="taomoz">TaoMoz</option><option value="sarca">SARCA</option></select></label>
+                {financeEntryKind==="transaction"&&<><label><span>Movimento</span><select name="transactionType"><option value="income">Entrada / receita</option><option value="expense">Saída / despesa</option><option value="transfer">Transferência interna</option></select></label><label><span>Classificação</span><input name="classification" required/></label><label><span>Descrição</span><input name="description" required/></label><label><span>Valor (MZN)</span><input name="amount" type="number" min="0.01" step="0.01" required/></label><label><span>Data</span><input name="occurredAt" type="datetime-local" required/></label></>}
+                {financeEntryKind==="payment"&&<><label><span>Beneficiário</span><input name="payee" required/></label><label><span>Descrição</span><input name="description" required/></label><label><span>Valor (MZN)</span><input name="amount" type="number" min="0.01" step="0.01" required/></label><label><span>Vencimento</span><input name="dueAt" type="datetime-local"/></label></>}
+                {financeEntryKind==="account"&&<><label><span>Nome da conta</span><input name="name" required/></label><label><span>Banco</span><input name="bankName" required/></label><label><span>Número mascarado</span><input name="maskedAccount" placeholder="**** 1234" required/></label><label><span>Saldo inicial (MZN)</span><input name="amount" type="number" step="0.01" required/></label></>}
+                {financeEntryKind==="budget"&&<><label><span>Nome do orçamento</span><input name="name" required/></label><label><span>Valor (MZN)</span><input name="amount" type="number" min="0" step="0.01" required/></label><label><span>Ano financeiro</span><input name="financialYear" type="number" defaultValue={new Date().getFullYear()} required/></label><label><span>Início</span><input name="periodStart" type="date"/></label><label><span>Fim</span><input name="periodEnd" type="date"/></label></>}
+                {financeEntryKind==="forecast"&&<><label><span>Entradas previstas</span><input name="expectedIncome" type="number" min="0" step="0.01" required/></label><label><span>Saídas previstas</span><input name="expectedExpense" type="number" min="0" step="0.01" required/></label><label><span>Início</span><input name="periodStart" type="date" required/></label><label><span>Fim</span><input name="periodEnd" type="date" required/></label></>}
+                <button className="primaryAction" type="submit">Guardar e auditar</button>
+              </form>}
               <div className="financeColumns">
-                <article className="financePanel"><div className="panelTitle"><div><h2>Posição financeira</h2><p>Somente fontes confirmadas pelo backend</p></div></div>{[
-                  ["Tesouraria corporativa", "—", "Fonte ainda não ligada"], ["Receitas reconhecidas", "—", "Contabilidade ainda não ligada"], ["Despesas", "—", "Contabilidade ainda não ligada"], ["Lucro líquido", "—", "Exige fecho contabilístico"],
-                ].map(([label,value,note]) => <div className="financeLine" key={label}><div><strong>{label}</strong><span>{note}</span></div><b>{value}</b></div>)}</article>
-                <article className="financePanel"><div className="panelTitle"><div><h2>Aprovações protegidas</h2><p>Decisões financeiras e societárias</p></div></div>{[
-                  ["Distribuição de lucros", "2 sócios"], ["Dívida material", "2 sócios"], ["Venda de património material", "2 sócios"], ["Alteração de quotas", "2 sócios"],
-                ].map(([label,rule]) => <div className="financeLine" key={label}><div><strong>{label}</strong><span>Sem proposta activa</span></div><em>{rule}</em></div>)}</article>
+                <article className="financePanel"><div className="panelTitle"><div><h2>Contas e saldos</h2><p>{financeAccounts.length} contas no contexto actual</p></div></div>{financeAccounts.slice(0,8).map(account=><div className="financeLine" key={account.id}><div><strong>{String(account.name||"Conta corporativa")}</strong><span>{String(account.bank_name||"Caixa")} · {String(account.masked_account_number||"sem número exposto")}</span></div><b>{money(Number(account.current_balance||0))}</b></div>)}{!financeAccounts.length&&<div className="peopleEmpty">Sem contas corporativas registadas.</div>}</article>
+                <article className="financePanel"><div className="panelTitle"><div><h2>Aprovação de despesas</h2><p>Solicitante e aprovador devem ser pessoas distintas</p></div></div>{pendingPayments.slice(0,8).map(payment=><div className="financePayment" key={payment.id}><div><strong>{payment.payee||"Beneficiário"}</strong><span>{payment.description||"Pagamento"} · {money(Number(payment.amount||0))}</span></div><b>{payment.status}</b><div><button onClick={()=>void paymentAction(payment.id,"approve")} disabled={payment.status!=="pending"}>Aprovar</button><button onClick={()=>void paymentAction(payment.id,"reject")}>Rejeitar</button><button onClick={()=>void paymentAction(payment.id,"mark_paid")} disabled={payment.status!=="approved"}>Marcar pago</button></div></div>)}{!pendingPayments.length&&<div className="peopleEmpty">Sem pagamentos pendentes.</div>}</article>
               </div>
-              <div className="safeNotice"><b>Escrita protegida</b><span>Consulta real disponível. Criar, aprovar, pagar e reconciliar permanecem bloqueados até a autenticação corporativa validar cada actor no servidor.</span></div>
+              <div className="financialBreakdown"><article><span>Volume operacional observado</span><strong>{money(selectedOperationalValue)}</strong><small>Não é receita contabilística</small></article>{selectedFinancialPlatforms.map(item=><article key={item.slug}><span>{item.name}</span><strong>{money(item.value)}</strong><small>Volume bruto observado</small></article>)}</div>
+              {financeNotice&&<div className="operationalNotice">{financeNotice}</div>}
+              <div className="safeNotice"><b>Controlo protegido</b><span>O HQ regista e aprova; “marcar pago” não movimenta dinheiro no banco nem executa Vodacom/Movitel. Distribuição de lucros continua sujeita à governação societária.</span></div>
             </section>
           )}
           {active === "Direcção Executiva" && dashboard?.governance && (
