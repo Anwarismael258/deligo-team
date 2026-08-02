@@ -131,58 +131,6 @@ const routeByModule: Record<string, string> = {
 
 const moduleByRoute = Object.fromEntries(Object.entries(routeByModule).map(([module, route]) => [route, module]));
 
-const workspaceRows: Record<string, string[][]> = {
-  "Meu Perfil": [
-    ["Identidade corporativa", "Configurada localmente", "DG-0001", "profile.view"],
-    ["Dados pessoais", "Protegidos", "—", "profile.personal.view"],
-    ["Perfil profissional", "Activo", "2026", "profile.professional.view"],
-    ["Permissões atribuídas", "Simulação local", "Por role", "profile.permissions.view"],
-  ],
-  "Definições": [
-    ["Idioma", "Português", "PT", "settings.locale.manage"],
-    ["Fuso horário", "África/Joanesburgo", "UTC+2", "settings.timezone.manage"],
-    ["Tema", "Claro", "Sistema", "settings.appearance.manage"],
-    ["Página inicial", "Visão geral", "/", "settings.home.manage"],
-  ],
-  "Segurança": [
-    ["Password", "Alteração bloqueada", "—", "security.password.manage"],
-    ["Autenticação de dois factores", "Não verificado", "—", "security.2fa.manage"],
-    ["Dispositivos autorizados", "Backend desligado", "—", "security.sessions.view"],
-    ["Códigos de recuperação", "Não gerados", "—", "security.recovery.manage"],
-  ],
-  "Aprovações": [
-    ["Finanças", "Revisão financeira", "0", "finance.approve"],
-    ["Recursos Humanos", "Contratos e payroll", "0", "hr.approve"],
-    ["Jurídico", "Contratos e deliberações", "0", "legal.approve"],
-    ["Compras", "Pedidos de aquisição", "0", "procurement.approve"],
-    ["Marketing", "Publicação de campanhas", "0", "marketing.publish"],
-  ],
-  "Tecnologia / IT": [
-    ["APIs centrais", "Integração bloqueada", "Preparado", "technology.integrations.view"],
-    ["Bases de dados", "Sem ligação activa", "Protegido", "technology.database.view"],
-    ["Backups", "Não verificado", "—", "technology.backups.view"],
-    ["Incidentes técnicos", "Nenhum dado ligado", "0", "technology.incidents.view"],
-  ],
-  "Compras": [
-    ["Pedido de compra", "Rascunho", "0", "procurement.request.create"],
-    ["Aprovação", "Pendente", "0", "procurement.approve"],
-    ["Fornecedor", "Não ligado", "0", "procurement.suppliers.view"],
-    ["Factura e pagamento", "Segregação obrigatória", "—", "procurement.invoice.view"],
-  ],
-  "Património": [
-    ["Equipamentos", "Não ligados", "0", "assets.view"],
-    ["Atribuídos", "Sem fonte de dados", "0", "assets.assign"],
-    ["Devoluções pendentes", "Sem fonte de dados", "0", "assets.return"],
-    ["Manutenção", "Sem fonte de dados", "0", "assets.maintenance"],
-  ],
-  "Registo de Auditoria": [
-    ["Acessos", "Backend desligado", "—", "audit.login.view"],
-    ["Alterações de permissões", "Backend desligado", "—", "audit.security.view"],
-    ["Operações financeiras", "Backend desligado", "—", "audit.finance.view"],
-    ["Impersonation", "Apenas simulação local", "Local", "audit.impersonation.view"],
-  ],
-};
-
 const personas = {
   anwar: {
     name: "Anwar Ismael",
@@ -227,6 +175,7 @@ const personas = {
 } as const;
 
 const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
+const unpublishedModules = new Set(["Aquisição de Parceiros","Embaixadores"]);
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
@@ -274,6 +223,7 @@ type AuditRecord = { id:string; occurred_at:string; actor:string; action:string;
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
 type PlatformProfile = { platform:string; id:string; profile:Record<string, unknown>|null; kyc:unknown[]; wallets:unknown[]; orders:unknown[]; disputes:unknown[]; activity:unknown[] };
+type SessionUser = { id:string; hq_role:string; name:string; employee_code:string; email:string|null; phone:string|null; job_title:string|null; status:string; joined_on:string|null; last_login_at:string|null; department_id:string|null; manager_id:string|null };
 
 const metricFor = (platform: DashboardPlatform | undefined, labels: string[]) =>
   platform?.metrics.find((metric) => labels.some((label) => metric.label.toLowerCase().includes(label)))?.value ?? 0;
@@ -301,6 +251,9 @@ export function HQApp() {
   const [mapStatus, setMapStatus] = useState("todos");
   const [selectedMapWorker, setSelectedMapWorker] = useState<LiveMapMarker | null>(null);
   const [sessionRole, setSessionRole] = useState("");
+  const [sessionUser,setSessionUser]=useState<SessionUser|null>(null);
+  const [notifications,setNotifications]=useState<FinanceRecord[]>([]);
+  const [notificationsOpen,setNotificationsOpen]=useState(false);
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<ManagedEmployee | null>(null);
@@ -369,6 +322,16 @@ export function HQApp() {
   const [showProjectForm,setShowProjectForm]=useState(false);
   const [projectKind,setProjectKind]=useState("project");
   const [projectNotice,setProjectNotice]=useState("");
+  const [internalData,setInternalData]=useState<Record<string,FinanceRecord[]>>({});
+  const [internalSearch,setInternalSearch]=useState("");
+  const [internalStatus,setInternalStatus]=useState("all");
+  const [internalPage,setInternalPage]=useState(1);
+  const [internalHasMore,setInternalHasMore]=useState(false);
+  const [showInternalForm,setShowInternalForm]=useState(false);
+  const [internalKind,setInternalKind]=useState("request");
+  const [internalNotice,setInternalNotice]=useState("");
+  const [selectedInternal,setSelectedInternal]=useState("");
+  const [internalTargets,setInternalTargets]=useState<Record<string,string>>({});
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [platformAdminSnapshot, setPlatformAdminSnapshot] = useState<PlatformAdminSnapshot | null>(null);
   const [platformAdminError, setPlatformAdminError] = useState("");
@@ -378,20 +341,25 @@ export function HQApp() {
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<ManagedEmployee | null>(null);
   const [platformSnapshot, setPlatformSnapshot] = useState<PlatformSnapshot | null>(null);
-  const currentPersona = personas[persona];
-  const isAccountScreen = ["Meu Perfil", "Definições", "Segurança"].includes(active);
+  const personaBase=personas[persona];
+  const currentPersona={...personaBase,name:sessionUser?.name||personaBase.name,role:sessionUser?.job_title||personaBase.role,initials:(sessionUser?.name||personaBase.name).split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()};
+  const isAccountScreen = active==="Meu Perfil";
   const activePresentation = modulePresentation[active];
-  const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never));
+  const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never)&&!unpublishedModules.has(label));
 
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" }).then(async (response) => {
       if (!response.ok) { window.location.replace("/login"); return; }
-      const session = await response.json() as { user?: { hq_role?: keyof typeof personaByRole } };
-      const sessionPersona = session.user?.hq_role && personaByRole[session.user.hq_role];
+      const session = await response.json() as { user?: SessionUser };
+      const sessionPersona = session.user?.hq_role && personaByRole[session.user.hq_role as keyof typeof personaByRole];
       setSessionRole(session.user?.hq_role || "");
+      setSessionUser(session.user||null);
       if (sessionPersona) setPersona(sessionPersona);
     }).catch(() => window.location.replace("/login"));
   }, []);
+  const refreshNotifications=async()=>{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();setNotifications((await r.json()).notifications||[])};
+  useEffect(()=>{if(!sessionUser)return;refreshNotifications().catch(()=>setNotifications([]))},[sessionUser?.id]);
+  const markNotifications=async(id?:string)=>{const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(id?{id}:{all:true})});if(r.ok)await refreshNotifications()};
 
   useEffect(() => {
     if (!["Visão geral", "Mapa operacional"].includes(active)) return;
@@ -451,6 +419,8 @@ export function HQApp() {
   useEffect(()=>{if(active!=="Património")return;refreshAssets().catch(()=>{setAssetData({});setAssetNotice("Não foi possível carregar o património para este perfil.")})},[active]);
   const refreshProjects=async()=>{const r=await fetch("/api/projects",{cache:"no-store"});if(!r.ok)throw new Error();setProjectData((await r.json()).data||{})};
   useEffect(()=>{if(active!=="Projectos e Tarefas")return;refreshProjects().catch(()=>{setProjectData({});setProjectNotice("Não foi possível carregar os projectos para este perfil.")})},[active]);
+  const refreshInternal=async()=>{const q=new URLSearchParams({status:internalStatus,page:String(internalPage)});if(internalSearch.trim())q.set("search",internalSearch.trim());const r=await fetch(`/api/internal-support?${q}`,{cache:"no-store"});const result=await r.json();if(!r.ok)throw new Error(result.error||"Falha no Apoio Interno");setInternalData(result.data||{});setInternalHasMore(Boolean(result.pagination?.hasMore))};
+  useEffect(()=>{if(active!=="Apoio Interno")return;const timer=window.setTimeout(()=>{refreshInternal().catch(error=>{setInternalData({});setInternalNotice(error instanceof Error?error.message:"Não foi possível carregar o Apoio Interno.")})},250);return()=>window.clearTimeout(timer)},[active,internalSearch,internalStatus,internalPage]);
 
   useEffect(() => {
     if (active !== "Registo de Auditoria") return;
@@ -507,6 +477,8 @@ export function HQApp() {
   const assetAction=async(assetId:string,action:string,maintenanceId?:string)=>{const employeeId=assetTargets[assetId]||undefined,condition=["assign","return"].includes(action)?window.prompt("Estado físico do ativo","Bom")||"Bom":undefined,expectedReturn=action==="assign"?window.prompt("Data prevista de devolução (AAAA-MM-DD), opcional")||undefined:undefined;setAssetNotice("A validar estado e responsabilidade…");const r=await fetch("/api/assets",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({assetId,action,maintenanceId,employeeId,condition,expectedReturn})});const result=await r.json();setAssetNotice(r.ok?"Património atualizado e auditado.":result.error);if(r.ok)await refreshAssets()};
   const createProjectRecord=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const f=new FormData(event.currentTarget);const configs:Record<string,unknown>={project:{resource:"project",record:{platform_slug:f.get("platform")||null,department_id:f.get("departmentId")||null,code:f.get("code"),name:f.get("name"),description:f.get("description")||null,objective:f.get("objective"),owner_employee_id:f.get("ownerId"),sponsor_employee_id:f.get("sponsorId")||null,priority:f.get("priority"),status:"planned",start_date:f.get("startDate")||null,due_date:f.get("dueDate")||null,budget:f.get("budget")?Number(f.get("budget")):null}},task:{resource:"task",record:{project_id:f.get("projectId"),platform_slug:f.get("platform")||null,department_id:f.get("departmentId")||null,title:f.get("title"),description:f.get("description")||null,objective:f.get("objective")||null,priority:f.get("priority"),status:"planned",assigned_to:f.get("assigneeId")||null,due_at:f.get("dueAt")||null,estimated_hours:f.get("hours")?Number(f.get("hours")):null,parent_task_id:f.get("parentTaskId")||null}},milestone:{resource:"milestone",record:{project_id:f.get("projectId"),title:f.get("title"),description:f.get("description")||null,due_date:f.get("dueDate")||null,status:"pending"}},member:{resource:"member",record:{project_id:f.get("projectId"),employee_id:f.get("employeeId"),project_role:f.get("projectRole"),allocation_percent:f.get("allocation")?Number(f.get("allocation")):null}},dependency:{resource:"dependency",record:{task_id:f.get("taskId"),depends_on_task_id:f.get("dependsOnTaskId"),dependency_type:f.get("dependencyType")}},update:{resource:"update",record:{project_id:f.get("projectId"),task_id:f.get("taskId")||null,update_type:f.get("updateType"),message:f.get("message"),progress:f.get("progress")?Number(f.get("progress")):null}}};setProjectNotice("A guardar trabalho…");const r=await fetch("/api/projects",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(configs[projectKind])});const result=await r.json();setProjectNotice(r.ok?"Registo guardado e auditado.":result.error);if(r.ok){setShowProjectForm(false);await refreshProjects()}};
   const projectAction=async(resource:"project"|"task"|"milestone",id:string,action:string)=>{const progress=action==="progress"?Number(window.prompt("Progresso entre 0 e 100","50")||0):undefined,message=["block","progress"].includes(action)?window.prompt("Comentário da atualização")||undefined:undefined;setProjectNotice("A validar prazos, dependências e estado…");const r=await fetch("/api/projects",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource,id,action,progress,message})});const result=await r.json();setProjectNotice(r.ok?"Estado atualizado e auditado.":result.error);if(r.ok)await refreshProjects()};
+  const createInternalRecord=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const f=new FormData(event.currentTarget),record=internalKind==="request"?{target_department_id:f.get("departmentId"),category:f.get("category"),subject:f.get("subject"),description:f.get("description"),priority:f.get("priority"),due_at:f.get("dueAt")||null}:{request_id:f.get("requestId")||selectedInternal,message:f.get("message"),is_internal:f.get("internal")==="on"};setInternalNotice("A guardar pedido…");const r=await fetch("/api/internal-support",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource:internalKind,record})});const result=await r.json();setInternalNotice(r.ok?"Pedido atualizado e auditado.":result.error);if(r.ok){setShowInternalForm(false);await refreshInternal()}};
+  const internalAction=async(requestId:string,action:string)=>{const employeeId=internalTargets[requestId]||undefined,resolution=action==="resolve"?window.prompt("Resolução aplicada")||"":undefined,comment=window.prompt("Comentário da ação (opcional)")||undefined;setInternalNotice("A validar cargo, departamento e estado…");const r=await fetch("/api/internal-support",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId,action,employeeId,resolution,comment})});const result=await r.json();setInternalNotice(r.ok?"Estado atualizado e auditado.":result.error);if(r.ok)await refreshInternal()};
   const exportAudit = () => { const anchor=document.createElement("a"); anchor.href="/api/audit/export"; anchor.download="deligo-auditoria.csv"; document.body.appendChild(anchor); anchor.click(); anchor.remove(); };
 
   useEffect(() => {
@@ -628,8 +600,7 @@ export function HQApp() {
             </button>
           ))}
           <p className="navLabel">SISTEMA</p>
-          <button className={active === "Segurança" ? "navItem active" : "navItem"} onClick={() => navigate("Segurança")}><span><ShieldCheck aria-hidden="true" /></span>Segurança</button>
-          <button className={active === "Definições" ? "navItem active" : "navItem"} onClick={() => navigate("Definições")}><span><Settings aria-hidden="true" /></span>Definições</button>
+          <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span>Meu Perfil</button>
         </nav>
         <div className="user">
           <div className="avatar">{currentPersona.initials}</div>
@@ -645,34 +616,11 @@ export function HQApp() {
             <span>⌕</span><span>Pesquisar em toda a Central…</span><kbd>⌘ K</kbd>
           </button>
           <div className="headerActions">
-            {sessionRole === "SUPER_ADMIN" && <label className="viewAs">
-              <span>Ver como</span>
-              <select aria-label="Simular perfil" value={persona} onChange={(e) => {
-                const next = e.target.value as keyof typeof personas;
-                setPersona(next);
-                setActive("Visão geral");
-              }}>
-                <option value="anwar">Anwar</option>
-                <option value="sara">Sara</option>
-                <option value="sansao">Sansão</option>
-                <option value="contabilista">Contabilista</option>
-                <option value="tecnologia">Técnico IT</option>
-                <option value="marketing">Marketing</option>
-                <option value="field">Field</option>
-                <option value="support">Suporte</option>
-                <option value="hr">Recursos Humanos</option>
-                <option value="legal">Jurídico</option>
-                <option value="operations">Operações</option>
-                <option value="acquisition">Aquisição</option>
-                <option value="ambassador">Embaixador</option>
-                <option value="procurement">Compras</option>
-                <option value="assets">Património</option>
-              </select>
-            </label>}
             <select aria-label="Plataforma actual" value={platform} onChange={(e) => setPlatform(e.target.value)}>
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
-            <button className="iconButton" aria-label="Notifications">♢<i /></button>
+            <button className="iconButton" aria-label="Notificações" onClick={()=>setNotificationsOpen(!notificationsOpen)}>♢{notifications.some(n=>!n.read_at)&&<i />}</button>
+            {notificationsOpen&&<div className="notificationMenu"><div><strong>Notificações</strong><button onClick={()=>void markNotifications()}>Marcar todas como lidas</button></div>{notifications.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);if(n.target_url)window.location.assign(String(n.target_url))}}><strong>{String(n.title)}</strong><span>{String(n.body)}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")}</small></button>)}{!notifications.length&&<p>Sem notificações.</p>}</div>}
             <button className="accountTrigger" onClick={() => setAccountOpen(!accountOpen)} aria-label="Abrir menu da conta">
               <div className="miniAvatar">{currentPersona.initials}</div>
               <div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span></div><b>⌄</b>
@@ -681,8 +629,6 @@ export function HQApp() {
               <div className="accountMenuHead"><div className="avatar">{currentPersona.initials}</div><div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span><small>DeliGo Triunfal, Lda.</small></div></div>
               <div className="accountMenuGroup">
                 <button onClick={() => { navigate("Meu Perfil"); setAccountOpen(false); }}><span>♙</span>Meu Perfil</button>
-                <button onClick={() => { navigate("Definições"); setAccountOpen(false); }}><span>⚙</span>Definições</button>
-                <button onClick={() => { navigate("Segurança"); setAccountOpen(false); }}><span>♧</span>Segurança</button>
                 <button onClick={() => { navigate("Registo de Auditoria"); setAccountOpen(false); }}><span>▤</span>Minha Actividade</button>
               </div>
               {persona === "anwar" && <div className="accountMenuGroup"><p>ADMINISTRAÇÃO</p>
@@ -709,7 +655,7 @@ export function HQApp() {
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{active}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
-                {(moduleDetails[active] || ["Visão geral", "Actividade", "Relatórios", "Definições"]).map((item) => <button className={subArea === item ? "active" : ""} onClick={() => setSubArea(item)} key={item}>{item}<b>→</b></button>)}
+                {(moduleDetails[active] || []).map((item) => <span key={item}>{item}</span>)}
               </div>
             </section>
           )}
@@ -745,7 +691,7 @@ export function HQApp() {
                 <article><span>{teamLabel(selectedPlatformModule.name)}</span><strong>{teamValue(selectedPlatformStatus, selectedPlatformModule.name)}</strong><small>Equipa ou rede operacional</small></article>
               </div>
               <div className="moduleToolbar">
-                <div className="moduleTabs"><button className="active">Resumo</button><button>Utilizadores</button><button>Operações</button><button>Financeiro</button><button>Auditoria</button></div>
+                <div className="moduleTabs"><span className="active">Resumo operacional</span><span>Dados agregados do backend</span></div>
                 <input value={peopleSearch} onChange={(event) => setPeopleSearch(event.target.value)} placeholder={`Pesquisar pessoas em ${selectedPlatformModule.name}…`} aria-label="Pesquisar utilizadores" />
               </div>
               {platformSnapshot && <div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Estado administrativo ligado</h3><p>Dados reais do backend dedicado de {selectedPlatformModule.name}.</p></div><b>{Object.values(platformSnapshot.data).filter(Array.isArray).length} fontes</b></div><div className="peopleTable"><div className="peopleRow peopleHeader"><span>Fonte</span><span>Registos</span><span>Estado</span><span>Actualização</span></div>{Object.entries(platformSnapshot.data).map(([source, value]) => <div className="peopleRow" key={source}><span className="personIdentity"><i>{source.slice(0, 2).toUpperCase()}</i><strong>{source.replaceAll("_", " ")}</strong></span><span>{Array.isArray(value) ? value.length : "—"}</span><span className="connectedPill">Backend real</span><span>{new Date(platformSnapshot.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</span></div>)}</div></div>}
@@ -753,7 +699,7 @@ export function HQApp() {
                 <div className="peoplePanelHead"><div><h3>Utilizadores recentes</h3><p>Nomes reais disponíveis no backend central.</p></div><b>{shownPeople.length} resultados</b></div>
                 <div className="peopleTable">
                   <div className="peopleRow peopleHeader"><span>Utilizador</span><span>Função</span><span>Registo</span><span>Estado</span></div>
-                  {shownPeople.map((person) => <button className="peopleRow" key={person.id}><span className="personIdentity"><i>{person.name.split(" ").slice(0,2).map((part) => part[0]).join("")}</i><strong>{person.name}</strong></span><span className="rolePill">{person.role.replaceAll("_", " ")}</span><span>{new Date(person.created_at).toLocaleDateString("pt-MZ")}</span><span className="connectedPill">Activo</span></button>)}
+                  {shownPeople.map((person) => <button className="peopleRow" onClick={()=>setSelectedProfile({platform:platformSlug(platform),id:person.id,name:person.name})} key={person.id}><span className="personIdentity"><i>{person.name.split(" ").slice(0,2).map((part) => part[0]).join("")}</i><strong>{person.name}</strong></span><span className="rolePill">{person.role.replaceAll("_", " ")}</span><span>{new Date(person.created_at).toLocaleDateString("pt-MZ")}</span><span className="connectedPill">Activo</span></button>)}
                   {!shownPeople.length && <div className="peopleEmpty">Nenhum utilizador corresponde à pesquisa.</div>}
                 </div>
               </div>
@@ -837,7 +783,7 @@ export function HQApp() {
           )}
           {active === "Pessoas" && <section className="peopleInspector"><div className="peopleSearchBar"><input value={employeeSearch} onChange={event=>setEmployeeSearch(event.target.value)} placeholder="Pesquisar por nome, identificação, cargo ou departamento"/><b>{shownEmployees.length} resultados</b></div><div className="peopleInspectorGrid">{shownEmployees.map(employee=><button key={employee.id} onClick={()=>setSelectedEmployee(employee)}><strong>{employee.name}</strong><span>{employee.employee_code} · {employee.job_title}</span><small>{employee.department} · {employee.status}</small></button>)}</div>{selectedEmployee&&<div className="employeeDetail"><div className="employeeDetailHead"><div><span>PERFIL PROFISSIONAL</span><h3>{selectedEmployee.name}</h3><p>{selectedEmployee.employee_code} · {selectedEmployee.job_title} · {selectedEmployee.department}</p></div><button onClick={()=>setSelectedEmployee(null)}>Fechar</button></div><div className="employeeDetailGrid"><article><span>Estado</span><strong>{selectedEmployee.status}</strong></article><article><span>Função</span><strong>{selectedEmployee.role||selectedEmployee.requested_role||"Pendente"}</strong></article><article><span>Último acesso</span><strong>{selectedEmployee.last_login_at?new Date(selectedEmployee.last_login_at).toLocaleString("pt-MZ"):"Sem acesso"}</strong></article><article><span>Permissões específicas</span><strong>{employeePermissions.filter(item=>item.employee_id===selectedEmployee.id).length}</strong></article></div><div className="employeeTimeline"><h4>Histórico e acessos</h4>{employeeHistory.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.action.replaceAll("_"," ")}</b><span>{new Date(item.created_at).toLocaleString("pt-MZ")}</span></p>)}{employeeAccess.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.event_type.replaceAll("_"," ")}</b><span>{new Date(item.occurred_at).toLocaleString("pt-MZ")}</span></p>)}{!employeeHistory.some(item=>item.employee_id===selectedEmployee.id)&&!employeeAccess.some(item=>item.employee_id===selectedEmployee.id)&&<div className="peopleEmpty">Sem alterações ou acessos registados.</div>}</div></div>}</section>}
           {active === "Pessoas"&&selectedEmployee&&sessionRole==="SUPER_ADMIN"&&<section className="peopleAccessControls"><h3>Supervisor e permissões individuais</h3><label><span>Supervisor directo</span><select defaultValue="" onChange={event=>void employeeGovernanceAction({employeeId:selectedEmployee.id,action:"set_supervisor",supervisorId:event.target.value||null})}><option value="">Sem supervisor</option>{managedEmployees.filter(item=>item.id!==selectedEmployee.id&&item.status==="active").map(item=><option value={item.id} key={item.id}>{item.name} · {item.job_title}</option>)}</select></label><div>{["people.view","people.manage","operations.view","reports.view"].map(code=>{const current=employeePermissions.find(item=>item.employee_id===selectedEmployee.id&&item.permission_code===code)?.allowed;return <button className={current?"active":""} key={code} onClick={()=>void employeeGovernanceAction({employeeId:selectedEmployee.id,action:"set_permission",permissionCode:code,allowed:!current})}>{current?"✓ ":""}{code.replaceAll("."," · ")}</button>})}</div><small>Cada alteração é guardada no histórico do colaborador.</small></section>}
-          {active === "Recursos Humanos"&&<section className="hrLifecycle"><div className="hrLifecycleHead"><div><span>CICLO DE VIDA DO COLABORADOR</span><h2>Operações de Recursos Humanos</h2><p>Dados pessoais e salariais visíveis apenas para RH e Super Admin.</p></div><b>Área restrita</b></div><div className="hrLifecycleGrid">{[["Admissões e contratos","hr_contracts"],["Documentos pessoais","hr_documents"],["Presenças, faltas e atrasos","hr_attendance"],["Férias e licenças","hr_leave_requests"],["Processamento salarial","hr_payroll_records"],["Benefícios, avaliações e formação","hr_employee_events"]].map(([label,key])=><article key={key}><span>{label}</span><strong>{(hrData[key]||[]).length}</strong><small>registos protegidos</small></article>)}</div><div className="hrProcessGrid">{["Admissão e onboarding","Horários e turnos","Férias e licenças","Payroll e benefícios","Avaliação de desempenho","Formação","Processos disciplinares","Promoções e transferências","Saída e desligamento"].map(item=><button key={item} onClick={()=>setSubArea(item)} className={subArea===item?"active":""}>{item}<ChevronRight aria-hidden="true"/></button>)}</div><div className="safeNotice"><b>Proteção activa</b><span>Documentos pessoais, contratos e valores salariais nunca são enviados a perfis operacionais.</span></div></section>}
+          {active === "Recursos Humanos"&&<section className="hrLifecycle"><div className="hrLifecycleHead"><div><span>CICLO DE VIDA DO COLABORADOR</span><h2>Operações de Recursos Humanos</h2><p>Dados pessoais e salariais visíveis apenas para RH e Super Admin.</p></div><b>Área restrita</b></div><div className="hrLifecycleGrid">{[["Admissões e contratos","hr_contracts"],["Documentos pessoais","hr_documents"],["Presenças, faltas e atrasos","hr_attendance"],["Férias e licenças","hr_leave_requests"],["Processamento salarial","hr_payroll_records"],["Benefícios, avaliações e formação","hr_employee_events"]].map(([label,key])=><article key={key}><span>{label}</span><strong>{(hrData[key]||[]).length}</strong><small>registos protegidos</small></article>)}</div><div className="hrProcessGrid">{["Admissão e onboarding","Horários e turnos","Férias e licenças","Payroll e benefícios","Avaliação de desempenho","Formação","Processos disciplinares","Promoções e transferências","Saída e desligamento"].map(item=><span key={item}>{item}</span>)}</div><div className="safeNotice"><b>Proteção activa</b><span>Documentos pessoais, contratos e valores salariais nunca são enviados a perfis operacionais.</span></div></section>}
           {active==="Recursos Humanos"&&<section className="hrEventActions"><button className="hrCreateButton" onClick={()=>setShowHrEventForm(!showHrEventForm)}>Novo registo de ciclo laboral</button>{showHrEventForm&&<form className="hrEventForm" onSubmit={createHrEvent}><label><span>Colaborador</span><select name="employeeId" required><option value="">Seleccionar</option>{managedEmployees.filter(item=>item.status!=="offboarded").map(item=><option value={item.id} key={item.id}>{item.name} · {item.employee_code}</option>)}</select></label><label><span>Tipo</span><select name="eventType" required>{[["admission","Admissão"],["benefit","Benefício"],["performance_review","Avaliação"],["training","Formação"],["disciplinary","Processo disciplinar"],["promotion","Promoção"],["transfer","Transferência"],["separation","Desligamento"]].map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label><label><span>Título</span><input name="title" required minLength={3}/></label><label><span>Data</span><input name="occurredOn" type="date" required/></label><button type="submit">Guardar registo</button></form>}{hrNotice&&<div className="operationalNotice">{hrNotice}</div>}</section>}
           {active==="Aprovações"&&<section className="approvalWorkspace"><div className="approvalHero"><div><span>DECISÕES DO UTILIZADOR</span><h2>Aprovações pendentes no seu âmbito</h2><p>A fila é filtrada no servidor pelo cargo e pelas permissões individuais.</p></div><b>{approvalData.requests?.length||0} pendentes</b></div>{approvalNotice&&<div className="operationalNotice">{approvalNotice}</div>}<div className="approvalList">{(approvalData.requests||[]).map(r=>{const requester=(approvalData.employees||[]).find(e=>e.id===r.requested_by),platformName=(approvalData.platforms||[]).find(p=>p.id===r.platform_id)?.name;return <article key={r.id}><div><span>{String(r.request_type).replaceAll("_"," ")} · {String(platformName||"Corporativo")}</span><strong>{String(r.title)}</strong><small>Solicitado por {String(requester?.name||"Utilizador")} · {r.submitted_at?new Date(String(r.submitted_at)).toLocaleString("pt-MZ"):"sem data"}{r.amount?` · ${money(Number(r.amount))}`:""}</small></div><b>{String(r.status).replaceAll("_"," ")}</b><div><button onClick={()=>void decideApproval(r.id,"approved")}>Aprovar</button><button onClick={()=>void decideApproval(r.id,"rejected")}>Rejeitar</button></div></article>})}{!approvalData.requests?.length&&<div className="peopleEmpty">Não existem decisões pendentes permitidas para este utilizador.</div>}</div><div className="approvalHistory"><h3>Decisões registadas</h3>{(approvalData.decisions||[]).slice(0,12).map(d=>{const approver=(approvalData.employees||[]).find(e=>e.id===d.approver_id);return <p key={d.id}><strong>{String(d.decision)} · {String(approver?.name||"Utilizador")}</strong><span>{String(d.comments||d.reason||"Sem comentário")} · {new Date(String(d.decided_at)).toLocaleString("pt-MZ")}</span><small>Estado anterior: {JSON.stringify(d.previous_state||{})} · Estado final: {JSON.stringify(d.final_state||{})}</small></p>})}</div><div className="safeNotice"><b>Separação de funções</b><span>O solicitante não pode decidir o próprio pedido. Cada decisão guarda autor, aprovador, data, comentário, motivo e estados anterior/final.</span></div></section>}
           {active==="BI / Análises"&&<section className="biWorkspace"><div className="biHero"><div><span>INTELIGÊNCIA DE GESTÃO</span><h2>Indicadores calculados do backend</h2><p>Receita, despesas, lucro e desempenho sem números fixos ou simulados.</p></div><button onClick={()=>void refreshBi()}>Atualizar</button></div><div className="financeKpis">{[["Receita",money(Number((biData.summary as Record<string,unknown>)?.revenue||0))],["Despesas",money(Number((biData.summary as Record<string,unknown>)?.expenses||0))],["Lucro",money(Number((biData.summary as Record<string,unknown>)?.profit||0))],["Atendimentos",Number((biData.summary as Record<string,unknown>)?.tickets||0)],["Campanhas",Number((biData.summary as Record<string,unknown>)?.campaigns||0)],["Visitas",Number((biData.summary as Record<string,unknown>)?.visits||0)]].map(([l,v])=><article key={String(l)}><span>{l}</span><strong>{v}</strong><small>período selecionado</small></article>)}</div><div className="biGrid"><article><div className="panelTitle"><div><h2>Desempenho das plataformas</h2><p>Receita, despesas, suporte e Field</p></div></div>{((biData.platforms||[]) as FinanceRecord[]).map(p=><div className="biRow" key={p.id}><strong>{String(p.name)}</strong><span>Receita {money(Number(p.revenue||0))}</span><span>Despesas {money(Number(p.expenses||0))}</span><span>{Number(p.support||0)} tickets · {Number(p.field||0)} visitas</span></div>)}</article><article><div className="panelTitle"><div><h2>Departamentos e metas</h2><p>Resultados observados no backend</p></div></div>{((biData.departments||[]) as FinanceRecord[]).map(d=><div className="biRow" key={d.id}><strong>{String(d.name)}</strong><span>{Number(d.purchases||0)} operações</span><span>{Number(d.completed||0)} concluídas</span></div>)}{!((biData.departments||[]) as FinanceRecord[]).length&&<div className="peopleEmpty">Sem atividade departamental no período.</div>}</article></div><div className="safeNotice"><b>Fonte real</b><span>Os indicadores são recalculados a partir das transações, tickets, campanhas, visitas, compras, plataformas, departamentos e metas existentes no backend.</span></div></section>}
@@ -887,6 +833,24 @@ export function HQApp() {
             <div className="projectBoard">{(projectData.projects||[]).map(project=>{const tasks=(projectData.tasks||[]).filter(t=>t.project_id===project.id),done=tasks.filter(t=>t.status==="completed").length,progress=tasks.length?Math.round(tasks.reduce((n,t)=>n+Number(t.progress||0),0)/tasks.length):0,owner=(projectData.employees||[]).find(e=>e.id===project.owner_employee_id),platform=(projectData.platforms||[]).find(p=>p.id===project.platform_id);return <article className="projectCard" key={project.id}><div className="projectCardHead"><div><span>{String(project.code)} · {String(platform?.name||"Corporativo")}</span><strong>{String(project.name)}</strong><small>Responsável: {String(owner?.name||"não atribuído")} · prazo {project.due_date?new Date(String(project.due_date)).toLocaleDateString("pt-MZ"):"aberto"}</small></div><b>{String(project.status).replaceAll("_"," ")}</b></div><p>{String(project.objective)}</p><div className="projectProgress"><i style={{width:`${progress}%`}}/><span>{progress}% · {done}/{tasks.length} tarefas concluídas</span></div><div className="projectActions">{project.status==="planned"&&<button onClick={()=>void projectAction("project",project.id,"start")}>Iniciar</button>}{project.status==="active"&&<><button onClick={()=>void projectAction("project",project.id,"hold")}>Pausar</button><button onClick={()=>void projectAction("project",project.id,"complete")}>Concluir</button></>}{project.status==="on_hold"&&<button onClick={()=>void projectAction("project",project.id,"resume")}>Retomar</button>}{!["completed","cancelled"].includes(String(project.status))&&<button onClick={()=>void projectAction("project",project.id,"cancel")}>Cancelar</button>}</div><div className="projectTasks">{tasks.map(task=>{const assignee=(projectData.employees||[]).find(e=>e.id===task.assigned_to),overdue=task.due_at&&!['completed','cancelled'].includes(String(task.status))&&new Date(String(task.due_at))<new Date();return <div className={overdue?"taskRow overdue":"taskRow"} key={task.id}><div><strong>{String(task.title)}</strong><span>{String(assignee?.name||"Por atribuir")} · {String(task.status).replaceAll("_"," ")} · {Number(task.progress||0)}%</span></div><div>{task.status==="planned"&&<button onClick={()=>void projectAction("task",task.id,"start")}>Iniciar</button>}{["in_progress","blocked"].includes(String(task.status))&&<button onClick={()=>void projectAction("task",task.id,"progress")}>Progresso</button>}{task.status==="in_progress"&&<><button onClick={()=>void projectAction("task",task.id,"block")}>Bloquear</button><button onClick={()=>void projectAction("task",task.id,"complete")}>Concluir</button></>}{task.status==="blocked"&&<button onClick={()=>void projectAction("task",task.id,"resume")}>Retomar</button>}</div></div>})}{!tasks.length&&<small>Sem tarefas neste projecto.</small>}</div></article>})}{!projectData.projects?.length&&<div className="peopleEmpty">Ainda não existem projectos registados.</div>}</div>
             <div className="projectBottom"><article><h3>Próximos marcos</h3>{(projectData.milestones||[]).filter(m=>!["completed","cancelled"].includes(String(m.status))).slice(0,10).map(m=><p key={m.id}><strong>{String(m.title)}</strong><span>{m.due_date?new Date(String(m.due_date)).toLocaleDateString("pt-MZ"):"Sem prazo"} · {String(m.status).replaceAll("_"," ")}</span><button onClick={()=>void projectAction("milestone",m.id,"complete")}>Concluir</button></p>)}</article><article><h3>Atualizações recentes</h3>{(projectData.updates||[]).slice(0,10).map(u=><p key={u.id}><strong>{String(u.update_type).replaceAll("_"," ")}</strong><span>{String(u.message)} · {new Date(String(u.created_at)).toLocaleString("pt-MZ")}</span></p>)}</article></div>
             <div className="safeNotice"><b>Execução controlada</b><span>Dependências incompletas bloqueiam o início e a conclusão de tarefas; projectos só podem encerrar depois de todas as tarefas serem concluídas ou canceladas.</span></div>
+          </section>}
+          {active === "Apoio Interno" && <section className="internalWorkspace">
+            <div className="internalHero"><div><span>CENTRO DE SERVIÇOS INTERNOS</span><h2>Pedidos entre departamentos</h2><p>IT, Recursos Humanos, Finanças, Jurídico e Operações numa fila real, restrita e auditada.</p></div><button onClick={()=>{setInternalKind("request");setShowInternalForm(true)}}>Abrir pedido</button></div>
+            <div className="financeKpis">{[
+              ["Pedidos",internalData.requests?.length||0],
+              ["Abertos",(internalData.requests||[]).filter(r=>r.status==="open").length],
+              ["Em tratamento",(internalData.requests||[]).filter(r=>["assigned","in_progress"].includes(String(r.status))).length],
+              ["Aguardam solicitante",(internalData.requests||[]).filter(r=>r.status==="waiting_requester").length],
+              ["Resolvidos",(internalData.requests||[]).filter(r=>r.status==="resolved").length],
+              ["Urgentes",(internalData.requests||[]).filter(r=>r.priority==="urgent"&&!['closed','archived'].includes(String(r.status))).length]
+            ].map(([label,value])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>página atual do backend</small></article>)}</div>
+            <div className="internalFilters"><input value={internalSearch} onChange={e=>{setInternalSearch(e.target.value);setInternalPage(1)}} placeholder="Pesquisar assunto, categoria ou descrição" aria-label="Pesquisar pedidos internos"/><select value={internalStatus} onChange={e=>{setInternalStatus(e.target.value);setInternalPage(1)}}><option value="all">Todos os estados</option><option value="open">Aberto</option><option value="assigned">Atribuído</option><option value="in_progress">Em tratamento</option><option value="waiting_requester">Aguarda solicitante</option><option value="resolved">Resolvido</option><option value="closed">Fechado</option><option value="archived">Arquivado</option></select><button onClick={()=>void refreshInternal()}>Atualizar</button></div>
+            {showInternalForm&&<form className="financeEntryForm internalForm" onSubmit={createInternalRecord}><label><span>Tipo</span><select value={internalKind} onChange={e=>setInternalKind(e.target.value)}><option value="request">Novo pedido</option><option value="message">Mensagem / nota</option></select></label>{internalKind==="request"&&<><label><span>Departamento responsável</span><select name="departmentId" required><option value="">Selecionar</option>{(internalData.departments||[]).filter(d=>["TECHNOLOGY","HR","FINANCE","LEGAL","OPERATIONS"].includes(String(d.code))).map(d=><option value={d.id} key={d.id}>{String(d.name)}</option>)}</select></label><label><span>Categoria</span><input name="category" required/></label><label><span>Prioridade</span><select name="priority"><option value="normal">Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option><option value="low">Baixa</option></select></label><label><span>Assunto</span><input name="subject" required/></label><label><span>Prazo esperado</span><input name="dueAt" type="datetime-local"/></label><label className="internalWide"><span>Descrição</span><textarea name="description" required/></label></>}{internalKind==="message"&&<><label><span>Pedido</span><select name="requestId" value={selectedInternal} onChange={e=>setSelectedInternal(e.target.value)} required><option value="">Selecionar</option>{(internalData.requests||[]).filter(r=>!["closed","archived"].includes(String(r.status))).map(r=><option value={r.id} key={r.id}>#{String(r.request_number)} · {String(r.subject)}</option>)}</select></label><label className="internalWide"><span>Mensagem</span><textarea name="message" required/></label><label className="fieldCheck"><input name="internal" type="checkbox"/><span>Nota interna do departamento</span></label></>}<button type="button" onClick={()=>setShowInternalForm(false)}>Cancelar</button><button className="primaryAction">Guardar</button></form>}
+            {internalNotice&&<div className="operationalNotice">{internalNotice}</div>}
+            <div className="internalList">{(internalData.requests||[]).map(ticket=>{const department=(internalData.departments||[]).find(d=>d.id===ticket.target_department_id),requester=(internalData.employees||[]).find(e=>e.id===ticket.requester_id),agent=(internalData.employees||[]).find(e=>e.id===ticket.assigned_to);return <article className={`internalTicket priority-${String(ticket.priority)}`} key={ticket.id}><button className="internalOpen" onClick={()=>setSelectedInternal(String(ticket.id))}><div><span>#{String(ticket.request_number)} · {String(department?.name||"Departamento")} · {String(ticket.category)}</span><strong>{String(ticket.subject)}</strong><small>Solicitado por {String(requester?.name||"Colaborador")} · Responsável: {String(agent?.name||"não atribuído")} · {ticket.due_at?`prazo ${new Date(String(ticket.due_at)).toLocaleString("pt-MZ")}`:"sem prazo"}</small></div><b>{String(ticket.status).replaceAll("_"," ")}</b></button><div className="internalActions"><select value={internalTargets[String(ticket.id)]||""} onChange={e=>setInternalTargets(current=>({...current,[String(ticket.id)]:e.target.value}))}><option value="">Responsável do departamento</option>{(internalData.employees||[]).filter(e=>e.department_id===ticket.target_department_id).map(e=><option value={e.id} key={e.id}>{String(e.name)}</option>)}</select>{ticket.status==="open"&&<button onClick={()=>void internalAction(String(ticket.id),"assign")}>Atribuir</button>}{["open","assigned"].includes(String(ticket.status))&&<button onClick={()=>void internalAction(String(ticket.id),"start")}>Iniciar</button>}{ticket.status==="in_progress"&&<><button onClick={()=>void internalAction(String(ticket.id),"wait")}>Aguardar solicitante</button><button onClick={()=>void internalAction(String(ticket.id),"resolve")}>Resolver</button></>}{ticket.status==="waiting_requester"&&<button onClick={()=>void internalAction(String(ticket.id),"start")}>Retomar</button>}{ticket.status==="resolved"&&<button onClick={()=>void internalAction(String(ticket.id),"close")}>Confirmar e fechar</button>}{ticket.status==="closed"&&<button onClick={()=>void internalAction(String(ticket.id),"archive")}>Arquivar</button>} {!['closed','archived'].includes(String(ticket.status))&&<button onClick={()=>{setSelectedInternal(String(ticket.id));setInternalKind("message");setShowInternalForm(true)}}>Responder</button>}</div></article>})}{!internalData.requests?.length&&<div className="peopleEmpty">Nenhum pedido encontrado para este âmbito e filtro.</div>}</div>
+            {selectedInternal&&<div className="internalDetail"><div><h3>Histórico do pedido #{String((internalData.requests||[]).find(r=>r.id===selectedInternal)?.request_number||"")}</h3><button onClick={()=>setSelectedInternal("")}>Fechar</button></div>{(internalData.messages||[]).filter(m=>m.request_id===selectedInternal).map(m=>{const author=(internalData.employees||[]).find(e=>e.id===m.author_employee_id);return <p key={m.id}><strong>{String(author?.name||"Colaborador")}{m.is_internal?" · nota interna":""}</strong><span>{String(m.message)}</span><small>{new Date(String(m.created_at)).toLocaleString("pt-MZ")}</small></p>})}{(internalData.history||[]).filter(h=>h.request_id===selectedInternal).map(h=><p key={h.id}><strong>{String(h.action).replaceAll("_"," ")}</strong><span>{String(h.comment||"Alteração de estado")}</span><small>{new Date(String(h.created_at)).toLocaleString("pt-MZ")}</small></p>)}</div>}
+            <div className="paginationBar"><button disabled={internalPage===1} onClick={()=>setInternalPage(page=>Math.max(1,page-1))}>Anterior</button><span>Página {internalPage}</span><button disabled={!internalHasMore} onClick={()=>setInternalPage(page=>page+1)}>Seguinte</button></div>
+            <div className="safeNotice"><b>Separação departamental</b><span>Cada colaborador vê apenas pedidos próprios ou destinados ao seu departamento. Notas internas, atribuições, resoluções, encerramentos e arquivos são validados no servidor e registados na auditoria.</span></div>
           </section>}
           {active === "Registo de Auditoria" && (
             <section className="auditWorkspace"><div className="employeeAdminHead"><div><span>REGISTO IMUTÁVEL</span><h2>Auditoria e histórico</h2><p>Criação, aprovação, suspensão, arquivo e operações sensíveis.</p></div><div><button onClick={exportAudit}>Exportar CSV</button><b>{auditRecords.length} eventos</b></div></div><div className="auditTable"><div className="auditRow auditHeader"><span>Data</span><span>Actor</span><span>Acção</span><span>Resultado</span></div>{auditRecords.map(event=><div className="auditRow" key={event.id}><span>{new Date(event.occurred_at).toLocaleString("pt-MZ")}</span><strong>{event.actor}</strong><span>{event.action.replaceAll("_"," ")}</span><b>{event.result}</b></div>)}{!auditRecords.length&&<div className="peopleEmpty">Sem eventos disponíveis para este perfil.</div>}</div></section>
@@ -966,7 +930,7 @@ export function HQApp() {
             {selectedMapWorker && <div className="mapWorkerDetail"><div><span>TRABALHADOR AUTORIZADO</span><h3>{selectedMapWorker.workerName || selectedMapWorker.role}</h3><p>{selectedMapWorker.platform} · {selectedMapWorker.role} · {selectedMapWorker.status?.replaceAll("_", " ") || "disponível"}</p></div><div><small>Última localização</small><strong>{new Date(selectedMapWorker.updatedAt).toLocaleString("pt-MZ")}</strong><small>{selectedMapWorker.service ? `Serviço: ${selectedMapWorker.service}` : "Sem serviço activo identificado"}</small></div><button onClick={() => setSelectedMapWorker(null)}>Fechar</button></div>}
             <p className="mapPrivacyNote">As posições são atualizadas a cada 10 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
           </section>}
-          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
@@ -975,7 +939,7 @@ export function HQApp() {
               <div className="workspaceTable">
                 <div className="tableHeader"><span>Área prevista</span><span>Estado</span><span>Fonte</span><span>Permissão</span></div>
                 {(moduleDetails[active] || []).map((item) => (
-                  <button className={`tableRow ${subArea === item ? "selected" : ""}`} onClick={() => setSubArea(item)} key={item}><strong>{item}</strong><span>Ainda não disponível</span><b>—</b><code>{active.toLowerCase()}.view</code></button>
+                  <div className="tableRow" key={item}><strong>{item}</strong><span>Ainda não disponível</span><b>—</b><code>Acesso não publicado</code></div>
                 ))}
               </div>
               <div className="safeNotice"><b>Módulo não publicado</b><span>Esta área ainda não tem fonte aprovada e, por isso, não exibe métricas, gráficos, exportações nem acções simuladas.</span></div>
@@ -983,35 +947,18 @@ export function HQApp() {
           )}
           {active === "Meu Perfil" && <section className="accountDetailGrid">
             <article className="profileCard">
-              <div className="profileHero"><div className="profileAvatar">{currentPersona.initials}</div><div><h2>{currentPersona.name}</h2><p>{currentPersona.role}</p><span>● Activo</span></div></div>
+              <div className="profileHero"><div className="profileAvatar">{currentPersona.initials}</div><div><h2>{currentPersona.name}</h2><p>{currentPersona.role}</p><span>● {sessionUser?.status||"A validar"}</span></div></div>
               <div className="profileFields">
-                <div><span>ID do trabalhador</span><strong>{persona === "anwar" ? "DG-0001" : "A atribuir"}</strong></div>
-                <div><span>Departamento</span><strong>{currentPersona.role}</strong></div>
+                <div><span>ID do trabalhador</span><strong>{sessionUser?.employee_code||"—"}</strong></div>
+                <div><span>Cargo</span><strong>{sessionUser?.job_title||currentPersona.role}</strong></div>
                 <div><span>Organização</span><strong>DeliGo Triunfal, Lda.</strong></div>
-                <div><span>Data de entrada</span><strong>2026</strong></div>
-                <div><span>Gestor directo</span><strong>{persona === "anwar" ? "—" : "A configurar"}</strong></div>
-                <div><span>Local de trabalho</span><strong>Moçambique</strong></div>
+                <div><span>Data de entrada</span><strong>{sessionUser?.joined_on?new Date(sessionUser.joined_on).toLocaleDateString("pt-MZ"):"—"}</strong></div>
+                <div><span>Email corporativo</span><strong>{sessionUser?.email||"—"}</strong></div>
+                <div><span>Último acesso</span><strong>{sessionUser?.last_login_at?new Date(sessionUser.last_login_at).toLocaleString("pt-MZ"):"—"}</strong></div>
               </div>
             </article>
-            <article className="permissionCard"><h2>Âmbito de acesso</h2><p>Permissões simuladas a partir do perfil seleccionado.</p><div>{currentPersona.modules.map((item) => <span key={item}>✓ {item}</span>)}</div></article>
+            <article className="permissionCard"><h2>Âmbito de acesso</h2><p>Módulos autorizados pelo cargo validado no backend.</p><div>{visibleNav.map(([,item]) => <span key={item}>✓ {item}</span>)}</div></article>
           </section>}
-          {active === "Definições" && <section className="settingsGrid">
-            {[
-              ["Preferências gerais", ["Idioma: Português", "Fuso horário: UTC+2", "Formato de data: DD/MM/AAAA", "Densidade: Confortável"]],
-              ["Notificações corporativas", ["Avisos da empresa", "Segurança", "Tarefas atribuídas", "Menções e mensagens"]],
-              ["Preferências do dashboard", ["Página inicial: Visão geral", "Plataforma: Todas", "Período padrão: 30 dias", "Widgets: por permissão"]],
-            ].map(([title, items]) => <article className="settingsCard" key={title as string}><h2>{title}</h2>{(items as string[]).map((item) => <label key={item}><span>{item}</span><input type="checkbox" defaultChecked disabled /></label>)}</article>)}
-          </section>}
-          {active === "Segurança" && <section className="securityGrid">
-            <article className="securityCard"><div className="securityIcon">◉</div><div><h2>Autenticação de dois factores</h2><p>Protecção reforçada para contas corporativas e cargos críticos.</p><span className="warningBadge">Estado não verificado</span></div><button disabled>Configurar 2FA</button></article>
-            <article className="securityCard"><div className="securityIcon">▣</div><div><h2>Password corporativa</h2><p>Alteração segura, recuperação e códigos de emergência.</p><span>Última alteração: —</span></div><button disabled>Alterar password</button></article>
-            <article className="sessionsCard"><div className="panelTitle"><div><h2>Dispositivos e sessões</h2><p>As sessões reais aparecerão quando a autenticação central for ligada.</p></div><button disabled>Terminar outras sessões</button></div>
-              <div className="sessionRow"><i>▤</i><div><strong>Este navegador</strong><span>Windows · Sessão local de demonstração</span></div><b>Dispositivo actual</b></div>
-              <div className="sessionRow disabledSession"><i>▯</i><div><strong>Outros dispositivos</strong><span>Nenhuma fonte de sessões ligada</span></div><b>—</b></div>
-            </article>
-            <article className="sessionsCard"><div className="panelTitle"><div><h2>Alertas de segurança</h2><p>Login, password, dispositivos, 2FA e permissões.</p></div></div><div className="empty compactEmpty"><div>♧</div><strong>Sem alertas disponíveis</strong><p>O backend de auditoria está desligado.</p></div></article>
-          </section>}
-
           {active === "Visão geral" && <>
           <section className="metrics">
             {[
@@ -1053,14 +1000,9 @@ export function HQApp() {
             <article className="chartPanel">
               <div className="panelTitle"><div><h2>Desempenho do grupo</h2><p>Receita, operações e crescimento consolidados</p></div><div className="chartLegend"><span><i /> Receita</span><span><i /> Operações</span></div></div>
               <div className="groupRealChart">{(dashboard?.modules.platforms || []).map(item => { const maximum = Math.max(...(dashboard?.modules.platforms || []).map(platform => platform.value), 1); return <div className="groupBar" key={item.slug}><div><strong>{item.name}</strong><span>{money(item.value)}</span></div><i><b style={{width:`${Math.max((item.value/maximum)*100,item.value>0?3:0)}%`}} /></i><small>Volume operacional observado</small></div>; })}{!dashboard?.modules.platforms.length && <div className="peopleEmpty">A aguardar indicadores do backend.</div>}</div>
-              <div className="emptyChart legacyChart">
-                <div className="chartAxis"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0</span></div>
-                <div className="chartCanvas"><div className="chartGlow" /><div className="chartZeroLine" />{["Jan","Fev","Mar","Abr","Mai","Jun","Jul"].map((m) => <span key={m}>{m}</span>)}</div>
-                <div className="chartMessage"><i>⌁</i><strong>Pronto para dados reais</strong><span>O gráfico será preenchido pelo adapter analítico.</span></div>
-              </div>
             </article>
             <article className="readinessPanel">
-              <div className="panelTitle"><div><h2>Preparação das integrações</h2><p>Estado da camada de ligação</p></div><span className="readinessScore">4/4</span></div>
+              <div className="panelTitle"><div><h2>Preparação das integrações</h2><p>Estado da camada de ligação</p></div><span className="readinessScore">{connectedPlatforms}/{dashboard?.platforms.length||0}</span></div>
               {(dashboard?.platforms || []).map((item) => { const color = platformCards.find((card) => card.name === item.name)?.color || "#667085"; const Icon = platformIcons[item.name] || Sparkles; return <div className="readinessRow" key={item.slug}><i style={{background: color}}><Icon aria-hidden="true" /></i><div><strong>{item.name}</strong><span>{item.metrics.length} indicadores reais</span></div><b>Ligado</b></div>; })}
               <div className="readinessNote"><i /> Leitura segura e agregada do ambiente de staging.</div>
             </article>
@@ -1068,7 +1010,7 @@ export function HQApp() {
 
           <div className="sectionHeading">
             <div><h2>Estado das plataformas</h2><p>Visão operacional por plataforma</p></div>
-            <button>Ver estado do sistema →</button>
+            <button onClick={()=>navigate("Plataformas")}>Ver estado do sistema →</button>
           </div>
           <section className="platformGrid">
             {visibleCards.map((card) => (
@@ -1128,22 +1070,13 @@ export function HQApp() {
 
           <section className="lowerGrid">
             <article className="panel">
-              <div className="panelTitle"><div><h2>Estrutura da empresa</h2><p>Liderança e responsabilidade operacional</p></div><button>Gerir pessoas</button></div>
-              {[
-                ["AA", "Anwar Abubacar Ismael", "CEO e Fundador", "SUPER ADMIN", "50% participação"],
-                ["SI", "Sara Vitorino Feniosse Ismael", "Sócia · Diretora Financeira", "FINANÇAS", "50% participação"],
-                ["SC", "Sansão Chume", "Supervisor de Operações", "SUPERVISOR", "Operações"],
-              ].map((person, index) => (
-                <div className="person" key={person[1]}>
-                  <div className={`personAvatar p${index}`}>{person[0]}</div>
-                  <div className="personName"><strong>{person[1]}</strong><span>{person[2]}</span></div>
-                  <span className="role">{person[3]}</span><span className="ownership">{person[4]}</span>
-                </div>
-              ))}
+              <div className="panelTitle"><div><h2>Estrutura societária</h2><p>Dados autorizados de governação</p></div>{visibleNav.some(([,label])=>label==="Pessoas")&&<button onClick={()=>navigate("Pessoas")}>Gerir pessoas</button>}</div>
+              {(dashboard?.governance?.shareholders||[]).map((person,index)=><div className="person" key={person.employeeId||person.displayName}><div className={`personAvatar p${index}`}>{person.displayName.split(/\s+/).slice(0,2).map(part=>part[0]).join("")}</div><div className="personName"><strong>{person.displayName}</strong><span>{person.corporateTitle}</span></div><span className="role">{person.isSuperAdministrator?"SUPER ADMIN":"SÓCIO"}</span><span className="ownership">{person.quotaPercent}% participação</span></div>)}
+              {!dashboard?.governance?.shareholders?.length&&<div className="peopleEmpty">Informação societária restrita ao cargo autorizado.</div>}
             </article>
             <article className="panel activity">
-              <div className="panelTitle"><div><h2>Actividade recente</h2><p>Acções auditadas em todo o grupo</p></div><button>Ver auditoria</button></div>
-              <div className="empty"><div>⌁</div><strong>Ainda não existe actividade</strong><p>Os eventos aparecerão quando os serviços reais forem ligados.</p></div>
+              <div className="panelTitle"><div><h2>Actividade auditada</h2><p>Eventos reais registados no backend</p></div>{visibleNav.some(([,label])=>label==="Registo de Auditoria")&&<button onClick={()=>navigate("Registo de Auditoria")}>Ver auditoria</button>}</div>
+              <div className="empty"><div>⌁</div><strong>{dashboard?.operations.auditEvents||0} eventos registados</strong><p>{dashboard?.operations.auditEvents?"Consulte o registo conforme a sua permissão.":"Ainda não existem eventos disponíveis neste âmbito."}</p></div>
             </article>
           </section>
           <section className="departmentStrip">
