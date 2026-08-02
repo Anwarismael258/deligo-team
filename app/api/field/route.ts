@@ -1,0 +1,43 @@
+import { NextRequest, NextResponse } from "next/server";
+import { corporateActor, supabaseUrl } from "@/lib/hq-server";
+
+const entity="10000000-0000-0000-0000-000000000001";
+const platforms:Record<string,string>={deligo:"20000000-0000-0000-0000-000000000001",comunhao:"20000000-0000-0000-0000-000000000002",taomoz:"20000000-0000-0000-0000-000000000003",sarca:"20000000-0000-0000-0000-000000000004"};
+const readRoles=new Set(["SUPER_ADMIN","FIELD","OPERATIONS","SUPERVISOR"]),writeRoles=new Set(["SUPER_ADMIN","FIELD","OPERATIONS"]);
+const resources=["field_visits","field_checklists","field_evidence","field_reports","field_history","employees","platforms"];
+const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
+async function ctx(){const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;return actor&&key&&readRoles.has(actor.role)?{actor,key}:null}
+async function rest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
+async function log(key:string,visitId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"field_history",{method:"POST",body:JSON.stringify({visit_id:visitId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
+
+export async function GET(){const c=await ctx();if(!c)return NextResponse.json({error:"Acesso reservado às operações Field."},{status:403});const rows=await Promise.all(resources.map(async name=>{try{const select=name==="employees"?"id,employee_code,name,job_title,status":name==="platforms"?"id,slug,name":"*";return[name,await rest(c.key,`${name}?select=${select}&limit=500${["field_visits","field_history"].includes(name)?"&order=created_at.desc":""}`)] as const}catch{return[name,[]] as const}}));return NextResponse.json({data:Object.fromEntries(rows)},{headers:{"Cache-Control":"private, no-store"}})}
+
+export async function POST(request:NextRequest){
+  const c=await ctx();if(!c||!writeRoles.has(c.actor.role))return NextResponse.json({error:"Sem permissão para gerir missões Field."},{status:403});
+  const body=await request.json() as {resource?:string;record?:Record<string,unknown>};
+  try{
+    if(body.resource==="visit"&&body.record){
+      const record={...body.record,platform_id:platforms[String(body.record.platform_slug)]||null} as Record<string,unknown>;delete record.platform_slug;
+      const task=(await rest(c.key,"tasks",{method:"POST",body:JSON.stringify({legal_entity_id:entity,platform_id:record.platform_id,title:record.subject,description:record.address||null,priority:record.priority,status:"planned",assigned_to:record.worker_id,assigned_by:c.actor.employee_id,due_at:record.planned_at})}))?.[0];
+      record.task_id=task.id;record.status="planned";
+      if(!record.location_authorized){record.latitude=null;record.longitude=null;record.location=null}
+      const created=(await rest(c.key,"field_visits",{method:"POST",body:JSON.stringify(record)}))?.[0];
+      await log(c.key,created.id,"created","Missão Field criada e atribuída",c.actor.employee_id);return NextResponse.json({record:created},{status:201});
+    }
+    if(!body.record||!body.resource)return NextResponse.json({error:"Registo Field inválido."},{status:400});
+    const mapping:Record<string,string>={checklist:"field_checklists",evidence:"field_evidence",report:"field_reports"},table=mapping[body.resource];if(!table)return NextResponse.json({error:"Tipo de registo inválido."},{status:400});
+    const record={...body.record} as Record<string,unknown>;
+    if(table==="field_evidence")record.captured_by=c.actor.employee_id;
+    if(table==="field_reports")record.created_by=c.actor.employee_id;
+    if(table==="field_checklists"&&record.status!=="pending"){record.verified_by=c.actor.employee_id;record.verified_at=new Date().toISOString()}
+    const created=(await rest(c.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];
+    await log(c.key,String(record.visit_id),`${body.resource}_created`,`${body.resource} registado`,c.actor.employee_id);return NextResponse.json({record:created},{status:201});
+  }catch{return NextResponse.json({error:"Não foi possível guardar a operação Field. Confirme os dados e a autorização de localização."},{status:409})}
+}
+
+export async function PATCH(request:NextRequest){
+  const c=await ctx();if(!c||!writeRoles.has(c.actor.role))return NextResponse.json({error:"Sem permissão para atualizar missões."},{status:403});
+  const body=await request.json() as {visitId?:string;action?:string;reason?:string};if(!body.visitId||!body.action)return NextResponse.json({error:"Ação inválida."},{status:400});
+  const statuses:Record<string,string>={assign:"assigned",start:"in_progress",block:"blocked",resume:"in_progress",complete:"completed",cancel:"cancelled"};const status=statuses[body.action];if(!status)return NextResponse.json({error:"Ação inválida."},{status:400});
+  try{const changes:Record<string,unknown>={status};if(status==="cancelled")changes.cancelled_reason=body.reason||"Cancelada pela operação";await rest(c.key,`field_visits?id=eq.${encodeURIComponent(body.visitId)}`,{method:"PATCH",body:JSON.stringify(changes)});await log(c.key,body.visitId,status,`Missão alterada para ${status}`,c.actor.employee_id);return NextResponse.json({ok:true})}catch{return NextResponse.json({error:"A transição foi bloqueada. Conclua checklist, evidência e relatório exigidos."},{status:409})}
+}
