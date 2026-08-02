@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 const entity="10000000-0000-0000-0000-000000000001";
 const platforms:Record<string,string>={deligo:"20000000-0000-0000-0000-000000000001",comunhao:"20000000-0000-0000-0000-000000000002",taomoz:"20000000-0000-0000-0000-000000000003",sarca:"20000000-0000-0000-0000-000000000004"};
 const readRoles=new Set(["SUPER_ADMIN","FIELD","OPERATIONS","SUPERVISOR"]),writeRoles=new Set(["SUPER_ADMIN","FIELD","OPERATIONS"]),decisionRoles=new Set(["SUPER_ADMIN","OPERATIONS","SUPERVISOR"]);
-const resources=["field_visits","field_checklists","field_evidence","field_reports","field_verifications","field_kyc_cases","field_form_templates","field_form_responses","field_incidents","field_history","employees","platforms"];
+const resources=["field_visits","field_checklists","field_evidence","field_reports","field_verifications","field_kyc_cases","field_form_templates","field_form_responses","field_incidents","field_history","workflow_cases","employees","platforms"];
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 async function ctx(){const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;return actor&&key&&readRoles.has(actor.role)?{actor,key}:null}
 async function rest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
 async function log(key:string,visitId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"field_history",{method:"POST",body:JSON.stringify({visit_id:visitId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
 
-export async function GET(){const c=await ctx();if(!c)return NextResponse.json({error:"Acesso reservado às operações Field."},{status:403});const rows=await Promise.all(resources.map(async name=>{try{const select=name==="employees"?"id,employee_code,name,job_title,status":name==="platforms"?"id,slug,name":"*";return[name,await rest(c.key,`${name}?select=${select}&limit=500${["field_visits","field_history"].includes(name)?"&order=created_at.desc":""}`)] as const}catch{return[name,[]] as const}}));return NextResponse.json({data:Object.fromEntries(rows)},{headers:{"Cache-Control":"private, no-store"}})}
+export async function GET(){const c=await ctx();if(!c)return NextResponse.json({error:"Acesso reservado às operações Field."},{status:403});const rows=await Promise.all(resources.map(async name=>{try{const select=name==="employees"?"id,employee_code,name,job_title,status":name==="platforms"?"id,slug,name":"*",scope=name==="workflow_cases"?"&case_type=eq.partner_onboarding":"";return[name,await rest(c.key,`${name}?select=${select}&limit=500${scope}${["field_visits","field_history","workflow_cases"].includes(name)?"&order=created_at.desc":""}`)] as const}catch{return[name,[]] as const}}));return NextResponse.json({data:Object.fromEntries(rows)},{headers:{"Cache-Control":"private, no-store"}})}
 
 export async function POST(request:NextRequest){
   const c=await ctx();if(!c||!writeRoles.has(c.actor.role))return NextResponse.json({error:"Sem permissão para gerir missões Field."},{status:403});
@@ -18,7 +18,7 @@ export async function POST(request:NextRequest){
   try{
     if(body.resource==="visit"&&body.record){
       if(!body.record.worker_id||!body.record.planned_at||!String(body.record.address||"").trim()||!String(body.record.objective||"").trim())return NextResponse.json({error:"Data, local, responsável e objetivo são obrigatórios."},{status:400});
-      const record={...body.record,platform_id:platforms[String(body.record.platform_slug)]||null} as Record<string,unknown>;delete record.platform_slug;
+      const record={...body.record,platform_id:platforms[String(body.record.platform_slug)]||null,legal_entity_id:entity,department_id:"30000000-0000-0000-0000-000000000009",created_by:c.actor.employee_id} as Record<string,unknown>;delete record.platform_slug;
       const task=(await rest(c.key,"tasks",{method:"POST",body:JSON.stringify({legal_entity_id:entity,platform_id:record.platform_id,title:record.subject,description:record.objective,priority:record.priority,status:"planned",assigned_to:record.worker_id,assigned_by:c.actor.employee_id,due_at:record.planned_at})}))?.[0];
       record.task_id=task.id;record.status="planned";if(!record.location_authorized){record.latitude=null;record.longitude=null;record.location=null}
       const created=(await rest(c.key,"field_visits",{method:"POST",body:JSON.stringify(record)}))?.[0];await log(c.key,created.id,"created","Missão Field criada e atribuída",c.actor.employee_id);return NextResponse.json({record:created},{status:201});
@@ -31,7 +31,7 @@ export async function POST(request:NextRequest){
     if(table==="field_kyc_cases"){record.created_by=c.actor.employee_id;record.platform_id=platforms[String(record.platform_slug)]||null;delete record.platform_slug}
     if(table==="field_form_templates")record.created_by=c.actor.employee_id;if(table==="field_form_responses")record.completed_by=c.actor.employee_id;if(table==="field_incidents")record.reported_by=c.actor.employee_id;
     if(table==="field_checklists"&&record.status!=="pending"){record.verified_by=c.actor.employee_id;record.verified_at=new Date().toISOString()}
-    const created=(await rest(c.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];if(record.visit_id)await log(c.key,String(record.visit_id),`${body.resource}_created`,`${body.resource} registado`,c.actor.employee_id);return NextResponse.json({record:created},{status:201});
+    const created=(await rest(c.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];let workflow=null;if(record.visit_id)await log(c.key,String(record.visit_id),`${body.resource}_created`,`${body.resource} registado`,c.actor.employee_id);if(table==="field_kyc_cases"&&record.visit_id){const visit=(await rest(c.key,`field_visits?id=eq.${encodeURIComponent(String(record.visit_id))}&select=id,visit_type`))?.[0];if(visit?.visit_type==="onboarding")workflow=await hqRpc("hq_submit_field_partner_workflow_v1",{p_visit_id:record.visit_id,p_kyc_id:created.id,p_actor_employee_id:c.actor.employee_id})}return NextResponse.json({record:created,workflow},{status:201});
   }catch{return NextResponse.json({error:"Não foi possível guardar a operação Field. Confirme os dados e a autorização de localização."},{status:409})}
 }
 

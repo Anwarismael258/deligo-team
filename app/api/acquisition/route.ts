@@ -59,13 +59,15 @@ export async function GET(request: NextRequest) {
     const term = encodeURIComponent(search.replace(/[,*()]/g, " ").trim());
     path += `&or=(name.ilike.*${term}*,organization_name.ilike.*${term}*,contact.ilike.*${term}*,location.ilike.*${term}*)`;
   }
-  const [leads, partners, visits, negotiations, objectives, events, employees, platformRows] = await Promise.all([
+  const [leads, partners, visits, negotiations, objectives, events, cases, steps, employees, platformRows] = await Promise.all([
     rest(current.key, path), rest(current.key, "acquisition_partners?select=*&order=created_at.desc&limit=300"),
     rest(current.key, "acquisition_visits?select=*&order=scheduled_at.desc&limit=500"), rest(current.key, "acquisition_negotiations?select=*&order=created_at.desc&limit=500"),
     rest(current.key, "acquisition_objectives?select=*&order=period_start.desc&limit=100"), rest(current.key, "acquisition_history?select=*&order=created_at.desc&limit=500"),
+    rest(current.key, "workflow_cases?case_type=eq.partner_onboarding&select=*&order=updated_at.desc&limit=300"), rest(current.key, "workflow_steps?select=*&order=step_order&limit=1000"),
     rest(current.key, "employees?select=id,name,employee_code,status&status=eq.active&limit=500"), rest(current.key, "platforms?select=id,name,slug&limit=20"),
   ]);
-  return NextResponse.json({ data: { leads, partners, visits, negotiations, objectives, history: events, employees, platforms: platformRows }, pagination: { page, pageSize, hasMore: leads.length === pageSize } }, { headers: { "Cache-Control": "private, no-store" } });
+  const caseIds = new Set(cases.map((item:{id:string})=>item.id));
+  return NextResponse.json({ data: { leads, partners, visits, negotiations, objectives, history: events, workflow_cases:cases, workflow_steps:steps.filter((item:{case_id:string})=>caseIds.has(item.case_id)), employees, platforms: platformRows }, pagination: { page, pageSize, hasMore: leads.length === pageSize } }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {
@@ -80,7 +82,7 @@ export async function POST(request: NextRequest) {
       table = "acquisition_leads";
       const platformId = platforms[String(record.platform_slug)];
       if (!platformId) return NextResponse.json({ error: "Plataforma inválida." }, { status: 400 });
-      record = { ...record, platform_id: platformId, owner_id: record.owner_id || current.actor.employee_id, stage: "new", status: "open" };
+      record = { ...record, platform_id: platformId, legal_entity_id:entity, department_id:"30000000-0000-0000-0000-000000000011", created_by:current.actor.employee_id, owner_id: record.owner_id || current.actor.employee_id, stage: "new", status: "open" };
       delete record.platform_slug;
     } else if (body.resource === "visit") {
       table = "acquisition_visits";
