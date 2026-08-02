@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqRpc, supabaseUrl } from "@/lib/hq-server";
 const entity="10000000-0000-0000-0000-000000000001";
 const readRoles=new Set(["SUPER_ADMIN","PROCUREMENT","FINANCE","ACCOUNTING"]),writeRoles=new Set(["SUPER_ADMIN","PROCUREMENT"]);
 const resources=["suppliers","purchase_requests","purchase_request_items","supplier_quotes","purchase_orders","goods_receipts","procurement_invoices","procurement_history","budgets","departments","approval_requests"];
@@ -19,7 +19,8 @@ export async function POST(request:NextRequest){
       await rest(c.key,`approval_requests?id=eq.${approval.id}`,{method:"PATCH",body:JSON.stringify({target_id:purchase.id})});
       if(body.items?.length)await rest(c.key,"purchase_request_items",{method:"POST",body:JSON.stringify(body.items.map(item=>({...item,purchase_request_id:purchase.id})))});
       await rest(c.key,"procurement_history",{method:"POST",body:JSON.stringify({purchase_request_id:purchase.id,event_type:"request_submitted",description:"Pedido submetido para aprovação",actor_employee_id:c.actor.employee_id})});
-      return NextResponse.json({record:purchase},{status:201});
+      const workflow=await hqRpc("hq_start_purchase_workflow_v1",{p_purchase_request_id:purchase.id,p_actor_employee_id:c.actor.employee_id});
+      return NextResponse.json({record:purchase,workflow},{status:201});
     }
     if(!body.resource||!body.record||!["suppliers","supplier_quotes","purchase_orders","goods_receipts","procurement_invoices"].includes(body.resource))return NextResponse.json({error:"Operação de compra inválida."},{status:400});
     const record={...body.record} as Record<string,unknown>;
@@ -40,6 +41,8 @@ export async function PATCH(request:NextRequest){
   const body=await request.json() as {action?:string;purchaseRequestId?:string;quoteId?:string};
   try{
     if(body.action==="approve"){
+      const orchestrated=(await rest(c.key,`purchase_requests?id=eq.${body.purchaseRequestId}&select=workflow_case_id`))?.[0];
+      if(orchestrated?.workflow_case_id)return NextResponse.json({error:"Aprovação disponível na fila interdepartamental: Supervisor → Finanças → Direção quando aplicável."},{status:409});
       if(!["SUPER_ADMIN","FINANCE"].includes(c.actor.role)||!body.purchaseRequestId)return NextResponse.json({error:"Aprovação financeira necessária."},{status:403});
       const purchase=(await rest(c.key,`purchase_requests?id=eq.${body.purchaseRequestId}&select=*`))?.[0];
       if(!purchase||purchase.requested_by===c.actor.employee_id)return NextResponse.json({error:"O solicitante não pode aprovar a própria compra."},{status:409});

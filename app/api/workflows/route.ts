@@ -1,6 +1,6 @@
 import {NextRequest,NextResponse}from"next/server";
 import{corporateActor,hqRpc,supabaseUrl}from"@/lib/hq-server";
-const roles=new Set(["SUPER_ADMIN","PARTNER_ACQUISITION","OPERATIONS","SUPERVISOR","LEGAL","FINANCE","MARKETING","FIELD","TECHNOLOGY","HUMAN_RESOURCES","CUSTOMER_SUPPORT","COMPLIANCE"]);
+const roles=new Set(["SUPER_ADMIN","PARTNER_ACQUISITION","OPERATIONS","SUPERVISOR","LEGAL","FINANCE","ACCOUNTING","PROCUREMENT","ASSETS_LOGISTICS","MARKETING","FIELD","TECHNOLOGY","HUMAN_RESOURCES","CUSTOMER_SUPPORT","COMPLIANCE"]);
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 async function rest(key:string,path:string){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{headers:headers(key),cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.json()}
 async function context(){const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!actor||!key||!roles.has(actor.role))return null;const employee=(await rest(key,`employees?id=eq.${actor.employee_id}&select=department_id`))?.[0];return{actor,key,departmentId:String(employee?.department_id||"")}}

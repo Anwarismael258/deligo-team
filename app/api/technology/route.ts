@@ -1,5 +1,5 @@
 import {NextRequest,NextResponse}from"next/server";
-import{corporateActor,supabaseUrl}from"@/lib/hq-server";
+import{corporateActor,hqRpc,supabaseUrl}from"@/lib/hq-server";
 
 const allowed=new Set(["SUPER_ADMIN","TECHNOLOGY"]),entity="10000000-0000-0000-0000-000000000001";
 const resources=new Set(["technology_systems","technology_integrations","technology_incidents","technology_backups","technology_changes","technology_credentials","technology_domains","technology_certificates","technology_releases"]);
@@ -32,7 +32,7 @@ export async function GET(){
 
 export async function POST(req:NextRequest){
  const c=await ctx();if(!c)return NextResponse.json({error:"Sem permissão de Tecnologia."},{status:403});const b=await req.json()as{resource?:string;record?:Record<string,unknown>};if(!b.resource||!b.record||!resources.has(b.resource))return NextResponse.json({error:"Registo técnico inválido."},{status:400});
- try{const record={...b.record}as Record<string,unknown>;if(!["technology_certificates"].includes(b.resource))record.legal_entity_id=entity;if(["technology_systems","technology_integrations","technology_incidents","technology_credentials","technology_domains","technology_certificates"].includes(b.resource))record.owner_employee_id=c.actor.employee_id;if(b.resource==="technology_changes")record.requested_by=c.actor.employee_id;if(b.resource==="technology_releases")record.deployed_by=c.actor.employee_id;const created=(await rest(c.key,b.resource,{method:"POST",body:JSON.stringify(record)}))?.[0],visible=safe(created);await audit(c.key,c.actor.employee_id,"created",b.resource,created.id,null,visible);return NextResponse.json({record:visible},{status:201})}catch{return NextResponse.json({error:"Não foi possível guardar. Credenciais devem usar apenas referências vault://, secret://, env:// ou supabase-vault://."},{status:409})}
+ try{const record={...b.record}as Record<string,unknown>;if(!["technology_certificates"].includes(b.resource))record.legal_entity_id=entity;if(["technology_systems","technology_integrations","technology_incidents","technology_credentials","technology_domains","technology_certificates"].includes(b.resource))record.owner_employee_id=c.actor.employee_id;if(b.resource==="technology_changes")record.requested_by=c.actor.employee_id;if(b.resource==="technology_releases")record.deployed_by=c.actor.employee_id;const created=(await rest(c.key,b.resource,{method:"POST",body:JSON.stringify(record)}))?.[0],visible=safe(created);const workflow=b.resource==="technology_incidents"?await hqRpc("hq_start_technical_incident_workflow_v1",{p_incident_id:created.id,p_actor_employee_id:c.actor.employee_id}):null;await audit(c.key,c.actor.employee_id,"created",b.resource,created.id,null,visible);return NextResponse.json({record:visible,workflow},{status:201})}catch{return NextResponse.json({error:"Não foi possível guardar. Credenciais devem usar apenas referências vault://, secret://, env:// ou supabase-vault://."},{status:409})}
 }
 
 export async function PATCH(req:NextRequest){
