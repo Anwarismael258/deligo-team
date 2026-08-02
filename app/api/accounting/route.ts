@@ -45,7 +45,18 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const c = await context();
   if (!c) return NextResponse.json({ error:"Sem permissão contabilística." }, { status:403 });
-  const body = await request.json() as { entryDate?:string; description?:string; platformId?:string; lines?:Array<{ account_id:string; debit:number; credit:number }> };
+  const body = await request.json() as { resource?:string; record?:Record<string,unknown>; entryDate?:string; description?:string; platformId?:string; lines?:Array<{ account_id:string; debit:number; credit:number }> };
+  if (body.resource && body.record) {
+    const writable = new Set(["accounting_invoices", "tax_obligations", "accounting_periods", "account_reconciliations"]);
+    if (!writable.has(body.resource)) return NextResponse.json({ error:"Tipo contabilístico inválido." }, { status:400 });
+    const record:Record<string,unknown> = { ...body.record, legal_entity_id:entity };
+    if (body.resource === "accounting_invoices") record.created_by = c.actor.employee_id;
+    if (body.resource === "tax_obligations") record.prepared_by = c.actor.employee_id;
+    if (body.resource === "account_reconciliations") record.reconciled_by = c.actor.employee_id;
+    const response = await fetch(`${supabaseUrl()}/rest/v1/${body.resource}`, { method:"POST", headers:headers(c.key), body:JSON.stringify(record) });
+    if (!response.ok) return NextResponse.json({ error:"Não foi possível guardar o registo contabilístico." }, { status:400 });
+    return NextResponse.json({ record:(await response.json())[0] }, { status:201 });
+  }
   const lines = body.lines || [];
   const debit = lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
   const credit = lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
