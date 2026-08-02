@@ -1,8 +1,2 @@
-import { NextResponse } from "next/server";
-import { corporateActor, hqRpc } from "@/lib/hq-server";
-
-export async function GET() {
-  const actor = await corporateActor();
-  if (!actor || !["SUPER_ADMIN","HUMAN_RESOURCES"].includes(actor.role)) return NextResponse.json({ error: "Sem acesso à auditoria." }, { status: 403 });
-  return NextResponse.json({ events: await hqRpc("hq_audit_history_v1", { p_limit: actor.role === "SUPER_ADMIN" ? 250 : 100 }) }, { headers: { "Cache-Control": "private, no-store" } });
-}
+import { NextRequest,NextResponse } from "next/server";import { corporateActor,supabaseUrl } from "@/lib/hq-server";
+export async function GET(req:NextRequest){const a=await corporateActor(),k=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!a||!k||!["SUPER_ADMIN","HUMAN_RESOURCES"].includes(a.role))return NextResponse.json({error:"Sem acesso à auditoria."},{status:403});const q=req.nextUrl.searchParams,module=q.get("module"),result=q.get("result"),from=q.get("from"),to=q.get("to");let path="audit_logs?select=*&order=occurred_at.desc&limit=500";if(module)path+=`&module=eq.${encodeURIComponent(module)}`;if(result)path+=`&result=eq.${result}`;if(from)path+=`&occurred_at=gte.${from}`;if(to)path+=`&occurred_at=lte.${to}T23:59:59`;const [logs,employees]=await Promise.all([fetch(`${supabaseUrl()}/rest/v1/${path}`,{headers:{apikey:k,Authorization:`Bearer ${k}`,"Accept-Profile":"hq"},cache:"no-store"}),fetch(`${supabaseUrl()}/rest/v1/employees?select=id,name,employee_code`,{headers:{apikey:k,Authorization:`Bearer ${k}`,"Accept-Profile":"hq"},cache:"no-store"})]);const events=logs.ok?await logs.json():[],people=employees.ok?await employees.json():[];return NextResponse.json({events:events.map((e:Record<string,unknown>)=>({...e,actor:people.find((p:Record<string,unknown>)=>p.id===e.actor_employee_id)?.name||"Sistema"}))},{headers:{"Cache-Control":"private, no-store"}})}
