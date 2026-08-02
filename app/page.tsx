@@ -270,6 +270,16 @@ type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; 
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
 type PlatformProfile = { platform:string; id:string; profile:Record<string, unknown>|null; kyc:unknown[]; wallets:unknown[]; orders:unknown[]; disputes:unknown[]; activity:unknown[] };
 
+const metricFor = (platform: DashboardPlatform | undefined, labels: string[]) =>
+  platform?.metrics.find((metric) => labels.some((label) => metric.label.toLowerCase().includes(label)))?.value ?? 0;
+const recordsFor = (snapshot: PlatformSnapshot | null, source: string) => {
+  const value = snapshot?.data[source];
+  return Array.isArray(value) ? value.length : 0;
+};
+const operationalLabel = (name: string) => ({ DeliGo: "Pedidos", "Comunhão": "Eventos", TaoMoz: "Pedidos", SARCA: "Viagens" }[name] || "Operações");
+const teamLabel = (name: string) => ({ DeliGo: "Estafetas e parceiros", "Comunhão": "Igrejas", TaoMoz: "Vendedores", SARCA: "Motoristas" }[name] || "Equipa");
+const teamValue = (platform: DashboardPlatform | undefined, name: string) => metricFor(platform, name === "DeliGo" ? ["estafeta", "parceiro"] : name === "Comunhão" ? ["igreja"] : name === "TaoMoz" ? ["vendedor", "empresa"] : ["motorista", "viatura"]);
+
 export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
   const [active, setActive] = useState("Visão geral");
@@ -432,6 +442,11 @@ export function HQApp() {
     return sum + (users?.value || 0);
   }, 0) || 0;
   const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
+  const selectedPlatformStatus = dashboard?.platforms.find((item) => item.name === platform);
+  const platformDirectory = (dashboard?.platforms || []).map((item) => ({
+    ...item,
+    value: dashboard?.modules.platforms.find((module) => module.name === item.name)?.value || 0,
+  }));
   const shownPeople = (selectedPlatformModule?.people || []).filter((person) => person.name.toLocaleLowerCase("pt").includes(peopleSearch.toLocaleLowerCase("pt")));
   const money = (value: number) => new Intl.NumberFormat("pt-MZ", { style: "currency", currency: "MZN", maximumFractionDigits: 2 }).format(value || 0);
   const selectedFinancialPlatforms = dashboard?.modules.platforms.filter((item) => platform === "Todas as plataformas" || item.name === platform) || [];
@@ -545,11 +560,36 @@ export function HQApp() {
               </div>
             </section>
           )}
+          {active === "Plataformas" && (
+            <section className="platformDirectory" aria-label="Plataformas do grupo">
+              <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Quatro plataformas, operações separadas</h2><p>Abra uma plataforma para ver apenas os seus utilizadores, operações, integrações, equipa e incidentes.</p></div><b>{connectedPlatforms}/4 ligadas</b></div>
+              <div className="platformDirectoryGrid">
+                {platformDirectory.map((item) => {
+                  const users = metricFor(item, ["utilizador", "membro", "comprador", "passageiro"]);
+                  const operations = metricFor(item, ["pedido", "evento", "viagem", "serviço", "operaç"]);
+                  return <button className={`platformDirectoryCard ${platform === item.name ? "selected" : ""}`} key={item.slug} onClick={() => { setPlatform(item.name); setSubArea("Resumo"); }}>
+                    <div><i style={{ background: platformCards.find((card) => card.name === item.name)?.color || "#555" }}>{item.name.slice(0, 2).toUpperCase()}</i><span className={item.connected ? "connectedPill" : "warningPill"}>{item.connected ? "Ligada" : "A verificar"}</span></div>
+                    <h3>{item.name}</h3><p>{operationalLabel(item.name)} e dados próprios no backend central.</p>
+                    <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>{operationalLabel(item.name)}</dt><dd>{operations}</dd></div><div><dt>Volume observado</dt><dd>{money(item.value)}</dd></div></dl>
+                    <strong>Abrir painel da plataforma <ChevronRight aria-hidden="true" /></strong>
+                  </button>;
+                })}
+              </div>
+            </section>
+          )}
           {active === "Plataformas" && selectedPlatformModule && (
             <section className="platformModule">
               <div className="platformModuleHero">
                 <div><span>MÓDULO DA PLATAFORMA</span><h2>{selectedPlatformModule.name}</h2><p>Painel administrativo adaptado ao HQ, com dados agregados do schema dedicado.</p></div>
                 <div className="platformValue"><span>Valor total processado</span><strong>{money(selectedPlatformModule.value)}</strong><small>Volume operacional · não representa lucro</small></div>
+              </div>
+              <div className="platformControlGrid">
+                <article><span>Estado</span><strong className={selectedPlatformStatus?.connected ? "connectedPill" : "warningPill"}>{selectedPlatformStatus?.connected ? "Operacional" : "A verificar"}</strong><small>Ligação ao backend específico</small></article>
+                <article><span>Utilizadores</span><strong>{metricFor(selectedPlatformStatus, ["utilizador", "membro", "comprador", "passageiro"])}</strong><small>Registos da plataforma</small></article>
+                <article><span>{operationalLabel(selectedPlatformModule.name)}</span><strong>{metricFor(selectedPlatformStatus, ["pedido", "evento", "viagem", "serviço", "operaç"])}</strong><small>Operações realizadas</small></article>
+                <article><span>Incidentes</span><strong>{recordsFor(platformSnapshot, "support") + recordsFor(platformSnapshot, "disputes")}</strong><small>Suporte e disputas registadas</small></article>
+                <article><span>Integrações</span><strong>{Object.values(platformSnapshot?.data || {}).filter(Array.isArray).length}</strong><small>Fontes ligadas ao HQ</small></article>
+                <article><span>{teamLabel(selectedPlatformModule.name)}</span><strong>{teamValue(selectedPlatformStatus, selectedPlatformModule.name)}</strong><small>Equipa ou rede operacional</small></article>
               </div>
               <div className="moduleToolbar">
                 <div className="moduleTabs"><button className="active">Resumo</button><button>Utilizadores</button><button>Operações</button><button>Financeiro</button><button>Auditoria</button></div>
