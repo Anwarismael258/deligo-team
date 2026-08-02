@@ -265,6 +265,9 @@ type DashboardData = {
 type LiveMapMarker = OperationsMapMarker;
 type LiveMapData = { checkedAt: string; markers: LiveMapMarker[] };
 type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; updated_at:string; last_login_at:string|null };
+type EmployeeHistory = { id:string; employee_id:string; action:string; created_at:string };
+type EmployeeAccess = { id:string; employee_id:string|null; event_type:string; occurred_at:string };
+type EmployeePermission = { id:string; employee_id:string; permission_code:string; allowed:boolean };
 type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; metadata:Record<string,unknown> };
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
@@ -297,6 +300,11 @@ export function HQApp() {
   const [selectedMapWorker, setSelectedMapWorker] = useState<LiveMapMarker | null>(null);
   const [sessionRole, setSessionRole] = useState("");
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState<ManagedEmployee | null>(null);
+  const [employeeHistory, setEmployeeHistory] = useState<EmployeeHistory[]>([]);
+  const [employeeAccess, setEmployeeAccess] = useState<EmployeeAccess[]>([]);
+  const [employeePermissions, setEmployeePermissions] = useState<EmployeePermission[]>([]);
   const [auditRecords, setAuditRecords] = useState<AuditRecord[]>([]);
   const [platformAdminSnapshot, setPlatformAdminSnapshot] = useState<PlatformAdminSnapshot | null>(null);
   const [platformAdminError, setPlatformAdminError] = useState("");
@@ -347,7 +355,7 @@ export function HQApp() {
 
   useEffect(() => {
     if (!["Pessoas","Recursos Humanos"].includes(active)) return;
-    fetch("/api/employees", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => setManagedEmployees(data.employees || [])).catch(() => setManagedEmployees([]));
+    fetch("/api/employees", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => { setManagedEmployees(data.employees || []); setEmployeeHistory(data.history || []); setEmployeeAccess(data.access || []); setEmployeePermissions(data.permissions || []); }).catch(() => setManagedEmployees([]));
   }, [active]);
 
   useEffect(() => {
@@ -355,7 +363,7 @@ export function HQApp() {
     fetch("/api/audit", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => setAuditRecords(data.events || [])).catch(() => setAuditRecords([]));
   }, [active]);
 
-  const refreshEmployees = async () => { const response=await fetch("/api/employees",{cache:"no-store"}); if(response.ok){const data=await response.json();setManagedEmployees(data.employees||[]);} };
+  const refreshEmployees = async () => { const response=await fetch("/api/employees",{cache:"no-store"}); if(response.ok){const data=await response.json();setManagedEmployees(data.employees||[]);setEmployeeHistory(data.history||[]);setEmployeeAccess(data.access||[]);setEmployeePermissions(data.permissions||[]);} };
   const createEmployee = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setEmployeeNotice("A criar cadastro…"); const form=new FormData(event.currentTarget);
     const response=await fetch("/api/employees",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:form.get("name"),phone:form.get("phone"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),activate:form.get("activate")==="on"})});
@@ -463,6 +471,7 @@ export function HQApp() {
   ];
   const mapMarkers = (liveMap?.markers || []).filter((marker) => platform === "Todas as plataformas" || marker.platform === platform);
   const filteredMapMarkers = mapMarkers.filter((marker) => (mapStatus === "todos" || marker.status === mapStatus) && `${marker.workerName || ""} ${marker.workerId || marker.id}`.toLocaleLowerCase("pt").includes(mapSearch.toLocaleLowerCase("pt")));
+  const shownEmployees = managedEmployees.filter((employee) => `${employee.name} ${employee.employee_code} ${employee.department} ${employee.job_title}`.toLocaleLowerCase("pt").includes(employeeSearch.toLocaleLowerCase("pt")));
 
   return (
     <main className="shell">
@@ -662,6 +671,7 @@ export function HQApp() {
               <div className="employeeTable"><div className="employeeAdminRow employeeAdminHeader"><span>Trabalhador</span><span>Role</span><span>Estado</span><span>Acções</span></div>{managedEmployees.map(employee=><div className="employeeAdminRow" key={employee.id}><div><strong>{employee.name}</strong><small>{employee.employee_code} · {employee.phone} · {employee.department}</small></div><span>{employee.role||employee.requested_role||"Pendente"}</span><b className={`employeeStatus ${employee.status}`}>{employee.status}</b><div className="employeeActions"><button onClick={()=>{setEditingEmployee(employee);setShowEmployeeForm(false)}}>Editar</button>{sessionRole==="SUPER_ADMIN"&&employee.employee_code!=="DG-0001"&&<>{employee.status==="invited"&&<button onClick={()=>employeeAction(employee.id,"activate")}>Activar</button>}{employee.status==="active"&&<button onClick={()=>employeeAction(employee.id,"suspend")}>Suspender</button>}{employee.status==="suspended"&&<button onClick={()=>employeeAction(employee.id,"reactivate")}>Reactivar</button>}{employee.status!=="offboarded"&&<button onClick={()=>{if(window.confirm(`Arquivar ${employee.name}? O acesso será revogado.`))void employeeAction(employee.id,"archive")}}>Arquivar</button>}</>}</div></div>)}</div>
             </section>
           )}
+          {active === "Pessoas" && <section className="peopleInspector"><div className="peopleSearchBar"><input value={employeeSearch} onChange={event=>setEmployeeSearch(event.target.value)} placeholder="Pesquisar por nome, identificação, cargo ou departamento"/><b>{shownEmployees.length} resultados</b></div><div className="peopleInspectorGrid">{shownEmployees.map(employee=><button key={employee.id} onClick={()=>setSelectedEmployee(employee)}><strong>{employee.name}</strong><span>{employee.employee_code} · {employee.job_title}</span><small>{employee.department} · {employee.status}</small></button>)}</div>{selectedEmployee&&<div className="employeeDetail"><div className="employeeDetailHead"><div><span>PERFIL PROFISSIONAL</span><h3>{selectedEmployee.name}</h3><p>{selectedEmployee.employee_code} · {selectedEmployee.job_title} · {selectedEmployee.department}</p></div><button onClick={()=>setSelectedEmployee(null)}>Fechar</button></div><div className="employeeDetailGrid"><article><span>Estado</span><strong>{selectedEmployee.status}</strong></article><article><span>Função</span><strong>{selectedEmployee.role||selectedEmployee.requested_role||"Pendente"}</strong></article><article><span>Último acesso</span><strong>{selectedEmployee.last_login_at?new Date(selectedEmployee.last_login_at).toLocaleString("pt-MZ"):"Sem acesso"}</strong></article><article><span>Permissões específicas</span><strong>{employeePermissions.filter(item=>item.employee_id===selectedEmployee.id).length}</strong></article></div><div className="employeeTimeline"><h4>Histórico e acessos</h4>{employeeHistory.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.action.replaceAll("_"," ")}</b><span>{new Date(item.created_at).toLocaleString("pt-MZ")}</span></p>)}{employeeAccess.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.event_type.replaceAll("_"," ")}</b><span>{new Date(item.occurred_at).toLocaleString("pt-MZ")}</span></p>)}{!employeeHistory.some(item=>item.employee_id===selectedEmployee.id)&&!employeeAccess.some(item=>item.employee_id===selectedEmployee.id)&&<div className="peopleEmpty">Sem alterações ou acessos registados.</div>}</div></div>}</section>}
           {active === "Registo de Auditoria" && (
             <section className="auditWorkspace"><div className="employeeAdminHead"><div><span>REGISTO IMUTÁVEL</span><h2>Auditoria e histórico</h2><p>Criação, aprovação, suspensão, arquivo e operações sensíveis.</p></div><div><button onClick={exportAudit}>Exportar CSV</button><b>{auditRecords.length} eventos</b></div></div><div className="auditTable"><div className="auditRow auditHeader"><span>Data</span><span>Actor</span><span>Acção</span><span>Resultado</span></div>{auditRecords.map(event=><div className="auditRow" key={event.id}><span>{new Date(event.occurred_at).toLocaleString("pt-MZ")}</span><strong>{event.actor}</strong><span>{event.action.replaceAll("_"," ")}</span><b>{event.result}</b></div>)}{!auditRecords.length&&<div className="peopleEmpty">Sem eventos disponíveis para este perfil.</div>}</div></section>
           )}

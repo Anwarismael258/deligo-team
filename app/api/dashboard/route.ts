@@ -32,8 +32,9 @@ export async function GET() {
       console.error("HQ staging RPC failed", dashboardResponse.status, modulesResponse.status);
       return NextResponse.json({ error: "O backend de staging não respondeu correctamente." }, { status: 502 });
     }
-    const [dashboard, modules] = await Promise.all([dashboardResponse.json(), modulesResponse.json()]);
-    return NextResponse.json({ ...dashboard, modules, governance: deligoTriunfalGovernance }, {
+    const executiveResponse = actor.role === "SUPER_ADMIN" ? await fetch(`${process.env.SUPABASE_URL || STAGING_URL}/rest/v1/rpc/hq_executive_governance_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store" }) : null;
+    const [dashboard, modules, executive] = await Promise.all([dashboardResponse.json(), modulesResponse.json(), executiveResponse?.ok ? executiveResponse.json() : Promise.resolve(null)]);
+    return NextResponse.json({ ...dashboard, modules, governance: actor.role === "SUPER_ADMIN" ? deligoTriunfalGovernance : null, executive }, {
       headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });
   } catch (error) {

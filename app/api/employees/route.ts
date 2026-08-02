@@ -6,7 +6,15 @@ const allowedRoles = new Set(["SUPER_ADMIN","HUMAN_RESOURCES"]);
 export async function GET() {
   const actor = await corporateActor();
   if (!actor || !allowedRoles.has(actor.role)) return NextResponse.json({ error: "Acesso reservado a RH e Super Admin." }, { status: 403 });
-  return NextResponse.json({ actor, employees: await hqRpc("hq_employee_directory_v1") }, { headers: { "Cache-Control": "private, no-store" } });
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const headers = serviceKey ? { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Accept-Profile": "hq" } : null;
+  const [employees, historyResponse, accessResponse, permissionResponse] = await Promise.all([
+    hqRpc("hq_employee_directory_v1"),
+    headers ? fetch(`${supabaseUrl()}/rest/v1/employee_change_history?select=*&order=created_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
+    headers ? fetch(`${supabaseUrl()}/rest/v1/employee_access_log?select=*&order=occurred_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
+    headers ? fetch(`${supabaseUrl()}/rest/v1/employee_permission_overrides?select=*&order=created_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
+  ]);
+  return NextResponse.json({ actor, employees, history: historyResponse?.ok ? await historyResponse.json() : [], access: accessResponse?.ok ? await accessResponse.json() : [], permissions: permissionResponse?.ok ? await permissionResponse.json() : [] }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {
