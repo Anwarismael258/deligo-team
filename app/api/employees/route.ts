@@ -42,8 +42,25 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const actor = await corporateActor();
   if (!actor || actor.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Aprovação do Super Admin necessária." }, { status: 403 });
-  const { employeeId, action } = await request.json() as { employeeId?: string; action?: "activate"|"suspend"|"reactivate"|"archive" };
+  const body = await request.json() as { employeeId?: string; action?: "activate"|"suspend"|"reactivate"|"archive"|"set_supervisor"|"set_permission"; supervisorId?: string|null; permissionCode?: string; allowed?: boolean };
+  const { employeeId, action } = body;
   if (!employeeId || !action) return NextResponse.json({ error: "Operação inválida." }, { status: 400 });
+  if (action === "set_supervisor" || action === "set_permission") {
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!serviceKey) return NextResponse.json({ error: "Configuração administrativa indisponível." }, { status: 503 });
+    const headers = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", "Content-Profile": "hq", Prefer: "return=representation,resolution=merge-duplicates" };
+    if (action === "set_supervisor") {
+      if (body.supervisorId === employeeId) return NextResponse.json({ error: "Um colaborador não pode supervisionar a própria conta." }, { status: 400 });
+      const response = await fetch(`${supabaseUrl()}/rest/v1/employees?id=eq.${encodeURIComponent(employeeId)}`, { method:"PATCH", headers, body:JSON.stringify({ manager_id: body.supervisorId || null, updated_at:new Date().toISOString() }) });
+      if (!response.ok) return NextResponse.json({ error:"Não foi possível atribuir o supervisor." }, { status:400 });
+    } else {
+      if (!body.permissionCode || !["people.view","people.manage","operations.view","reports.view"].includes(body.permissionCode)) return NextResponse.json({ error:"Permissão inválida." }, { status:400 });
+      const response = await fetch(`${supabaseUrl()}/rest/v1/employee_permission_overrides?on_conflict=employee_id,permission_code`, { method:"POST", headers, body:JSON.stringify({ employee_id:employeeId, permission_code:body.permissionCode, allowed:Boolean(body.allowed) }) });
+      if (!response.ok) return NextResponse.json({ error:"Não foi possível alterar a permissão." }, { status:400 });
+    }
+    await fetch(`${supabaseUrl()}/rest/v1/employee_change_history`, { method:"POST", headers, body:JSON.stringify({ employee_id:employeeId, action, after_state:body }) });
+    return NextResponse.json({ ok:true });
+  }
   try {
     const result = await hqRpc("hq_set_employee_status_v1", { p_actor_auth_user_id: actor.authUserId, p_employee_id: employeeId, p_action: action });
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
