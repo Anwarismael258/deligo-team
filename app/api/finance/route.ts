@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, supabaseUrl } from "@/lib/hq-server";
-
-const allowed = new Set(["SUPER_ADMIN", "FINANCE", "ACCOUNTING"]);
+import { requireCorporatePermission, supabaseUrl } from "@/lib/hq-server";
 const legalEntityId = "10000000-0000-0000-0000-000000000001";
 const platformIds: Record<string, string> = {
   deligo: "20000000-0000-0000-0000-000000000001",
@@ -20,11 +18,11 @@ const apiHeaders = (key: string) => ({
   Prefer: "return=representation",
 });
 
-async function financeContext() {
-  const actor = await corporateActor();
-  if (!actor || !allowed.has(actor.role)) return null;
+async function financeContext(permission:string) {
+  const authorization = await requireCorporatePermission(permission),actor=authorization?.actor;
+  if (!authorization || !actor) return null;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  return key ? { actor, key, headers: apiHeaders(key) } : null;
+  return key ? { actor, authorization, key, headers: apiHeaders(key) } : null;
 }
 
 async function writeAudit(key: string, actorId: string, action: string, targetType: string, targetId: string, platformId?: string | null) {
@@ -36,18 +34,19 @@ async function writeAudit(key: string, actorId: string, action: string, targetTy
 }
 
 export async function GET() {
-  const context = await financeContext();
+  const context = await financeContext("finance.view");
   if (!context) return NextResponse.json({ error: "Acesso reservado a Finanças, Contabilidade e Super Admin." }, { status: 403 });
   const rows = await Promise.all(tables.map(async (table) => {
     const order = table === "financial_transactions" ? "occurred_at" : "created_at";
-    const response = await fetch(`${supabaseUrl()}/rest/v1/${table}?select=*&order=${order}.desc&limit=250`, { headers: context.headers, cache: "no-store" });
+    const scope=context.authorization.isSuperAdmin?"":context.authorization.platformIds.length?`&or=(platform_id.is.null,platform_id.in.(${context.authorization.platformIds.join(",")}))`:"&platform_id=is.null";
+    const response = await fetch(`${supabaseUrl()}/rest/v1/${table}?select=*&order=${order}.desc&limit=250${scope}`, { headers: context.headers, cache: "no-store" });
     return [table, response.ok ? await response.json() : []] as const;
   }));
   return NextResponse.json({ data: Object.fromEntries(rows), checkedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {
-  const context = await financeContext();
+  const context = await financeContext("finance.createExpense");
   if (!context) return NextResponse.json({ error: "Sem permissão para registar operações financeiras." }, { status: 403 });
   const body = await request.json() as { resource?: string; record?: Record<string, unknown> };
   if (!body.resource || !body.record || !["financial_accounts", "financial_transactions", "budgets", "payment_requests", "cashflow_forecasts"].includes(body.resource)) {
@@ -55,6 +54,7 @@ export async function POST(request: NextRequest) {
   }
   const record = { ...body.record, legal_entity_id: legalEntityId } as Record<string, unknown>;
   const platformSlug = typeof record.platform_slug === "string" ? record.platform_slug : "";
+  if(platformSlug&&!context.authorization.isSuperAdmin&&!context.authorization.platformSlugs.includes(platformSlug))return NextResponse.json({error:"A plataforma não está atribuída ao utilizador."},{status:403});
   delete record.platform_slug;
   record.platform_id = platformIds[platformSlug] || null;
   if (body.resource === "financial_transactions") record.created_by = context.actor.employee_id;
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const context = await financeContext();
+  const context = await financeContext("finance.approvePayment");
   if (!context) return NextResponse.json({ error: "Sem permissão para aprovar pagamentos." }, { status: 403 });
   const body = await request.json() as { paymentId?: string; action?: "approve" | "reject" | "mark_paid"; receiptPath?: string };
   if (!body.paymentId || !body.action || !["approve", "reject", "mark_paid"].includes(body.action)) return NextResponse.json({ error: "Aprovação inválida." }, { status: 400 });

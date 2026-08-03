@@ -16,6 +16,22 @@ export async function corporateActor() {
   return { authUserId: user.id, ...context } as { authUserId: string; employee_id: string; employee_code: string; name: string; role: string; status: string };
 }
 
+export type CorporateAuthorization = {actor:NonNullable<Awaited<ReturnType<typeof corporateActor>>>;permissions:string[];platformIds:string[];platformSlugs:string[];isSuperAdmin:boolean};
+
+export async function corporateAuthorization():Promise<CorporateAuthorization|null>{
+  const actor=await corporateActor();
+  if(!actor)return null;
+  const result=await hqRpc("hq_actor_authorization_v1",{p_employee_id:actor.employee_id}) as {permissions?:string[];platform_ids?:string[];platform_slugs?:string[];is_super_admin?:boolean};
+  return{actor,permissions:result.permissions||[],platformIds:result.platform_ids||[],platformSlugs:result.platform_slugs||[],isSuperAdmin:Boolean(result.is_super_admin)};
+}
+
+export async function requireCorporatePermission(permission:string,platform?:string){
+  const authorization=await corporateAuthorization();
+  if(!authorization||(!authorization.isSuperAdmin&&!authorization.permissions.includes(permission)))return null;
+  if(platform&&!authorization.isSuperAdmin&&!authorization.platformSlugs.includes(platform)&&!authorization.platformIds.includes(platform))return null;
+  return authorization;
+}
+
 export async function hqRpc(name: string, body: Record<string, unknown> = {}) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");

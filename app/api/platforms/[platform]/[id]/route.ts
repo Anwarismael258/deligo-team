@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor } from "@/lib/hq-server";
+import { requireCorporatePermission } from "@/lib/hq-server";
 import { platformRest, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +19,10 @@ const signRow = async (platform: PlatformBackend, value: unknown) => {
 };
 
 export async function GET(_request: NextRequest, context: { params: Promise<{ platform: string; id: string }> }) {
-  const actor = await corporateActor();
   const { platform, id } = await context.params;
-  if (!actor) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
   if (!isPlatform(platform)) return NextResponse.json({ error: "Plataforma inválida." }, { status: 400 });
-  if (!["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role)) return NextResponse.json({ error: "Sem permissão para consultar este perfil." }, { status: 403 });
+  const authorization=await requireCorporatePermission("platform.manage",platform);
+  if (!authorization) return NextResponse.json({ error: "Sem permissão para consultar este perfil ou plataforma." }, { status: 403 });
   const encoded = encodeURIComponent(id);
   const profile = platform === "comunhao"
     ? (await read(platform, `church_applications?id=eq.${encoded}&select=*&limit=1`))[0] || null

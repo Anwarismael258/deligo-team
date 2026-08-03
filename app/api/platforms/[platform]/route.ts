@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, hqRpc } from "@/lib/hq-server";
+import { requireCorporatePermission, hqRpc } from "@/lib/hq-server";
 import { platformFunction, platformRest, platformRpc, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
 import { buildPlatformDecision, type PlatformDecision } from "@/lib/platform-decisions";
 
@@ -12,11 +12,10 @@ const signRecordMedia = async (platform: PlatformBackend, row: Record<string, un
 const signSnapshotMedia = async (platform: PlatformBackend, data: Record<string, unknown>) => { const result: Record<string, unknown> = { ...data }; for (const [key, value] of Object.entries(result)) if (Array.isArray(value)) result[key] = await Promise.all(value.map(item => item && typeof item === "object" ? signRecordMedia(platform, item as Record<string, unknown>) : item)); return result; };
 
 export async function GET(request: NextRequest, context: { params: Promise<{ platform: string }> }) {
-  const actor = await corporateActor();
   const { platform } = await context.params;
-  if (!actor) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
   if (!isPlatform(platform)) return NextResponse.json({ error: "Plataforma inválida." }, { status: 400 });
-  if (!["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role)) return NextResponse.json({ error: "Sem permissão para dados administrativos da plataforma." }, { status: 403 });
+  const authorization=await requireCorporatePermission("platform.manage",platform),actor=authorization?.actor;
+  if (!actor) return NextResponse.json({ error: "Sem permissão para dados administrativos desta plataforma." }, { status: 403 });
   try {
     const data = platform === "sarca"
       ? await platformFunction(platform, "admin-get-dashboard")
@@ -30,11 +29,10 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pla
 }
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ platform: string }> }) {
-  const actor = await corporateActor();
   const { platform } = await context.params;
-  if (!actor) return NextResponse.json({ error: "Sessão inválida ou expirada." }, { status: 401 });
   if (!isPlatform(platform)) return NextResponse.json({ error: "Plataforma inválida." }, { status: 400 });
-  if (!["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role)) return NextResponse.json({ error: "A decisão exige Operações ou Supervisor." }, { status: 403 });
+  const authorization=await requireCorporatePermission("platform.manage",platform),actor=authorization?.actor;
+  if (!actor) return NextResponse.json({ error: "A decisão exige permissão na plataforma atribuída." }, { status: 403 });
   const body = await request.json() as { action?: string; decision?: string; id?: string; reason?: string; payload?: Record<string, unknown> };
   if (!body.action || !body.id) return NextResponse.json({ error: "Acção e registo são obrigatórios." }, { status: 400 });
   const decision = body.decision || (body.action === "approve" ? "approve" : body.action === "reject" ? "reject" : body.action === "correction" ? "correction" : "");

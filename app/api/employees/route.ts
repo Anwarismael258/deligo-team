@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, hqRpc, supabaseUrl } from "@/lib/hq-server";
-
-const allowedRoles = new Set(["SUPER_ADMIN","HUMAN_RESOURCES"]);
+import { requireCorporatePermission, hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 export async function GET() {
-  const actor = await corporateActor();
-  if (!actor || !allowedRoles.has(actor.role)) return NextResponse.json({ error: "Acesso reservado a RH e Super Admin." }, { status: 403 });
+  const authorization = await requireCorporatePermission("users.view"),actor=authorization?.actor;
+  if (!actor) return NextResponse.json({ error: "Sem permissão para consultar colaboradores." }, { status: 403 });
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const headers = serviceKey ? { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Accept-Profile": "hq" } : null;
   const [employees, historyResponse, accessResponse, permissionResponse] = await Promise.all([
@@ -18,8 +16,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const actor = await corporateActor();
-  if (!actor || !allowedRoles.has(actor.role)) return NextResponse.json({ error: "Sem permissão para cadastrar trabalhadores." }, { status: 403 });
+  const authorization = await requireCorporatePermission("users.create"),actor=authorization?.actor;
+  if (!actor) return NextResponse.json({ error: "Sem permissão para cadastrar trabalhadores." }, { status: 403 });
   const input = await request.json() as { name?: string; phone?: string; jobTitle?: string; department?: string; role?: string; activate?: boolean };
   const digits = (input.phone || "").replace(/\D/g, "");
   const phone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
@@ -40,11 +38,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const actor = await corporateActor();
-  if (!actor || actor.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Aprovação do Super Admin necessária." }, { status: 403 });
   const body = await request.json() as { employeeId?: string; action?: "activate"|"suspend"|"reactivate"|"archive"|"set_supervisor"|"set_permission"; supervisorId?: string|null; permissionCode?: string; allowed?: boolean };
   const { employeeId, action } = body;
   if (!employeeId || !action) return NextResponse.json({ error: "Operação inválida." }, { status: 400 });
+  const permission=action==="set_supervisor"||action==="set_permission"?"settings.manage":"users.suspend",authorization=await requireCorporatePermission(permission),actor=authorization?.actor;
+  if(!actor)return NextResponse.json({error:"Sem permissão para esta alteração de acesso."},{status:403});
   if (action === "set_supervisor" || action === "set_permission") {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceKey) return NextResponse.json({ error: "Configuração administrativa indisponível." }, { status: 503 });
@@ -54,7 +52,8 @@ export async function PATCH(request: NextRequest) {
       const response = await fetch(`${supabaseUrl()}/rest/v1/employees?id=eq.${encodeURIComponent(employeeId)}`, { method:"PATCH", headers, body:JSON.stringify({ manager_id: body.supervisorId || null, updated_at:new Date().toISOString() }) });
       if (!response.ok) return NextResponse.json({ error:"Não foi possível atribuir o supervisor." }, { status:400 });
     } else {
-      if (!body.permissionCode || !["people.view","people.manage","operations.view","reports.view"].includes(body.permissionCode)) return NextResponse.json({ error:"Permissão inválida." }, { status:400 });
+      const catalog=["people.view","people.manage","operations.view","reports.view","users.view","users.create","users.edit","users.suspend","finance.view","finance.createExpense","finance.approvePayment","hr.viewEmployees","hr.viewSalary","hr.approveLeave","support.viewTickets","support.reply","support.close","field.createVisit","field.submitKyc","field.approveKyc","legal.viewContracts","legal.approveContract","audit.view","platform.manage","settings.manage"];
+      if (!body.permissionCode || !catalog.includes(body.permissionCode)) return NextResponse.json({ error:"Permissão inválida." }, { status:400 });
       const response = await fetch(`${supabaseUrl()}/rest/v1/employee_permission_overrides?on_conflict=employee_id,permission_code`, { method:"POST", headers, body:JSON.stringify({ employee_id:employeeId, permission_code:body.permissionCode, allowed:Boolean(body.allowed) }) });
       if (!response.ok) return NextResponse.json({ error:"Não foi possível alterar a permissão." }, { status:400 });
     }
@@ -70,8 +69,8 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const actor = await corporateActor();
-  if (!actor || !allowedRoles.has(actor.role)) return NextResponse.json({ error: "Sem permissão para editar trabalhadores." }, { status: 403 });
+  const authorization=await requireCorporatePermission("users.edit"),actor=authorization?.actor;
+  if (!actor) return NextResponse.json({ error: "Sem permissão para editar trabalhadores." }, { status: 403 });
   const input = await request.json() as { employeeId?: string; name?: string; phone?: string; jobTitle?: string; department?: string; role?: string; updatedAt?: string };
   const digits = (input.phone || "").replace(/\D/g, "");
   const phone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;

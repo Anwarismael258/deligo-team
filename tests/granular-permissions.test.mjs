@@ -1,0 +1,10 @@
+import test from"node:test";
+import assert from"node:assert/strict";
+import{readFile}from"node:fs/promises";
+const read=path=>readFile(new URL(`../${path}`,import.meta.url),"utf8");
+
+test("autorizações são calculadas no backend com overrides e plataformas atribuídas",async()=>{const[migration,server,session]=await Promise.all([read("supabase/migrations/372_hq_granular_permissions_and_platform_scope.sql"),read("lib/hq-server.ts"),read("app/api/auth/session/route.ts")]);for(const code of["users.view","finance.approvePayment","hr.viewSalary","support.reply","field.submitKyc","legal.approveContract","platform.manage","settings.manage"])assert.match(migration,new RegExp(code.replace(".","\\.")));assert.match(migration,/employee_permission_overrides/);assert.match(migration,/employee_platforms/);assert.match(server,/requireCorporatePermission/);assert.match(session,/permissions:authorization\.permissions/);assert.match(session,/platform_slugs:authorization\.platformSlugs/)});
+
+test("exemplos de separação de funções são aplicados nas APIs",async()=>{const[finance,hr,field,support,employees]=await Promise.all([read("app/api/finance/route.ts"),read("app/api/hr/route.ts"),read("app/api/field/route.ts"),read("app/api/support/route.ts"),read("app/api/employees/route.ts")]);assert.match(finance,/finance\.approvePayment/);assert.match(hr,/hr\.viewSalary/);assert.match(hr,/hr_payroll_records.*!canViewSalary/);assert.match(field,/field\.approveKyc/);assert.match(field,/autor n.o pode decidir/);assert.match(support,/support\.reply/);assert.match(support,/support\.close/);assert.match(support,/searchParams\.get\("platform"\)/);assert.match(employees,/settings\.manage/)});
+
+test("interfaces escondem módulos sem a permissão efetiva",async()=>{const[page,matrix]=await Promise.all([read("app/page.tsx"),read("app/components/PermissionMatrix.tsx")]);assert.match(page,/modulePermission/);assert.match(page,/hasPermission\(modulePermission\[label\]\)/);assert.match(matrix,/finance\.approvePayment/);assert.match(matrix,/field\.approveKyc/)});

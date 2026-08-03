@@ -11,6 +11,7 @@ import {NotificationCenter} from "./components/NotificationCenter";
 import {MyTasksCenter} from "./components/MyTasksCenter";
 import {ApprovalRules} from "./components/ApprovalRules";
 import {TechnicalIncidentAlerts} from "./components/TechnicalIncidentAlerts";
+import {PermissionMatrix} from "./components/PermissionMatrix";
 
 const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
 const nav = [
@@ -193,6 +194,7 @@ const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sans
 const unpublishedModules = new Set(["Embaixadores"]);
 const universalModules = new Set(["Centro de Notificações","Minhas Tarefas"]);
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
+const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Field":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage"};
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
@@ -240,7 +242,7 @@ type AuditRecord = { id:string; occurred_at:string; actor:string; action:string;
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
 type PlatformProfile = { platform:string; id:string; profile:Record<string, unknown>|null; kyc:unknown[]; wallets:unknown[]; orders:unknown[]; disputes:unknown[]; activity:unknown[] };
-type SessionUser = { id:string; hq_role:string; name:string; employee_code:string; email:string|null; phone:string|null; job_title:string|null; status:string; joined_on:string|null; last_login_at:string|null; department_id:string|null; manager_id:string|null };
+type SessionUser = { id:string; hq_role:string; name:string; employee_code:string; email:string|null; phone:string|null; job_title:string|null; status:string; joined_on:string|null; last_login_at:string|null; department_id:string|null; manager_id:string|null; permissions:string[]; platform_ids:string[]; platform_slugs:string[]; is_super_admin:boolean };
 
 const metricFor = (platform: DashboardPlatform | undefined, labels: string[]) =>
   platform?.metrics.find((metric) => labels.some((label) => metric.label.toLowerCase().includes(label)))?.value ?? 0;
@@ -380,7 +382,8 @@ export function HQApp() {
   const currentPersona={...personaBase,name:sessionUser?.name||personaBase.name,role:sessionUser?.job_title||personaBase.role,initials:(sessionUser?.name||personaBase.name).split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()};
   const isAccountScreen = active==="Meu Perfil";
   const activePresentation = modulePresentation[active];
-  const visibleNav = nav.filter(([, label]) => (currentPersona.modules.includes(label as never)||universalModules.has(label))&&!unpublishedModules.has(label));
+  const hasPermission=(code:string)=>Boolean(sessionUser?.is_super_admin||sessionUser?.permissions?.includes(code));
+  const visibleNav = nav.filter(([, label]) => (currentPersona.modules.includes(label as never)||universalModules.has(label))&&!unpublishedModules.has(label)&&(!sessionUser||!modulePermission[label]||hasPermission(modulePermission[label])));
 
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" }).then(async (response) => {
@@ -410,15 +413,13 @@ export function HQApp() {
 
   useEffect(() => {
     if (!sessionRole || sessionRole === "SUPER_ADMIN") return;
-    const rolePersonaKey = personaByRole[sessionRole as keyof typeof personaByRole];
-    const allowedModules = rolePersonaKey ? personas[rolePersonaKey].modules as readonly string[] : [];
     const universallyAllowed = ["Meu Perfil", "DefiniÃ§Ãµes", "SeguranÃ§a", "Centro de Notificações", "Minhas Tarefas"];
-    if (!allowedModules.includes(active) && !universallyAllowed.includes(active)) {
+    if (!visibleNav.some(([,label])=>label===active) && !universallyAllowed.includes(active)) {
       setActive("VisÃ£o geral");
       setSubArea("");
       window.history.replaceState({}, "", "/");
     }
-  }, [active, sessionRole]);
+  }, [active, sessionRole, sessionUser]);
 
   useEffect(() => {
     if (!["Pessoas","Recursos Humanos"].includes(active)) return;
@@ -448,8 +449,8 @@ export function HQApp() {
   useEffect(()=>{if(active!=="Marketing")return;refreshMarketing().catch(()=>{setMarketingData({});setMarketingReports([]);setMarketingNotice("Não foi possível carregar Marketing para este perfil.")})},[active]);
   const refreshField=async()=>{const r=await fetch("/api/field",{cache:"no-store"});if(!r.ok)throw new Error();setFieldData((await r.json()).data||{})};
   useEffect(()=>{if(active!=="Field")return;refreshField().catch(()=>{setFieldData({});setFieldNotice("Não foi possível carregar Field para este perfil.")})},[active]);
-  const refreshSupport=async()=>{const r=await fetch("/api/support",{cache:"no-store"});if(!r.ok)throw new Error();setSupportData((await r.json()).data||{})};
-  useEffect(()=>{if(active!=="Apoio ao Cliente")return;refreshSupport().catch(()=>{setSupportData({});setSupportNotice("Não foi possível carregar o atendimento para este perfil.")})},[active]);
+  const refreshSupport=async()=>{const scope=platform==="Todas as plataformas"?"":`?platform=${encodeURIComponent(platformSlug(platform))}`,r=await fetch(`/api/support${scope}`,{cache:"no-store"});if(!r.ok)throw new Error();setSupportData((await r.json()).data||{})};
+  useEffect(()=>{if(active!=="Apoio ao Cliente")return;refreshSupport().catch(()=>{setSupportData({});setSupportNotice("Não foi possível carregar o atendimento para este perfil.")})},[active,platform]);
   const refreshApprovals=async()=>{const r=await fetch("/api/approvals",{cache:"no-store"});if(!r.ok)throw new Error();setApprovalData((await r.json()).data||{})};
   useEffect(()=>{if(active!=="Aprovações")return;refreshApprovals().catch(()=>setApprovalData({}))},[active]);
   const refreshBi=async()=>{const r=await fetch("/api/bi",{cache:"no-store"});if(!r.ok)throw new Error();setBiData(await r.json())};
@@ -974,6 +975,7 @@ export function HQApp() {
             <div className="safeNotice"><b>Fluxo protegido</b><span>Tickets só podem ser fechados depois da resolução. Escalonamentos exigem destino e motivo, e todas as respostas, atribuições e mudanças de estado ficam no histórico.</span></div>
           </section>}
           {active==="Recursos Humanos"&&<section className="hrEventActions"><div className="hrLifecycleHead"><div><span>FLUXOS INTERDEPARTAMENTAIS</span><h2>Contratação e desligamento</h2><p>RH inicia e o backend encaminha Jurídico, Direção, Pessoas, IT, Património, Finanças e Contabilidade.</p></div><button className="hrCreateButton" onClick={()=>setShowWorkforceForm(!showWorkforceForm)}>Iniciar processo</button></div>{showWorkforceForm&&<form className="hrEventForm" onSubmit={createWorkforceRequest}><label><span>Processo</span><select value={workforceKind} onChange={event=>setWorkforceKind(event.target.value)}><option value="hiring">Contratação</option><option value="offboarding">Desligamento</option></select></label>{workforceKind==="hiring"?<><label><span>Nome do candidato</span><input name="candidateName" required/></label><label><span>Telefone</span><input name="candidatePhone"/></label><label><span>Cargo</span><input name="jobTitle" required/></label><label><span>Departamento</span><select name="departmentId" required><option value="">Selecionar</option>{(workforceData.departments||[]).map(department=><option key={department.id} value={department.id}>{String(department.name)}</option>)}</select></label><label><span>Role previsto</span><input name="requestedRoleCode"/></label><label><span>Salário proposto</span><input name="proposedSalary" type="number" min="0" step=".01"/></label></>:<label><span>Colaborador</span><select name="employeeId" required><option value="">Selecionar</option>{managedEmployees.filter(employee=>employee.status==="active").map(employee=><option key={employee.id} value={employee.id}>{employee.name} · {employee.employee_code}</option>)}</select></label>}<label><span>Plataforma</span><select name="platformId"><option value="">Grupo</option>{(workforceData.platforms||[]).map(platform=><option key={platform.id} value={platform.id}>{String(platform.name)}</option>)}</select></label><label><span>Motivo</span><input name="reason" required minLength={3}/></label><button type="submit">Iniciar e encaminhar</button></form>}<div className="procurementList">{(workforceData.requests||[]).map(request=><article key={request.id}><div><strong>RH-{String(request.request_number)} · {String(request.request_type)==="hiring"?String(request.candidate_name):managedEmployees.find(employee=>employee.id===request.employee_id)?.name||"Colaborador"}</strong><span>{String(request.request_type)} · {String(request.status)}</span></div>{request.request_type==="hiring"&&!request.employee_id&&<button onClick={()=>void linkWorkforceEmployee(String(request.id))}>Associar conta criada</button>}</article>)}{!(workforceData.requests||[]).length&&<div className="peopleEmpty">Sem processos laborais.</div>}</div>{workforceNotice&&<div className="operationalNotice">{workforceNotice}</div>}</section>}
+          {active==="Pessoas"&&selectedEmployee&&hasPermission("settings.manage")&&<PermissionMatrix employeeId={selectedEmployee.id} overrides={employeePermissions} onChange={(permissionCode,allowed)=>void employeeGovernanceAction({employeeId:selectedEmployee.id,action:"set_permission",permissionCode,allowed})}/>}
           {active==="Centro de Notificações"&&<NotificationCenter/>}
           {active==="Minhas Tarefas"&&<MyTasksCenter/>}
           {active==="Aprovações"&&<ApprovalRules/>}

@@ -25,8 +25,8 @@ test("campanhas passam pelo backend e ficam auditadas", () => {
   assert.match(route, /\["draft", "published", "archived"\]/);
 });
 
-test("exportação de auditoria exige role, não usa cache e deixa evento", () => {
-  assert.match(auditExport, /SUPER_ADMIN/);
+test("exportação de auditoria exige permissão, não usa cache e deixa evento", () => {
+  assert.match(auditExport, /requireCorporatePermission\("audit\.view"\)/);
   assert.match(auditExport, /hq_log_audit_export_v1/);
   assert.match(auditExport, /Cache-Control.*no-store/);
 });
