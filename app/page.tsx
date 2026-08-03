@@ -263,6 +263,7 @@ export function HQApp() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [subArea, setSubArea] = useState("");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [realtimeVersion,setRealtimeVersion]=useState(0);
   const [liveMap, setLiveMap] = useState<LiveMapData | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
@@ -407,7 +408,7 @@ export function HQApp() {
       .then((data) => { if (!cancelled) setLiveMap({ checkedAt: data.checkedAt, markers: Array.isArray(data.markers) ? data.markers : [] }); })
       .catch(() => { if (!cancelled) setLiveMap(null); });
     void refreshMap();
-    const interval = window.setInterval(() => void refreshMap(), 10_000);
+    const interval = window.setInterval(() => void refreshMap(), 3_000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [active]);
 
@@ -554,6 +555,32 @@ export function HQApp() {
       .catch((error: Error) => { if (!cancelled) setConnectionError(error.message); });
     return () => { cancelled = true; };
   }, []);
+
+  useEffect(()=>{
+    if(!sessionUser)return;
+    let cancelled=false,cursor=0,busy=false;
+    const poll=async()=>{if(busy||cancelled)return;busy=true;try{const response=await fetch(`/api/realtime?after=${cursor}`,{cache:"no-store"});if(!response.ok)return;const result=await response.json() as{cursor?:number;events?:unknown[]};cursor=Math.max(cursor,Number(result.cursor||0));if(result.events?.length)setRealtimeVersion(value=>value+1)}finally{busy=false}};
+    void poll();const timer=window.setInterval(()=>void poll(),2500);
+    return()=>{cancelled=true;window.clearInterval(timer)};
+  },[sessionUser?.id]);
+
+  useEffect(()=>{
+    if(!realtimeVersion)return;
+    if(active==="Visão geral")fetch("/api/dashboard",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(setDashboard).catch(()=>undefined);
+    if(active==="Finanças")void refreshFinance();
+    if(active==="Compras")void refreshProcurement();
+    if(active==="Jurídico")void refreshLegal();
+    if(active==="Conformidade e Risco")void refreshCompliance();
+    if(active==="Aquisição de Parceiros")void refreshAcquisition();
+    if(active==="Field")void refreshField();
+    if(active==="Apoio ao Cliente")void refreshSupport();
+    if(active==="Marketing")void refreshMarketing();
+    if(active==="BI / Análises")void refreshBi();
+    if(active==="Pessoas")void refreshEmployees();
+    if(active==="Recursos Humanos"){void refreshWorkforce();fetch("/api/hr",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(r=>setHrData(r.data||{})).catch(()=>undefined)}
+    if(workflowDepartmentByModule[active])void refreshWorkflows();
+    void refreshNotifications().catch(()=>undefined);
+  },[realtimeVersion]);
 
   useEffect(() => {
     const slug = platform === "Todas as plataformas" ? "" : platformSlug(platform);
@@ -979,7 +1006,7 @@ export function HQApp() {
           {active==="Centro de Notificações"&&<NotificationCenter/>}
           {active==="Minhas Tarefas"&&<MyTasksCenter/>}
           {active==="Aprovações"&&<ApprovalRules/>}
-          {workflowDepartmentByModule[active]&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()}/>}
+          {workflowDepartmentByModule[active]&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>}
           {active === "Mapa operacional" && <section className="fullMapWorkspace">
             <div className="fullMapHead"><div><span>TRACKING OPERACIONAL</span><h2>Mapa em tempo real</h2><p>Escolha a plataforma para ver apenas os profissionais que estão online e a enviar GPS.</p></div><div className="mapFilter" role="group" aria-label="Filtrar plataforma do mapa">{["Todas as plataformas", "DeliGo", "SARCA", "TaoMoz"].map((item) => <button key={item} className={platform === item ? "active" : ""} onClick={() => setPlatform(item)}>{item === "Todas as plataformas" ? "Todas" : item}</button>)}</div></div>
             <div className="mapLegend"><span><i className="deligo" />DeliGo · Estafetas</span><span><i className="sarca" />SARCA · Motoristas</span><span><i className="taomoz" />TaoMoz · Couriers</span><b>{mapMarkers.length} ao vivo</b></div>
@@ -987,7 +1014,7 @@ export function HQApp() {
             <div className="fullOperationsMap"><LiveOperationsMap markers={filteredMapMarkers} /></div>
             <div className="mapWorkerList">{filteredMapMarkers.map((marker) => <button key={marker.id} onClick={() => setSelectedMapWorker(marker)}><strong>{marker.workerName || marker.role}</strong><span>{marker.platform} · {marker.role} · {marker.status?.replaceAll("_", " ") || "disponível"}</span><small>Atualizado {new Date(marker.updatedAt).toLocaleTimeString("pt-MZ", { hour:"2-digit", minute:"2-digit" })}</small></button>)}{!filteredMapMarkers.length && <div className="peopleEmpty">Sem trabalhadores autorizados com localização recente para este filtro.</div>}</div>
             {selectedMapWorker && <div className="mapWorkerDetail"><div><span>TRABALHADOR AUTORIZADO</span><h3>{selectedMapWorker.workerName || selectedMapWorker.role}</h3><p>{selectedMapWorker.platform} · {selectedMapWorker.role} · {selectedMapWorker.status?.replaceAll("_", " ") || "disponível"}</p></div><div><small>Última localização</small><strong>{new Date(selectedMapWorker.updatedAt).toLocaleString("pt-MZ")}</strong><small>{selectedMapWorker.service ? `Serviço: ${selectedMapWorker.service}` : "Sem serviço activo identificado"}</small></div><button onClick={() => setSelectedMapWorker(null)}>Fechar</button></div>}
-            <p className="mapPrivacyNote">As posições são atualizadas a cada 10 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
+            <p className="mapPrivacyNote">As posições são atualizadas automaticamente a cada 3 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
           </section>}
           {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
             <section className="moduleWorkspace">
