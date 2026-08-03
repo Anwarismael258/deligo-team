@@ -22,6 +22,7 @@ export async function GET(){
   ["technology_certificates","technology_certificates?select=*&order=valid_until.asc&limit=500"],
   ["technology_releases","technology_releases?select=*&order=created_at.desc&limit=500"],
   ["technology_failure_history","technology_failure_history?select=*&order=occurred_at.desc&limit=500"],
+  ["technology_incident_reports","technology_incident_reports?select=*&order=created_at.desc&limit=500"],
   ["platforms","platforms?select=id,name,slug&limit=20"],
   ["employees","employees?select=id,name,employee_code,status,department_id&status=eq.active&limit=500"],
  ];

@@ -10,6 +10,7 @@ import {WorkflowInbox} from "./components/WorkflowInbox";
 import {NotificationCenter} from "./components/NotificationCenter";
 import {MyTasksCenter} from "./components/MyTasksCenter";
 import {ApprovalRules} from "./components/ApprovalRules";
+import {TechnicalIncidentAlerts} from "./components/TechnicalIncidentAlerts";
 
 const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
 const nav = [
@@ -1016,6 +1017,7 @@ export function HQApp() {
             <article className="permissionCard"><h2>Âmbito de acesso</h2><p>Módulos autorizados pelo cargo validado no backend.</p><div>{visibleNav.map(([,item]) => <span key={item}>✓ {item}</span>)}</div></article>
           </section>}
           {active === "Visão geral" && <>
+          <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
               ["Total de utilizadores", String(totalUsers), "Nas quatro plataformas"],
