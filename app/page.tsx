@@ -2,11 +2,14 @@
 /* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Activity, BarChart3, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, Bell, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, ListTodo, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 import LiveOperationsMap, { type OperationsMapMarker } from "@/components/LiveOperationsMap";
 import {TechnologyRegistry} from "./components/TechnologyRegistry";
 import {AcquisitionWorkspace} from "./components/AcquisitionWorkspace";
 import {WorkflowInbox} from "./components/WorkflowInbox";
+import {NotificationCenter} from "./components/NotificationCenter";
+import {MyTasksCenter} from "./components/MyTasksCenter";
+import {ApprovalRules} from "./components/ApprovalRules";
 
 const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
 const nav = [
@@ -30,6 +33,8 @@ const nav = [
   ["☆", "Embaixadores"],
   ["✓", "Projectos e Tarefas"],
   ["?", "Apoio Interno"],
+  ["!", "Centro de Notificações"],
+  ["✓", "Minhas Tarefas"],
   ["●", "Aprovações"],
   ["⌁", "BI / Análises"],
   ["▤", "Relatórios"],
@@ -42,7 +47,7 @@ const moduleIcons: Record<string, LucideIcon> = {
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
   "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Field": Route,
   "Apoio ao Cliente": Headphones, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
-  "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Aprovações": CheckCircle2,
+  "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Centro de Notificações": Bell, "Minhas Tarefas": ListTodo, "Aprovações": CheckCircle2,
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
 };
 
@@ -71,6 +76,8 @@ const moduleDetails: Record<string, string[]> = {
   "Embaixadores": ["Embaixadores", "Referências", "Campanhas", "Conversões", "Comissões"],
   "Projectos e Tarefas": ["Projectos", "Tarefas", "Objectivos", "Prazos", "Progresso"],
   "Apoio Interno": ["IT", "RH", "Finanças", "Jurídico", "Operações"],
+  "Centro de Notificações": ["Todas", "Não lidas", "Prioridade", "Prazos"],
+  "Minhas Tarefas": ["Pendentes", "Aprovações", "Prazos", "Atrasadas"],
   "Aprovações": ["Finanças", "RH", "Jurídico", "Compras", "Marketing"],
   "BI / Análises": ["Crescimento", "Receita", "Despesas", "Performance", "KPIs"],
   "Relatórios": ["Corporativos", "Financeiros", "RH", "Operações", "Auditoria"],
@@ -96,6 +103,8 @@ const modulePresentation: Record<string, { description: string; action: string; 
   "Embaixadores": { description: "Acompanha embaixadores, referências, conversões e comissões.", action: "Novo embaixador", primary: "Embaixadores", secondary: "Comissões pendentes", visual: "Conversão por referência", status: "Programa de embaixadores", color: "#d18b22" },
   "Projectos e Tarefas": { description: "Organiza objectivos, responsáveis, prazos, dependências e progresso.", action: "Novo projecto", primary: "Projectos", secondary: "Tarefas em atraso", visual: "Progresso dos projectos", status: "Gestão de trabalho", color: "#5f66c9" },
   "Apoio Interno": { description: "Recebe pedidos internos dirigidos a IT, RH, Finanças, Jurídico e Operações.", action: "Abrir pedido", primary: "Pedidos internos", secondary: "Por atender", visual: "Tempo de resolução", status: "Filas internas", color: "#487b78" },
+  "Centro de Notificações": { description: "Reúne alertas pessoais e departamentais com origem, prioridade e ligação ao registo.", action: "Rever alertas", primary: "Notificações", secondary: "Não lidas", visual: "Prioridades", status: "Centro de notificações", color: "#6d5bd0" },
+  "Minhas Tarefas": { description: "Consolida tarefas, aprovações, pedidos, tickets, projetos e prazos do utilizador.", action: "Rever trabalho", primary: "Pendentes", secondary: "Em atraso", visual: "Carga de trabalho", status: "Caixa pessoal", color: "#3478b8" },
   "Aprovações": { description: "Reúne somente decisões que o utilizador actual tem permissão para aprovar.", action: "Rever pendências", primary: "Aprovações", secondary: "A vencer", visual: "Fluxo de decisão", status: "Motor de aprovações", color: "#c05b4f" },
   "BI / Análises": { description: "Consolida KPIs, crescimento e desempenho autorizado de todo o grupo.", action: "Criar análise", primary: "Indicadores", secondary: "Relatórios agendados", visual: "Evolução dos KPIs", status: "Camada analítica", color: "#6c5bb5" },
   "Relatórios": { description: "Produz relatórios corporativos, financeiros, operacionais e de auditoria.", action: "Gerar relatório", primary: "Relatórios", secondary: "Agendados", visual: "Produção de relatórios", status: "Serviço documental", color: "#537493" },
@@ -126,6 +135,8 @@ const routeByModule: Record<string, string> = {
   "Embaixadores": "/embaixadores",
   "Projectos e Tarefas": "/projectos-tarefas",
   "Apoio Interno": "/apoio-interno",
+  "Centro de Notificações": "/notificacoes",
+  "Minhas Tarefas": "/minhas-tarefas",
   "Aprovações": "/aprovacoes",
   "BI / Análises": "/analises",
   "Relatórios": "/relatorios",
@@ -179,6 +190,7 @@ const personas = {
 
 const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
 const unpublishedModules = new Set(["Embaixadores"]);
+const universalModules = new Set(["Centro de Notificações","Minhas Tarefas"]);
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
 
 const platformCards = [
@@ -367,7 +379,7 @@ export function HQApp() {
   const currentPersona={...personaBase,name:sessionUser?.name||personaBase.name,role:sessionUser?.job_title||personaBase.role,initials:(sessionUser?.name||personaBase.name).split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()};
   const isAccountScreen = active==="Meu Perfil";
   const activePresentation = modulePresentation[active];
-  const visibleNav = nav.filter(([, label]) => currentPersona.modules.includes(label as never)&&!unpublishedModules.has(label));
+  const visibleNav = nav.filter(([, label]) => (currentPersona.modules.includes(label as never)||universalModules.has(label))&&!unpublishedModules.has(label));
 
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" }).then(async (response) => {
@@ -399,7 +411,7 @@ export function HQApp() {
     if (!sessionRole || sessionRole === "SUPER_ADMIN") return;
     const rolePersonaKey = personaByRole[sessionRole as keyof typeof personaByRole];
     const allowedModules = rolePersonaKey ? personas[rolePersonaKey].modules as readonly string[] : [];
-    const universallyAllowed = ["Meu Perfil", "DefiniÃ§Ãµes", "SeguranÃ§a"];
+    const universallyAllowed = ["Meu Perfil", "DefiniÃ§Ãµes", "SeguranÃ§a", "Centro de Notificações", "Minhas Tarefas"];
     if (!allowedModules.includes(active) && !universallyAllowed.includes(active)) {
       setActive("VisÃ£o geral");
       setSubArea("");
@@ -961,6 +973,9 @@ export function HQApp() {
             <div className="safeNotice"><b>Fluxo protegido</b><span>Tickets só podem ser fechados depois da resolução. Escalonamentos exigem destino e motivo, e todas as respostas, atribuições e mudanças de estado ficam no histórico.</span></div>
           </section>}
           {active==="Recursos Humanos"&&<section className="hrEventActions"><div className="hrLifecycleHead"><div><span>FLUXOS INTERDEPARTAMENTAIS</span><h2>Contratação e desligamento</h2><p>RH inicia e o backend encaminha Jurídico, Direção, Pessoas, IT, Património, Finanças e Contabilidade.</p></div><button className="hrCreateButton" onClick={()=>setShowWorkforceForm(!showWorkforceForm)}>Iniciar processo</button></div>{showWorkforceForm&&<form className="hrEventForm" onSubmit={createWorkforceRequest}><label><span>Processo</span><select value={workforceKind} onChange={event=>setWorkforceKind(event.target.value)}><option value="hiring">Contratação</option><option value="offboarding">Desligamento</option></select></label>{workforceKind==="hiring"?<><label><span>Nome do candidato</span><input name="candidateName" required/></label><label><span>Telefone</span><input name="candidatePhone"/></label><label><span>Cargo</span><input name="jobTitle" required/></label><label><span>Departamento</span><select name="departmentId" required><option value="">Selecionar</option>{(workforceData.departments||[]).map(department=><option key={department.id} value={department.id}>{String(department.name)}</option>)}</select></label><label><span>Role previsto</span><input name="requestedRoleCode"/></label><label><span>Salário proposto</span><input name="proposedSalary" type="number" min="0" step=".01"/></label></>:<label><span>Colaborador</span><select name="employeeId" required><option value="">Selecionar</option>{managedEmployees.filter(employee=>employee.status==="active").map(employee=><option key={employee.id} value={employee.id}>{employee.name} · {employee.employee_code}</option>)}</select></label>}<label><span>Plataforma</span><select name="platformId"><option value="">Grupo</option>{(workforceData.platforms||[]).map(platform=><option key={platform.id} value={platform.id}>{String(platform.name)}</option>)}</select></label><label><span>Motivo</span><input name="reason" required minLength={3}/></label><button type="submit">Iniciar e encaminhar</button></form>}<div className="procurementList">{(workforceData.requests||[]).map(request=><article key={request.id}><div><strong>RH-{String(request.request_number)} · {String(request.request_type)==="hiring"?String(request.candidate_name):managedEmployees.find(employee=>employee.id===request.employee_id)?.name||"Colaborador"}</strong><span>{String(request.request_type)} · {String(request.status)}</span></div>{request.request_type==="hiring"&&!request.employee_id&&<button onClick={()=>void linkWorkforceEmployee(String(request.id))}>Associar conta criada</button>}</article>)}{!(workforceData.requests||[]).length&&<div className="peopleEmpty">Sem processos laborais.</div>}</div>{workforceNotice&&<div className="operationalNotice">{workforceNotice}</div>}</section>}
+          {active==="Centro de Notificações"&&<NotificationCenter/>}
+          {active==="Minhas Tarefas"&&<MyTasksCenter/>}
+          {active==="Aprovações"&&<ApprovalRules/>}
           {workflowDepartmentByModule[active]&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()}/>}
           {active === "Mapa operacional" && <section className="fullMapWorkspace">
             <div className="fullMapHead"><div><span>TRACKING OPERACIONAL</span><h2>Mapa em tempo real</h2><p>Escolha a plataforma para ver apenas os profissionais que estão online e a enviar GPS.</p></div><div className="mapFilter" role="group" aria-label="Filtrar plataforma do mapa">{["Todas as plataformas", "DeliGo", "SARCA", "TaoMoz"].map((item) => <button key={item} className={platform === item ? "active" : ""} onClick={() => setPlatform(item)}>{item === "Todas as plataformas" ? "Todas" : item}</button>)}</div></div>
@@ -971,7 +986,7 @@ export function HQApp() {
             {selectedMapWorker && <div className="mapWorkerDetail"><div><span>TRABALHADOR AUTORIZADO</span><h3>{selectedMapWorker.workerName || selectedMapWorker.role}</h3><p>{selectedMapWorker.platform} · {selectedMapWorker.role} · {selectedMapWorker.status?.replaceAll("_", " ") || "disponível"}</p></div><div><small>Última localização</small><strong>{new Date(selectedMapWorker.updatedAt).toLocaleString("pt-MZ")}</strong><small>{selectedMapWorker.service ? `Serviço: ${selectedMapWorker.service}` : "Sem serviço activo identificado"}</small></div><button onClick={() => setSelectedMapWorker(null)}>Fechar</button></div>}
             <p className="mapPrivacyNote">As posições são atualizadas a cada 10 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
           </section>}
-          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
