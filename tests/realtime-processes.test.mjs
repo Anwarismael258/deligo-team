@@ -11,6 +11,8 @@ const page=read("app/page.tsx");
 const propagation=read("supabase/migrations/374_hq_cross_module_state_propagation.sql");
 const field=read("app/api/field/route.ts");
 const legal=read("app/api/legal/route.ts");
+const support=read("app/api/support/route.ts");
+const kyc=read("supabase/migrations/375_hq_kyc_standard_states_and_propagation.sql");
 
 test("eventos, linha temporal, comentários e menções são persistidos no backend",()=>{
   for(const table of ["process_events","process_comments","process_comment_mentions","realtime_events"])assert.match(migration,new RegExp(`create table if not exists hq\\.${table}`));
@@ -50,4 +52,19 @@ test("estados críticos propagam entre departamentos",()=>{
   assert.match(field,/hq_decide_workflow_step_v1/);
   assert.match(legal,/step_type=eq\.contract_review/);
   assert.match(legal,/Contrato \$\{body\.status\}/);
+});
+
+test("mensagens dos apps entram na fila única de Apoio",()=>{
+  assert.match(support,/coreRest/);
+  assert.match(support,/support_cases\?select=\*,app:apps/);
+  assert.match(support,/core:/);
+  assert.match(support,/support_case_messages/);
+  assert.match(support,/author_type:"staff"/);
+});
+
+test("KYC usa estados padronizados, documentos, risco e propagação",()=>{
+  for(const state of ["documents_pending","under_review","field_verification_required","legal_review","approval_pending","approved","rejected","suspended","expired"])assert.match(kyc,new RegExp(state));
+  assert.match(kyc,/create table if not exists hq.kyc_documents/);
+  assert.match(kyc,/propagate_kyc_decision/);
+  assert.match(kyc,/kyc_approved/);
 });
