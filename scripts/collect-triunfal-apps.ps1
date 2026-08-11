@@ -6,6 +6,7 @@ param(
 
 $deliveryRoot = 'C:\Users\Administrator\Documents\DeliGo Triunfal Apps'
 $androidRoot = Join-Path $deliveryRoot 'Android'
+$webRoot = Join-Path $deliveryRoot 'Web'
 $timestamp = Get-Date -Format 'yyyy-MM-dd_HHmm'
 
 $apps = @(
@@ -16,6 +17,7 @@ $apps = @(
 )
 
 New-Item -ItemType Directory -Force -Path $androidRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $webRoot | Out-Null
 $published = @()
 
 foreach ($application in $apps | Where-Object { $App -eq 'all' -or $_.Id -eq $App }) {
@@ -38,6 +40,24 @@ foreach ($application in $apps | Where-Object { $App -eq 'all' -or $_.Id -eq $Ap
       source = $artifact.FullName
       built_at = $artifact.LastWriteTime.ToString('o')
       size_mb = [math]::Round($artifact.Length / 1MB, 2)
+    }
+  }
+}
+
+if ($App -in @('all','taomoz')) {
+  $taomozDist = 'C:\Users\Administrator\Documents\TaoMoz\dist'
+  if (Test-Path -LiteralPath $taomozDist) {
+    $marketDirectory = Join-Path $webRoot 'DeliGo Market - TaoMoz'
+    New-Item -ItemType Directory -Force -Path $marketDirectory | Out-Null
+    $marketArchive = Join-Path $marketDirectory "DeliGo Market - TaoMoz - Web - $timestamp.zip"
+    Compress-Archive -Path (Join-Path $taomozDist '*') -DestinationPath $marketArchive
+    $published += [pscustomobject]@{
+      application = 'DeliGo Market - TaoMoz'
+      variant = 'Web PWA'
+      file = $marketArchive
+      source = $taomozDist
+      built_at = (Get-Item -LiteralPath $taomozDist).LastWriteTime.ToString('o')
+      size_mb = [math]::Round((Get-Item -LiteralPath $marketArchive).Length / 1MB, 2)
     }
   }
 }
