@@ -43,7 +43,13 @@ foreach ($application in $apps | Where-Object { $App -eq 'all' -or $_.Id -eq $Ap
 }
 
 $catalogPath = Join-Path $deliveryRoot 'catalogo.json'
-$existing = if (Test-Path -LiteralPath $catalogPath) { @(Get-Content -Raw -LiteralPath $catalogPath | ConvertFrom-Json | Where-Object { $_.variant -ne 'Web PWA' }) } else { @() }
+$existing = @()
+if (Test-Path -LiteralPath $catalogPath) {
+  $catalogRecords = Get-Content -Raw -LiteralPath $catalogPath | ConvertFrom-Json
+  foreach ($record in $catalogRecords) {
+    if ($record.variant -ne 'Web PWA') { $existing += $record }
+  }
+}
 $allRecords = [System.Collections.Generic.List[object]]::new()
 foreach ($record in @($existing)) { $allRecords.Add($record) }
 foreach ($record in @($published)) { $allRecords.Add($record) }
