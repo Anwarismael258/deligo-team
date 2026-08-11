@@ -64,7 +64,10 @@ if ($App -in @('all','taomoz')) {
 
 $catalogPath = Join-Path $deliveryRoot 'catalogo.json'
 $existing = if (Test-Path -LiteralPath $catalogPath) { @(Get-Content -Raw -LiteralPath $catalogPath | ConvertFrom-Json) } else { @() }
-@($existing + $published) | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $catalogPath -Encoding utf8
+$allRecords = [System.Collections.Generic.List[object]]::new()
+foreach ($record in @($existing)) { $allRecords.Add($record) }
+foreach ($record in @($published)) { $allRecords.Add($record) }
+$allRecords | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $catalogPath -Encoding utf8
 
 if ($published.Count) {
   $published | Format-Table application,variant,size_mb,file -AutoSize
