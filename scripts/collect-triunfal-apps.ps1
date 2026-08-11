@@ -50,7 +50,7 @@ if ($App -in @('all','taomoz')) {
     $marketDirectory = Join-Path $webRoot 'DeliGo Market - TaoMoz'
     New-Item -ItemType Directory -Force -Path $marketDirectory | Out-Null
     $marketArchive = Join-Path $marketDirectory "DeliGo Market - TaoMoz - Web - $timestamp.zip"
-    Compress-Archive -Path (Join-Path $taomozDist '*') -DestinationPath $marketArchive
+    Compress-Archive -Path (Join-Path $taomozDist '*') -DestinationPath $marketArchive -Force
     $published += [pscustomobject]@{
       application = 'DeliGo Market - TaoMoz'
       variant = 'Web PWA'
