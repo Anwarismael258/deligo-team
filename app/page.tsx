@@ -1076,7 +1076,8 @@ if(active==="Operações de Campo")void refreshField();
           <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
-              ["GMV hoje", money(commandCenter?.summary.gmvToday || 0), "Pagamentos confirmados no stream corporativo"],
+              ["Total de utilizadores", String(totalUsers), "Nas plataformas ligadas ao HQ"],
+              ["Valor total processado", money(dashboard?.modules.totalValue || 0), "Volume operacional consolidado"],
               ["Receita hoje", money(commandCenter?.summary.revenueToday || 0), "Comissões confirmadas no stream corporativo"],
               ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
               ["Operações hoje", String(commandCenter?.summary.operationsToday || 0), "Eventos operacionais recebidos hoje"],
