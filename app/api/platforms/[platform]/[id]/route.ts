@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireCorporatePermission } from "@/lib/hq-server";
-import { platformRest, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
+import { platformRest, signPlatformPath } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
 const allowed = ["deligo", "comunhao", "sarca", "taomoz"] as const;
-const isPlatform = (value: string): value is PlatformBackend => allowed.includes(value as PlatformBackend);
-const read = async (platform: PlatformBackend, path: string) => { try { return await platformRest(platform, path); } catch { return []; } };
+type SupportedPlatform = (typeof allowed)[number];
+const isPlatform = (value: string): value is SupportedPlatform => allowed.includes(value as SupportedPlatform);
+const read = async (platform: SupportedPlatform, path: string) => { try { return await platformRest(platform, path); } catch { return []; } };
 const mediaFields = ["photo_url", "image_url", "document_url", "file_url", "selfie_url", "document_front_path", "document_back_path", "selfie_path", "proof_url", "photos", "documents", "files", "attachments"];
-const signRow = async (platform: PlatformBackend, value: unknown) => {
+const signRow = async (platform: SupportedPlatform, value: unknown) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const row = { ...(value as Record<string, unknown>) };
   for (const field of mediaFields) {
