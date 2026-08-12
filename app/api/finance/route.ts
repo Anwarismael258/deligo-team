@@ -6,6 +6,7 @@ const platformIds: Record<string, string> = {
   comunhao: "20000000-0000-0000-0000-000000000002",
   taomoz: "20000000-0000-0000-0000-000000000003",
   sarca: "20000000-0000-0000-0000-000000000004",
+  mestre24: "20000000-0000-0000-0000-000000000005",
 };
 const tables = ["financial_accounts", "financial_transactions", "budgets", "payment_requests", "cashflow_forecasts", "profit_distributions"] as const;
 
@@ -42,7 +43,11 @@ export async function GET() {
     const response = await fetch(`${supabaseUrl()}/rest/v1/${table}?select=*&order=${order}.desc&limit=250${scope}`, { headers: context.headers, cache: "no-store" });
     return [table, response.ok ? await response.json() : []] as const;
   }));
-  return NextResponse.json({ data: Object.fromEntries(rows), checkedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });
+  const paymentScope = context.authorization.isSuperAdmin ? "" : context.authorization.platformSlugs.length ? `&platform_code=in.(${context.authorization.platformSlugs.join(",")})` : "&platform_code=eq.__none__";
+  const paymentEventsResponse = await fetch(`${supabaseUrl()}/rest/v1/payment_events?select=*&order=occurred_at.desc&limit=500${paymentScope}`, { headers: context.headers, cache: "no-store" });
+  const data = Object.fromEntries(rows);
+  data.payment_events = paymentEventsResponse.ok ? await paymentEventsResponse.json() : [];
+  return NextResponse.json({ data, checkedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {

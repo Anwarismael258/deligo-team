@@ -1,20 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, supabaseUrl } from "@/lib/hq-server";
+import { corporateAuthorization, supabaseUrl } from "@/lib/hq-server";
 
 const entity = "10000000-0000-0000-0000-000000000001";
-const platformIds: Record<string,string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004" };
+const platformIds: Record<string,string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
 const readRoles = new Set(["SUPER_ADMIN","MARKETING","FINANCE","OPERATIONS","SUPERVISOR"]);
 const writeRoles = new Set(["SUPER_ADMIN","MARKETING"]);
 const resources = ["marketing_campaigns","campaign_platforms","marketing_channels","marketing_content_calendar","marketing_promotions","marketing_creatives","marketing_leads","marketing_metrics","marketing_history","platforms","approval_requests"];
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
-async function context(){const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;return actor&&key&&readRoles.has(actor.role)?{actor,key}:null}
+async function context(){const authorization=await corporateAuthorization(),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;return actor&&key&&readRoles.has(actor.role)?{actor,key,authorization}:null}
 async function rest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
 async function history(key:string,campaignId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"marketing_history",{method:"POST",body:JSON.stringify({campaign_id:campaignId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
+function canAccessPlatform(c:{authorization:{isSuperAdmin:boolean;platformIds:string[]}},platformId:unknown){return c.authorization.isSuperAdmin||c.authorization.platformIds.includes(String(platformId||""))}
 
 export async function GET(){
   const c=await context();if(!c)return NextResponse.json({error:"Acesso reservado a Marketing e gestão autorizada."},{status:403});
   const rows=await Promise.all(resources.map(async name=>{try{const order=["marketing_campaigns","marketing_history"].includes(name)?"&order=created_at.desc":"";return[name,await rest(c.key,`${name}?select=*&limit=500${order}`)] as const}catch{return[name,[]] as const}}));
   const data=Object.fromEntries(rows) as Record<string,Array<Record<string,unknown>>>;
+  if(!c.authorization.isSuperAdmin){const campaignIds=new Set((data.campaign_platforms||[]).filter(record=>canAccessPlatform(c,record.platform_id)).map(record=>String(record.campaign_id)));data.campaign_platforms=(data.campaign_platforms||[]).filter(record=>campaignIds.has(String(record.campaign_id)));data.marketing_campaigns=(data.marketing_campaigns||[]).filter(record=>campaignIds.has(String(record.id)));for(const resource of ["marketing_channels","marketing_content_calendar","marketing_promotions","marketing_creatives","marketing_leads","marketing_metrics","marketing_history"]){data[resource]=(data[resource]||[]).filter(record=>campaignIds.has(String(record.campaign_id)))}data.approval_requests=(data.approval_requests||[]).filter(record=>record.target_type!=="marketing_campaign"||campaignIds.has(String(record.target_id)));data.platforms=(data.platforms||[]).filter(record=>canAccessPlatform(c,record.id))}
   const reports=Object.values(platformIds).map(platformId=>{const platform=data.platforms?.find(p=>p.id===platformId);const metrics=(data.marketing_metrics||[]).filter(m=>m.platform_id===platformId);const leads=(data.marketing_leads||[]).filter(l=>l.platform_id===platformId);return {platform_id:platformId,platform:String(platform?.name||"Plataforma"),impressions:metrics.reduce((n,m)=>n+Number(m.impressions||0),0),clicks:metrics.reduce((n,m)=>n+Number(m.clicks||0),0),leads:Math.max(leads.length,metrics.reduce((n,m)=>n+Number(m.leads||0),0)),conversions:Math.max(leads.filter(l=>l.status==="converted").length,metrics.reduce((n,m)=>n+Number(m.conversions||0),0)),spend:metrics.reduce((n,m)=>n+Number(m.spend||0),0)} });
   return NextResponse.json({data,reports},{headers:{"Cache-Control":"private, no-store"}});
 }
@@ -24,8 +26,9 @@ export async function POST(request:NextRequest){
   const body=await request.json() as {resource?:string;record?:Record<string,unknown>;platforms?:string[]};
   try{
     if(body.resource==="campaign"&&body.record){
-      const created=(await rest(c.key,"marketing_campaigns",{method:"POST",body:JSON.stringify({...body.record,legal_entity_id:entity,owner_id:c.actor.employee_id,status:"draft"})}))?.[0];
       const ids=(body.platforms||[]).map(slug=>platformIds[slug]).filter(Boolean);
+      if(!ids.length||ids.some(platformId=>!canAccessPlatform(c,platformId)))return NextResponse.json({error:"A campanha deve ter pelo menos uma plataforma atribuída e autorizada."},{status:403});
+      const created=(await rest(c.key,"marketing_campaigns",{method:"POST",body:JSON.stringify({...body.record,legal_entity_id:entity,owner_id:c.actor.employee_id,status:"draft"})}))?.[0];
       if(ids.length)await rest(c.key,"campaign_platforms",{method:"POST",body:JSON.stringify(ids.map(platform_id=>({campaign_id:created.id,platform_id})))});
       await history(c.key,created.id,"created","Campanha criada em rascunho",c.actor.employee_id,{platforms:body.platforms||[]});
       return NextResponse.json({record:created},{status:201});

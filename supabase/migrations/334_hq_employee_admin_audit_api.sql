@@ -1,15 +1,12 @@
 begin;
-
 alter table hq.employees add column if not exists requested_role_code text;
 alter table hq.employees add column if not exists suspended_at timestamptz;
 alter table hq.employees add column if not exists offboarded_at timestamptz;
-
 create or replace function public.hq_actor_context_v1(p_auth_user_id uuid) returns jsonb
 language sql stable security definer set search_path=hq,public,pg_temp as $$
  select jsonb_build_object('employee_id',e.id,'employee_code',e.employee_code,'name',e.display_name,'role',r.code,'status',e.status)
  from hq.employees e join hq.roles r on r.id=e.primary_role_id where e.auth_user_id=p_auth_user_id limit 1
 $$;
-
 create or replace function public.hq_employee_directory_v1() returns jsonb
 language sql stable security definer set search_path=hq,public,pg_temp as $$
  select coalesce(jsonb_agg(jsonb_build_object(
@@ -20,7 +17,6 @@ language sql stable security definer set search_path=hq,public,pg_temp as $$
  ) order by e.created_at), '[]'::jsonb)
  from hq.employees e left join hq.departments d on d.id=e.department_id left join hq.roles r on r.id=e.primary_role_id
 $$;
-
 create or replace function public.hq_audit_history_v1(p_limit integer default 100) returns jsonb
 language sql stable security definer set search_path=hq,public,pg_temp as $$
  select coalesce(jsonb_agg(x.item order by x.occurred_at desc),'[]'::jsonb) from (
@@ -30,7 +26,6 @@ language sql stable security definer set search_path=hq,public,pg_temp as $$
   from hq.audit_logs a left join hq.employees e on e.id=a.actor_employee_id order by a.occurred_at desc limit least(greatest(p_limit,1),500)
  ) x
 $$;
-
 create or replace function public.hq_create_employee_v1(
  p_actor_auth_user_id uuid,p_auth_user_id uuid,p_display_name text,p_phone_e164 text,p_job_title text,
  p_department_code text,p_requested_role_code text,p_activate boolean default false
@@ -58,7 +53,6 @@ begin
  values(actor.employee_id,'EMPLOYEE_CREATED','10000000-0000-0000-0000-000000000001','people','employee',new_id::text,'success',jsonb_build_object('status',new_status,'requested_role',p_requested_role_code));
  return jsonb_build_object('id',new_id,'employee_code',new_code,'status',new_status);
 end $$;
-
 create or replace function public.hq_set_employee_status_v1(p_actor_auth_user_id uuid,p_employee_id uuid,p_action text) returns jsonb
 language plpgsql security definer set search_path=hq,public,pg_temp as $$
 declare actor record; target record; role_id uuid; next_status text;
@@ -82,12 +76,10 @@ begin
  values(actor.employee_id,'EMPLOYEE_'||upper(p_action),'10000000-0000-0000-0000-000000000001','people','employee',p_employee_id::text,'success',jsonb_build_object('previous_status',target.status,'new_status',next_status));
  return jsonb_build_object('id',p_employee_id,'status',next_status);
 end $$;
-
 revoke all on function public.hq_actor_context_v1(uuid) from public,anon,authenticated;
 revoke all on function public.hq_employee_directory_v1() from public,anon,authenticated;
 revoke all on function public.hq_audit_history_v1(integer) from public,anon,authenticated;
 revoke all on function public.hq_create_employee_v1(uuid,uuid,text,text,text,text,text,boolean) from public,anon,authenticated;
 revoke all on function public.hq_set_employee_status_v1(uuid,uuid,text) from public,anon,authenticated;
 grant execute on function public.hq_actor_context_v1(uuid),public.hq_employee_directory_v1(),public.hq_audit_history_v1(integer),public.hq_create_employee_v1(uuid,uuid,text,text,text,text,text,boolean),public.hq_set_employee_status_v1(uuid,uuid,text) to service_role;
-
 commit;

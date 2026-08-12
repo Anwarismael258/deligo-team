@@ -1,5 +1,4 @@
 begin;
-
 insert into hq.permissions (code, module, action, data_class, description) values
   ('platforms.view','platforms','view','internal','Consultar plataformas autorizadas'),
   ('people.view','people','view','personal','Consultar directório corporativo'),
@@ -48,39 +47,32 @@ insert into hq.permissions (code, module, action, data_class, description) value
   ('assets.view','assets','view','internal','Consultar património'),
   ('assets.manage','assets','manage','internal','Gerir património')
 on conflict (code) do update set module=excluded.module, action=excluded.action, data_class=excluded.data_class, description=excluded.description;
-
 insert into hq.role_permissions (role_id, permission_id)
 select '50000000-0000-0000-0000-000000000001', id from hq.permissions
 on conflict (role_id, permission_id) do nothing;
-
 insert into hq.role_permissions (role_id, permission_id)
 select '50000000-0000-0000-0000-000000000002', id from hq.permissions where code = any(array[
   'platforms.view','finance.view','finance.budget.create','finance.expense.create','finance.transactions.review',
   'finance.transactions.approve','accounting.view','profit_distribution.review','reserved_matters.approve',
   'ownership.view','payroll.view','reports.view','reports.export'
 ]) on conflict (role_id, permission_id) do nothing;
-
 insert into hq.role_permissions (role_id, permission_id)
 select '50000000-0000-0000-0000-000000000003', id from hq.permissions where code = any(array[
   'platforms.view','people.view','operations.view','tasks.assign','field.view','field.manage','support.view',
   'support.manage','marketing.view','acquisition.view','acquisition.manage','ambassadors.view','reports.view'
 ]) on conflict (role_id, permission_id) do nothing;
-
 insert into hq.role_permissions (role_id, permission_id)
 select '50000000-0000-0000-0000-000000000004', id from hq.permissions where code = any(array[
   'finance.view','accounting.view','finance.result.prepare','payment.reconcile','reports.view','reports.export'
 ]) on conflict (role_id, permission_id) do nothing;
-
 insert into hq.role_permissions (role_id, permission_id)
 select '50000000-0000-0000-0000-000000000005', id from hq.permissions where code = any(array[
   'people.view','hr.view','hr.manage','payroll.view','reports.view'
 ]) on conflict (role_id, permission_id) do nothing;
-
 insert into hq.role_permissions (role_id, permission_id)
 select '50000000-0000-0000-0000-000000000006', id from hq.permissions where code = any(array[
   'legal.view','legal.manage','documents.restricted.view','ownership.view','reports.view'
 ]) on conflict (role_id, permission_id) do nothing;
-
 insert into hq.employee_platforms (employee_id, platform_id, granted_by)
 select employees.employee_id, platforms.id, '40000000-0000-0000-0000-000000000001'::uuid
 from (values
@@ -89,7 +81,6 @@ from (values
   ('40000000-0000-0000-0000-000000000003'::uuid)
 ) employees(employee_id) cross join hq.platforms as platforms
 on conflict (employee_id, platform_id) do nothing;
-
 create or replace function hq.enforce_single_super_admin() returns trigger
 language plpgsql security definer set search_path = hq, pg_temp as $$
 declare super_role uuid;
@@ -101,11 +92,9 @@ begin
   ) then raise exception 'HQ_SINGLE_SUPER_ADMIN_REQUIRED'; end if;
   return new;
 end $$;
-
 drop trigger if exists enforce_single_super_admin on hq.employee_roles;
 create trigger enforce_single_super_admin before insert or update on hq.employee_roles
 for each row execute function hq.enforce_single_super_admin();
-
 create or replace function hq.enforce_ownership_total() returns trigger
 language plpgsql security definer set search_path = hq, pg_temp as $$
 declare ownership_total numeric;
@@ -117,11 +106,9 @@ begin
   end if;
   return new;
 end $$;
-
 drop trigger if exists enforce_ownership_total on hq.shareholders;
 create trigger enforce_ownership_total before insert or update on hq.shareholders
 for each row execute function hq.enforce_ownership_total();
-
 create or replace function hq.enforce_approval_separation() returns trigger
 language plpgsql security definer set search_path = hq, pg_temp as $$
 declare requester uuid;
@@ -130,12 +117,9 @@ begin
   if requester=new.approver_id then raise exception 'HQ_REQUESTER_CANNOT_APPROVE_OWN_REQUEST'; end if;
   return new;
 end $$;
-
 drop trigger if exists enforce_approval_separation on hq.approval_decisions;
 create trigger enforce_approval_separation before insert or update on hq.approval_decisions
 for each row execute function hq.enforce_approval_separation();
-
 revoke all on all functions in schema hq from public, anon, authenticated;
 grant execute on all functions in schema hq to service_role;
-
 commit;

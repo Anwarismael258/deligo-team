@@ -1,0 +1,4 @@
+BEGIN;
+ALTER TABLE IF EXISTS public.payment_splits
+  ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+COMMIT;

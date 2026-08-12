@@ -51,12 +51,14 @@ export async function GET(request: NextRequest) {
     ]);
     collections = { requests, campaigns, events };
   } else {
-    const [deligoKyc, sarcaDrivers, comunhaoChurches, taomozSellerKyc, taomozSellers, restaurants, couriers, notes] = await Promise.all([
+    const [deligoKyc, sarcaDrivers, comunhaoChurches, taomozSellerKyc, taomozSellers, mestre24Kyc, mestre24Profiles, restaurants, couriers, notes] = await Promise.all([
       getRows("profiles?select=id,full_name,phone,role,city,address,email,kyc_status,kyc_rejection_reason,approval_submitted_at,approval_sla_deadline,verification_score,is_blocked,created_at,updated_at&role=in.(restaurant,courier)&order=updated_at.desc&limit=250"),
       getRows("driver_profiles?select=*&order=updated_at.desc&limit=250"),
       getRows("church_applications?select=*&order=updated_at.desc&limit=250"),
       getRows("kyc_submissions?select=*&role=eq.seller&order=updated_at.desc&limit=250"),
       getRows("seller_profiles?select=*&order=updated_at.desc&limit=250"),
+      platformRest("mestre24", "kyc_verifications?select=*&order=created_at.desc&limit=250").catch(() => []) as Promise<Row[]>,
+      platformRest("mestre24", "professional_profiles?select=user_id,headline,verification_status,subscription_status,visible_in_marketplace,created_at,updated_at&order=updated_at.desc&limit=250").catch(() => []) as Promise<Row[]>,
       getRows("restaurants?select=*&order=created_at.desc&limit=120"),
       getRows("couriers?select=*&order=created_at.desc&limit=120"),
       getRows("field_internal_notes?select=*&order=created_at.desc&limit=100"),
@@ -64,10 +66,14 @@ export async function GET(request: NextRequest) {
     const tag = (rows: Row[], platform: string, subjectType: string) => rows.map((row) => withKycMedia({ ...row, _platform: platform, _subject_type: subjectType }));
     const sellerByProfile = new Map(taomozSellers.map((row) => [String(row.profile_id || ""), row]));
     const taomozKyc = taomozSellerKyc.map((row) => ({ ...sellerByProfile.get(String(row.profile_id || "")), ...row }));
+    const mestre24ByUser = new Map(mestre24Profiles.map((row) => [String(row.user_id || ""), row]));
+    const mestre24Verification = mestre24Kyc.map((row) => ({ ...mestre24ByUser.get(String(row.professional_user_id || "")), ...row }));
     collections = {
       verifications: [...tag(deligoKyc, "DeliGo", "Estafeta / Restaurante"), ...tag(sarcaDrivers, "SARCA", "Condutor"), ...tag(comunhaoChurches, "Comunhão", "Igreja"), ...tag(taomozKyc, "TaoMoz", "Vendedor")],
       deligoKyc: tag(deligoKyc, "DeliGo", "Estafeta / Restaurante"), sarcaDrivers: tag(sarcaDrivers, "SARCA", "Condutor"), comunhaoChurches: tag(comunhaoChurches, "Comunhão", "Igreja"), taomozSellers: tag(taomozKyc, "TaoMoz", "Vendedor"), restaurants, couriers, notes,
     };
+    collections.mestre24Professionals = tag(mestre24Verification, "Mestre24", "Profissional");
+    collections.verifications.push(...collections.mestre24Professionals);
   }
   return NextResponse.json({ module: requestedModule, collections, checkedAt: new Date().toISOString(), permissions: { canDecideKyc: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role) } }, { headers: { "Cache-Control": "private, no-store" } });
 }
@@ -96,7 +102,7 @@ export async function PATCH(request: NextRequest) {
     if (!['SUPER_ADMIN', 'SUPERVISOR', 'OPERATIONS'].includes(actor.role)) return NextResponse.json({ error: "A decisão KYC exige Operações ou Supervisor." }, { status: 403 });
     if (["reject", "correction"].includes(body.action || "") && (body.reason || "").trim().length < 6) return NextResponse.json({ error: "Indique um motivo com pelo menos 6 caracteres." }, { status: 400 });
     const label = body.platform || "";
-    const platform: PlatformBackend | null = label === "DeliGo" ? "deligo" : label === "SARCA" ? "sarca" : label === "TaoMoz" ? "taomoz" : label.includes("Comun") ? "comunhao" : null;
+    const platform: PlatformBackend | null = label === "DeliGo" ? "deligo" : label === "SARCA" ? "sarca" : label === "TaoMoz" ? "taomoz" : label === "Mestre24" ? "mestre24" : label.includes("Comun") ? "comunhao" : null;
     if (!platform) return NextResponse.json({ error: "Plataforma KYC inválida." }, { status: 400 });
     const operation = buildPlatformDecision(platform, body.action as PlatformDecision, body.id, body.reason);
     if (operation.transport === "function") await platformFunction(platform, operation.name, operation.body);

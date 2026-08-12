@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCorporatePermission, hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 const entity="10000000-0000-0000-0000-000000000001";
-const platforms:Record<string,string>={deligo:"20000000-0000-0000-0000-000000000001",comunhao:"20000000-0000-0000-0000-000000000002",taomoz:"20000000-0000-0000-0000-000000000003",sarca:"20000000-0000-0000-0000-000000000004"};
+const platforms:Record<string,string>={deligo:"20000000-0000-0000-0000-000000000001",comunhao:"20000000-0000-0000-0000-000000000002",taomoz:"20000000-0000-0000-0000-000000000003",sarca:"20000000-0000-0000-0000-000000000004",mestre24:"20000000-0000-0000-0000-000000000005"};
 const resources=["field_visits","field_checklists","field_evidence","field_reports","field_verifications","field_kyc_cases","field_form_templates","field_form_responses","field_incidents","field_history","workflow_cases","employees","platforms"];
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 async function ctx(permission="field.view",platform?:string){const authorization=await requireCorporatePermission(permission,platform),key=process.env.SUPABASE_SERVICE_ROLE_KEY;return authorization&&key?{actor:authorization.actor,authorization,key}:null}

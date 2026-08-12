@@ -3,7 +3,7 @@ import { requireCorporatePermission, hqRpc, supabaseUrl } from "@/lib/hq-server"
 
 const entity = "10000000-0000-0000-0000-000000000001";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
-const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004" };
+const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
 const directRoles = new Set(["SUPER_ADMIN","CUSTOMER_SUPPORT","OPERATIONS","SUPERVISOR"]);
 const departmentRoles = new Set(["FINANCE","TECHNOLOGY","HUMAN_RESOURCES","LEGAL","COMPLIANCE"]);
 const headers = (key:string) => ({ apikey:key, Authorization:`Bearer ${key}`, "Accept-Profile":"hq", "Content-Profile":"hq", "Content-Type":"application/json", Prefer:"return=representation" });

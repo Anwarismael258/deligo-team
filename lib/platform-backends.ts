@@ -1,9 +1,9 @@
 import { supabaseUrl } from "./hq-server";
 
-export type PlatformBackend = "deligo" | "comunhao" | "sarca" | "taomoz";
+export type PlatformBackend = "deligo" | "comunhao" | "sarca" | "taomoz" | "mestre24";
 
 const backendUrl = (platform: PlatformBackend) => {
-  const envName = { deligo: "DELIGO_SUPABASE_URL", comunhao: "COMUNHAO_SUPABASE_URL", sarca: "SARCA_SUPABASE_URL", taomoz: "TAOMOZ_SUPABASE_URL" }[platform];
+  const envName = { deligo: "DELIGO_SUPABASE_URL", comunhao: "COMUNHAO_SUPABASE_URL", sarca: "SARCA_SUPABASE_URL", taomoz: "TAOMOZ_SUPABASE_URL", mestre24: "MESTRE24_SUPABASE_URL" }[platform];
   return process.env[envName] || supabaseUrl();
 };
 
@@ -16,7 +16,7 @@ const headers = (platform: PlatformBackend, authenticatedWrite = false) => {
   return { apikey: key, Authorization: `Bearer ${actorToken || key}`, "Content-Type": "application/json" };
 };
 
-const storageBuckets: Record<PlatformBackend, string[]> = { deligo: ["kyc"], comunhao: ["church-application-branding", "profile-media"], sarca: ["driver-kyc", "profile-media"], taomoz: ["kyc-documents"] };
+const storageBuckets: Record<PlatformBackend, string[]> = { deligo: ["kyc"], comunhao: ["church-application-branding", "profile-media"], sarca: ["driver-kyc", "profile-media"], taomoz: ["kyc-documents"], mestre24: ["mestre24-kyc", "mestre24-portfolio"] };
 
 export async function signPlatformPath(platform: PlatformBackend, path: string) {
   if (!path || /^https?:\/\//i.test(path)) return path;
@@ -28,7 +28,8 @@ export async function signPlatformPath(platform: PlatformBackend, path: string) 
 }
 
 export async function platformRest(platform: PlatformBackend, path: string, init: RequestInit = {}) {
-  const response = await fetch(`${backendUrl(platform)}/rest/v1/${path}`, { ...init, headers: { ...headers(platform), ...(init.headers || {}) }, cache: "no-store" });
+  const schemaHeaders = platform === "mestre24" ? { "Accept-Profile": "mestre24", "Content-Profile": "mestre24" } : {};
+  const response = await fetch(`${backendUrl(platform)}/rest/v1/${path}`, { ...init, headers: { ...headers(platform), ...schemaHeaders, ...(init.headers || {}) }, cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_${platform.toUpperCase()}_FAILED`);
   return response.status === 204 ? null : response.json();
 }

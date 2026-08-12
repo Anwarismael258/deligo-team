@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { LatLngExpression, LayerGroup, Map as LeafletMap } from "leaflet";
+import type { LatLngTuple, LayerGroup, Map as LeafletMap } from "leaflet";
 import "leaflet/dist/leaflet.css";
 
 export type OperationsMapMarker = {
@@ -50,7 +50,7 @@ export default function LiveOperationsMap({ markers }: { markers: OperationsMapM
     void import("leaflet").then((L) => {
       if (disposed || !map.current || !markerLayer.current) return;
       markerLayer.current.clearLayers();
-      const points: LatLngExpression[] = [];
+      const points: LatLngTuple[] = [];
       markers.forEach((marker) => {
       const colorClass = marker.platform.toLowerCase();
       const icon = L.divIcon({ className: "", html: `<span class="operations-map-pin ${colorClass}" aria-label="${marker.role} ${marker.platform}"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] });

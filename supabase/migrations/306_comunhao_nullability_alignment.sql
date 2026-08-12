@@ -1,0 +1,27 @@
+-- Align legacy blueprint constraints with the live Comunhao schema.
+BEGIN;
+ALTER TABLE comunhao."announcements" ALTER COLUMN "updated_at" DROP NOT NULL;
+ALTER TABLE comunhao."church_subscriptions" ALTER COLUMN "created_at" DROP NOT NULL;
+ALTER TABLE comunhao."churches" ALTER COLUMN "country" DROP NOT NULL;
+ALTER TABLE comunhao."churches" ALTER COLUMN "status" DROP NOT NULL;
+ALTER TABLE comunhao."churches" ALTER COLUMN "legacy_source" DROP NOT NULL;
+ALTER TABLE comunhao."donation_campaigns" ALTER COLUMN "currency_code" DROP NOT NULL;
+ALTER TABLE comunhao."donation_campaigns" ALTER COLUMN "status" DROP NOT NULL;
+ALTER TABLE comunhao."donation_campaigns" ALTER COLUMN "updated_at" DROP NOT NULL;
+ALTER TABLE comunhao."donations" ALTER COLUMN "amount_minor" DROP NOT NULL;
+ALTER TABLE comunhao."donations" ALTER COLUMN "currency_code" DROP NOT NULL;
+ALTER TABLE comunhao."event_registrations" ALTER COLUMN "user_id" DROP NOT NULL;
+ALTER TABLE comunhao."event_registrations" ALTER COLUMN "legacy_profile_id" DROP NOT NULL;
+ALTER TABLE comunhao."memberships" ALTER COLUMN "user_id" DROP NOT NULL;
+ALTER TABLE comunhao."memberships" ALTER COLUMN "permissions" DROP NOT NULL;
+ALTER TABLE comunhao."memberships" ALTER COLUMN "legacy_profile_id" DROP NOT NULL;
+ALTER TABLE comunhao."memberships" ALTER COLUMN "legacy_membership_id" DROP NOT NULL;
+ALTER TABLE comunhao."memberships" ALTER COLUMN "metadata" DROP NOT NULL;
+ALTER TABLE comunhao."memberships" ALTER COLUMN "joined_at" DROP NOT NULL;
+ALTER TABLE comunhao."memberships" ALTER COLUMN "updated_at" DROP NOT NULL;
+ALTER TABLE comunhao."ministry_members" ALTER COLUMN "joined_at" DROP NOT NULL;
+ALTER TABLE comunhao."subscription_plans" ALTER COLUMN "price_minor" DROP NOT NULL;
+ALTER TABLE comunhao."subscription_plans" ALTER COLUMN "currency_code" DROP NOT NULL;
+ALTER TABLE comunhao."subscription_plans" ALTER COLUMN "is_active" DROP NOT NULL;
+ALTER TABLE comunhao."subscription_plans" ALTER COLUMN "updated_at" DROP NOT NULL;
+COMMIT;

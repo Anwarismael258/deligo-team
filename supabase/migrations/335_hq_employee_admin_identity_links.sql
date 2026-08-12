@@ -1,5 +1,4 @@
 begin;
-
 create or replace function public.hq_employee_directory_v1() returns jsonb
 language sql stable security definer set search_path=hq,public,pg_temp as $$
  select coalesce(jsonb_agg(jsonb_build_object(
@@ -10,7 +9,6 @@ language sql stable security definer set search_path=hq,public,pg_temp as $$
  ) order by e.created_at), '[]'::jsonb)
  from hq.employees e left join hq.departments d on d.id=e.department_id left join hq.roles r on r.id=e.primary_role_id
 $$;
-
 create or replace function public.hq_set_employee_status_v1(p_actor_auth_user_id uuid,p_employee_id uuid,p_action text) returns jsonb
 language plpgsql security definer set search_path=hq,public,pg_temp as $$
 declare actor record; target record; role_id uuid; next_status text;
@@ -34,8 +32,6 @@ begin
  values(actor.employee_id,'EMPLOYEE_'||upper(p_action),'10000000-0000-0000-0000-000000000001','people','employee',p_employee_id::text,'success',jsonb_build_object('previous_status',target.status,'new_status',next_status));
  return jsonb_build_object('id',p_employee_id,'auth_user_id',target.auth_user_id,'status',next_status,'role',coalesce(target.requested_role_code,target.role_code));
 end $$;
-
 revoke all on function public.hq_employee_directory_v1(),public.hq_set_employee_status_v1(uuid,uuid,text) from public,anon,authenticated;
 grant execute on function public.hq_employee_directory_v1(),public.hq_set_employee_status_v1(uuid,uuid,text) to service_role;
-
 commit;

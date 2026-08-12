@@ -1,0 +1,5 @@
+-- Baseline marker only.
+-- Migration version 380 is already recorded in the linked Central Supabase
+-- project, but its source is not present in this checkout. This file is
+-- deliberately a no-op so future migrations can be applied without altering
+-- that remote baseline.

@@ -2,7 +2,7 @@
 import{useEffect,useState,type FormEvent}from"react";
 import"./ProcessActivity.css";
 
-type Row=Record<string,unknown>&{id:string};
+type Row=Record<string,any>&{id:string};
 type Activity={process?:Row;events?:Row[];comments?:Row[];employees?:Row[]};
 type Props={data:Record<string,Row[]>;departmentCode:string;notice:string;onAction:(stepId:string,decision:"completed"|"rejected")=>void;onRefresh:()=>void;realtimeVersion?:number};
 const text=(value:unknown)=>String(value||"");

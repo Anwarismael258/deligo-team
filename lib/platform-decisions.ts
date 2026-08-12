@@ -51,6 +51,19 @@ export function buildPlatformDecision(
     };
   }
 
+  if (platform === "mestre24") {
+    if (decision === "correction") throw new Error("MESTRE24_CORRECTION_NOT_SUPPORTED");
+    return {
+      transport: "rest" as const,
+      name: `kyc_verifications?id=eq.${encodeURIComponent(id)}`,
+      body: {
+        status: decision === "approve" ? "approved" : "rejected",
+        reviewed_at: new Date().toISOString(),
+        reason: reason.trim() || null,
+      },
+    };
+  }
+
   return {
     transport: "rest" as const,
     name: `profiles?id=eq.${encodeURIComponent(id)}`,

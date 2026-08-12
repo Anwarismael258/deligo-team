@@ -1,0 +1,9 @@
+BEGIN;
+ALTER TABLE IF EXISTS public.withdrawal_requests
+  ADD COLUMN IF NOT EXISTS phone_number TEXT,
+  ADD COLUMN IF NOT EXISTS transaction_id TEXT,
+  ADD COLUMN IF NOT EXISTS provider_reference TEXT,
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+ALTER TABLE IF EXISTS public.wallet_deposits
+  ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+COMMIT;

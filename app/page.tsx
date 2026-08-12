@@ -15,7 +15,7 @@ import {PermissionMatrix} from "./components/PermissionMatrix";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 
-const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA"];
+const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA", "Mestre24"];
 const nav = [
   ["⌂", "Visão geral"],
   ["◇", "Plataformas"],
@@ -31,7 +31,7 @@ const nav = [
   ["▧", "Compras"],
   ["▣", "Património"],
   ["↗", "Marketing"],
-  ["⌖", "Field"],
+  ["⌖", "Operações de Campo"],
   ["◌", "Apoio ao Cliente"],
   ["＋", "Aquisição de Parceiros"],
   ["☆", "Embaixadores"],
@@ -49,19 +49,19 @@ const moduleIcons: Record<string, LucideIcon> = {
   "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
   "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Contabilidade": Coins,
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
-  "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Field": Route,
+  "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Operações de Campo": Route,
   "Apoio ao Cliente": Headphones, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
   "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Centro de Notificações": Bell, "Minhas Tarefas": ListTodo, "Aprovações": CheckCircle2,
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
 };
 
-const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Users, TaoMoz: ShoppingBag, SARCA: Smartphone };
+const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Users, TaoMoz: ShoppingBag, SARCA: Smartphone, Mestre24: Settings };
 
 const moduleDetails: Record<string, string[]> = {
   "Meu Perfil": ["Dados pessoais", "Perfil profissional", "Organização", "Permissões"],
   "Definições": ["Geral", "Aparência", "Dashboard", "Notificações"],
   "Segurança": ["Autenticação", "2FA", "Dispositivos e sessões", "Alertas de segurança"],
-  "Plataformas": ["DeliGo", "Comunhão", "TaoMoz", "SARCA"],
+  "Plataformas": ["DeliGo", "Comunhão", "TaoMoz", "SARCA", "Mestre24"],
   "Mapa operacional": ["Mapa ao vivo", "DeliGo", "SARCA", "TaoMoz"],
   "Direcção Executiva": ["Perfil da empresa", "Sócios", "Deliberações", "Gestão corporativa"],
   "Pessoas": ["Trabalhadores", "Colaboradores externos", "Departamentos", "Roles e permissões"],
@@ -74,7 +74,7 @@ const moduleDetails: Record<string, string[]> = {
   "Compras": ["Pedidos de compra", "Aprovações", "Fornecedores", "Facturas", "Pagamentos"],
   "Património": ["Equipamentos", "Atribuições", "Manutenção", "Devoluções", "Inventário"],
   "Marketing": ["Campanhas", "Conteúdos", "Promoções", "Leads", "Análises"],
-  "Field": ["Tarefas", "Visitas", "Verificações", "Localização", "Relatórios"],
+  "Operações de Campo": ["Tarefas", "Visitas", "Verificações", "Localização", "Relatórios"],
   "Apoio ao Cliente": ["Tickets", "Chat", "Reclamações", "Incidentes", "Histórico"],
   "Aquisição de Parceiros": ["Leads", "Visitas", "Negociações", "Parceiros", "Objectivos"],
   "Embaixadores": ["Embaixadores", "Referências", "Campanhas", "Conversões", "Comissões"],
@@ -101,7 +101,7 @@ const modulePresentation: Record<string, { description: string; action: string; 
   "Compras": { description: "Executa o ciclo controlado do pedido de compra até à factura e pagamento.", action: "Novo pedido", primary: "Pedidos de compra", secondary: "Aprovações pendentes", visual: "Ciclo de aquisição", status: "Fluxo de compras", color: "#b77931" },
   "Património": { description: "Controla equipamentos, veículos, cartões SIM, atribuições e devoluções.", action: "Registar activo", primary: "Activos", secondary: "Devoluções pendentes", visual: "Estado do património", status: "Inventário corporativo", color: "#667085" },
   "Marketing": { description: "Planeia campanhas, conteúdos, promoções, leads e desempenho de comunicação.", action: "Nova campanha", primary: "Campanhas", secondary: "Conteúdos pendentes", visual: "Desempenho de campanhas", status: "Canais de marketing", color: "#d14f6f" },
-  "Field": { description: "Coordena equipas no terreno, visitas, verificações e relatórios operacionais.", action: "Nova missão", primary: "Missões Field", secondary: "Visitas pendentes", visual: "Execução no terreno", status: "Operações Field", color: "#2b8a7b" },
+  "Operações de Campo": { description: "Coordena equipas no terreno, visitas, verificações e relatórios operacionais.", action: "Nova missão", primary: "Missões operacionais", secondary: "Visitas pendentes", visual: "Execução no terreno", status: "Operações de Campo", color: "#2b8a7b" },
   "Apoio ao Cliente": { description: "Centraliza tickets, reclamações, conversas e histórico de atendimento.", action: "Novo ticket", primary: "Tickets", secondary: "Por responder", visual: "Qualidade do atendimento", status: "Canais de suporte", color: "#4b7bec" },
   "Aquisição de Parceiros": { description: "Gere leads comerciais, visitas, negociações e conversão de parceiros.", action: "Novo lead", primary: "Leads", secondary: "Negociações", visual: "Funil de aquisição", status: "Pipeline de parceiros", color: "#8c63b8" },
   "Embaixadores": { description: "Acompanha embaixadores, referências, conversões e comissões.", action: "Novo embaixador", primary: "Embaixadores", secondary: "Comissões pendentes", visual: "Conversão por referência", status: "Programa de embaixadores", color: "#d18b22" },
@@ -133,7 +133,7 @@ const routeByModule: Record<string, string> = {
   "Compras": "/compras",
   "Património": "/patrimonio",
   "Marketing": "/marketing",
-  "Field": "/field",
+  "Operações de Campo": "/field",
   "Apoio ao Cliente": "/apoio-cliente",
   "Aquisição de Parceiros": "/aquisicao-parceiros",
   "Embaixadores": "/embaixadores",
@@ -166,7 +166,7 @@ const personas = {
     name: "Sansão Chume",
     role: "Supervisor de Operações",
     initials: "SC",
-    modules: ["Visão geral", "Pessoas", "Marketing", "Field", "Apoio ao Cliente", "Aquisição de Parceiros", "Embaixadores", "Projectos e Tarefas", "BI / Análises", "Relatórios"],
+    modules: ["Visão geral", "Pessoas", "Marketing", "Operações de Campo", "Apoio ao Cliente", "Aquisição de Parceiros", "Embaixadores", "Projectos e Tarefas", "BI / Análises", "Relatórios"],
   },
   contabilista: {
     name: "Contabilista",
@@ -181,11 +181,11 @@ const personas = {
     modules: ["Visão geral", "Plataformas", "Tecnologia / IT", "Património", "Projectos e Tarefas", "Apoio Interno", "Relatórios", "Registo de Auditoria"],
   },
   marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Marketing", "Projectos e Tarefas", "BI / Análises", "Relatórios"] },
-  field: { name: "Agente Field", role: "Field", initials: "AF", modules: ["Visão geral", "Field", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
+  field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Operações de Campo", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
   support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Apoio ao Cliente", "Projectos e Tarefas", "Relatórios"] },
   hr: { name: "Recursos Humanos", role: "Recursos Humanos", initials: "RH", modules: ["Visão geral", "Pessoas", "Recursos Humanos", "Projectos e Tarefas", "Relatórios"] },
   legal: { name: "Jurídico", role: "Jurídico", initials: "JL", modules: ["Visão geral", "Jurídico", "Conformidade e Risco", "Relatórios"] },
-  operations: { name: "Operações", role: "Operações", initials: "OP", modules: ["Visão geral", "Pessoas", "Field", "Apoio ao Cliente", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
+  operations: { name: "Operações", role: "Operações", initials: "OP", modules: ["Visão geral", "Pessoas", "Operações de Campo", "Apoio ao Cliente", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
   acquisition: { name: "Aquisição", role: "Aquisição de Parceiros", initials: "AP", modules: ["Visão geral", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
   ambassador: { name: "Embaixador", role: "Embaixadores", initials: "EM", modules: ["Visão geral", "Embaixadores", "Relatórios"] },
   procurement: { name: "Compras", role: "Compras", initials: "CP", modules: ["Visão geral", "Compras", "Aprovações", "Relatórios"] },
@@ -196,18 +196,19 @@ const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sans
 const unpublishedModules = new Set(["Embaixadores"]);
 const universalModules = new Set(["Centro de Notificações","Minhas Tarefas"]);
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
-const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Field":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage"};
+const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage"};
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
   { name: "Comunhão", color: "#7c5ce5", metrics: ["Igrejas", "Membros", "Eventos", "Receita"] },
   { name: "TaoMoz", color: "#129a72", metrics: ["Utilizadores", "Empresas", "Transacções", "Receita"] },
   { name: "SARCA", color: "#e69b22", metrics: ["Utilizadores", "Operações", "Transacções", "Receita"] },
+  { name: "Mestre24", color: "#f8bf18", metrics: ["Profissionais", "Pedidos", "Subscrições", "Receita"] },
 ];
 
 type DashboardMetric = { key: string; label: string; value: number };
 type DashboardPlatform = {
-  slug: "deligo" | "comunhao" | "taomoz" | "sarca";
+  slug: "deligo" | "comunhao" | "taomoz" | "sarca" | "mestre24";
   name: string;
   connected: boolean;
   metrics: DashboardMetric[];
@@ -238,13 +239,15 @@ type EmployeeHistory = { id:string; employee_id:string; action:string; created_a
 type EmployeeAccess = { id:string; employee_id:string|null; event_type:string; occurred_at:string };
 type EmployeePermission = { id:string; employee_id:string; permission_code:string; allowed:boolean };
 type HrData = Record<string, Array<Record<string,unknown>>>;
-type FinanceRecord = Record<string, unknown> & { id:string; platform_id?:string|null; status?:string; amount?:number; current_balance?:number; transaction_type?:string; payee?:string; description?:string; due_at?:string; created_at?:string; expected_income?:number; expected_expense?:number; spent_amount?:number };
+type FinanceRecord = Record<string, any> & { id:string; platform_id?:string|null; status?:string; amount?:number; current_balance?:number; transaction_type?:string; payee?:string; description?:string; due_at?:string; created_at?:string; expected_income?:number; expected_expense?:number; spent_amount?:number };
 type FinanceData = { financial_accounts:FinanceRecord[]; financial_transactions:FinanceRecord[]; budgets:FinanceRecord[]; payment_requests:FinanceRecord[]; cashflow_forecasts:FinanceRecord[]; profit_distributions:FinanceRecord[] };
 type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; user_agent?:string|null; device?:string|null; before_state?:Record<string,unknown>|null; after_state?:Record<string,unknown>|null; metadata:Record<string,unknown> };
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
 type PlatformProfile = { platform:string; id:string; profile:Record<string, unknown>|null; kyc:unknown[]; wallets:unknown[]; orders:unknown[]; disputes:unknown[]; activity:unknown[] };
 type SessionUser = { id:string; hq_role:string; name:string; employee_code:string; email:string|null; phone:string|null; job_title:string|null; status:string; joined_on:string|null; last_login_at:string|null; department_id:string|null; manager_id:string|null; permissions:string[]; platform_ids:string[]; platform_slugs:string[]; is_super_admin:boolean };
+type GlobalPerson = { user_id:string; full_name?:string|null; display_name?:string|null; primary_phone?:string|null; primary_email?:string|null; profile_status?:string|null; apps:Array<{slug?:string;name?:string;role?:unknown;status?:string}>; kyc?:unknown[]; activity?:unknown[] };
+type CommandCenterData = { summary:{gmvToday:number;revenueToday:number;operationsToday:number;pendingKyc:number;openSupport:number;notificationWork:number}; liveFeed:Array<{id:string;event_type:string;entity_type:string;occurred_at:string;platforms?:{name?:string;platform_code?:string}}> };
 
 const metricFor = (platform: DashboardPlatform | undefined, labels: string[]) =>
   platform?.metrics.find((metric) => labels.some((label) => metric.label.toLowerCase().includes(label)))?.value ?? 0;
@@ -261,6 +264,10 @@ export function HQApp() {
   const [active, setActive] = useState("Visão geral");
   const [menuOpen, setMenuOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+  const [commandResults, setCommandResults] = useState<GlobalPerson[]>([]);
+  const [commandLoading, setCommandLoading] = useState(false);
+  const [commandCenter, setCommandCenter] = useState<CommandCenterData | null>(null);
   const [persona, setPersona] = useState<keyof typeof personas>("anwar");
   const [accountOpen, setAccountOpen] = useState(false);
   const [subArea, setSubArea] = useState("");
@@ -399,6 +406,24 @@ export function HQApp() {
     }).catch(() => window.location.replace("/login"));
   }, []);
   const refreshNotifications=async()=>{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();setNotifications((await r.json()).notifications||[])};
+  useEffect(() => {
+    if (active !== "Visão geral") return;
+    let cancelled = false;
+    const refresh = () => fetch("/api/command-center", { cache: "no-store" }).then(response => response.ok ? response.json() : Promise.reject()).then(data => { if (!cancelled) setCommandCenter(data); }).catch(() => { if (!cancelled) setCommandCenter(null); });
+    void refresh();
+    const interval = window.setInterval(() => void refresh(), 15_000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [active]);
+  const searchGlobal = async (value: string) => {
+    setCommandQuery(value);
+    if (value.trim().length < 2) { setCommandResults([]); return; }
+    setCommandLoading(true);
+    try {
+      const response = await fetch(`/api/global-search?q=${encodeURIComponent(value.trim())}`, { cache: "no-store" });
+      const result = await response.json();
+      setCommandResults(response.ok ? result.data || [] : []);
+    } finally { setCommandLoading(false); }
+  };
   useEffect(()=>{if(!sessionUser)return;refreshNotifications().catch(()=>setNotifications([]))},[sessionUser?.id]);
   const markNotifications=async(id?:string)=>{const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(id?{id}:{all:true})});if(r.ok)await refreshNotifications()};
 
@@ -451,7 +476,7 @@ export function HQApp() {
   const refreshMarketing=async()=>{const r=await fetch("/api/marketing",{cache:"no-store"});if(!r.ok)throw new Error();const result=await r.json();setMarketingData(result.data||{});setMarketingReports(result.reports||[])};
   useEffect(()=>{if(active!=="Marketing")return;refreshMarketing().catch(()=>{setMarketingData({});setMarketingReports([]);setMarketingNotice("Não foi possível carregar Marketing para este perfil.")})},[active]);
   const refreshField=async()=>{const r=await fetch("/api/field",{cache:"no-store"});if(!r.ok)throw new Error();setFieldData((await r.json()).data||{})};
-  useEffect(()=>{if(active!=="Field")return;refreshField().catch(()=>{setFieldData({});setFieldNotice("Não foi possível carregar Field para este perfil.")})},[active]);
+useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()=>{setFieldData({});setFieldNotice("Não foi possível carregar Operações de Campo para este perfil.")})},[active]);
   const refreshSupport=async()=>{const scope=platform==="Todas as plataformas"?"":`?platform=${encodeURIComponent(platformSlug(platform))}`,r=await fetch(`/api/support${scope}`,{cache:"no-store"});if(!r.ok)throw new Error();setSupportData((await r.json()).data||{})};
   useEffect(()=>{if(active!=="Apoio ao Cliente")return;refreshSupport().catch(()=>{setSupportData({});setSupportNotice("Não foi possível carregar o atendimento para este perfil.")})},[active,platform]);
   const refreshApprovals=async()=>{const r=await fetch("/api/approvals",{cache:"no-store"});if(!r.ok)throw new Error();setApprovalData((await r.json()).data||{})};
@@ -535,7 +560,7 @@ export function HQApp() {
 
   useEffect(() => {
     const syncRoute = () => {
-      const platformMatch = window.location.pathname.match(/^\/plataformas\/(deligo|comunhao|sarca|taomoz)$/);
+      const platformMatch = window.location.pathname.match(/^\/plataformas\/(deligo|comunhao|sarca|taomoz|mestre24)$/);
       const nextModule = platformMatch ? "Plataformas" : moduleByRoute[window.location.pathname] || "Visão geral";
       setActive(nextModule);
       if (platformMatch) setPlatform(({ deligo: "DeliGo", comunhao: "Comunhão", sarca: "SARCA", taomoz: "TaoMoz" } as const)[platformMatch[1] as "deligo" | "comunhao" | "sarca" | "taomoz"]);
@@ -574,7 +599,7 @@ export function HQApp() {
     if(active==="Jurídico")void refreshLegal();
     if(active==="Conformidade e Risco")void refreshCompliance();
     if(active==="Aquisição de Parceiros")void refreshAcquisition();
-    if(active==="Field")void refreshField();
+if(active==="Operações de Campo")void refreshField();
     if(active==="Apoio ao Cliente")void refreshSupport();
     if(active==="Marketing")void refreshMarketing();
     if(active==="BI / Análises")void refreshBi();
@@ -651,7 +676,7 @@ export function HQApp() {
   const connectedPlatforms = dashboard?.platforms.filter((item) => item.connected).length || 0;
   const operationalItems = [
     { label: "Suporte", value: dashboard?.operations.supportCases || 0, note: "casos registados", action: "Apoio ao Cliente" },
-    { label: "Field", value: dashboard?.operations.fieldVisits || 0, note: "visitas registadas", action: "Field" },
+    { label: "Operações de Campo", value: dashboard?.operations.fieldVisits || 0, note: "visitas registadas", action: "Operações de Campo" },
     { label: "Marketing", value: dashboard?.operations.campaigns || 0, note: "campanhas registadas", action: "Marketing" },
     { label: "Auditoria", value: dashboard?.operations.auditEvents || 0, note: "eventos no histórico", action: "Registo de Auditoria" },
   ];
@@ -968,7 +993,7 @@ export function HQApp() {
             <div className="marketingResources"><article><span>Promoções</span><strong>{marketingData.marketing_promotions?.length||0}</strong></article><article><span>Canais</span><strong>{marketingData.marketing_channels?.length||0}</strong></article><article><span>Materiais criativos</span><strong>{marketingData.marketing_creatives?.length||0}</strong></article><article><span>Eventos no histórico</span><strong>{marketingData.marketing_history?.length||0}</strong></article></div>
             <div className="safeNotice"><b>Aprovação obrigatória ativa</b><span>O backend bloqueia a publicação sem pedido aprovado. O criador não pode aprovar a própria campanha e todas as transições ficam no histórico.</span></div>
           </section>}
-          {active === "Field" && <section className="fieldWorkspace">
+{active === "Operações de Campo" && <section className="fieldWorkspace">
             <div className="fieldHero"><div><span>OPERAÇÕES NO TERRENO</span><h2>Missões, visitas, KYC e verificações Field</h2><p>Responsável, objetivo, check-in/out, evidências, decisão e resultado num único fluxo.</p></div><button onClick={()=>setShowFieldAdvanced(!showFieldAdvanced)}>Nova operação</button></div>
             <div className="financeKpis">{[["Missões",fieldData.field_visits?.length||0],["Em curso",(fieldData.field_visits||[]).filter(v=>v.status==="in_progress").length],["KYC pendente",(fieldData.field_kyc_cases||[]).filter(v=>!["approved","rejected","suspended","expired"].includes(String(v.status))).length],["Verificações pendentes",(fieldData.field_verifications||[]).filter(v=>v.status==="pending").length],["Incidentes abertos",(fieldData.field_incidents||[]).filter(v=>!["resolved","closed"].includes(String(v.status))).length],["Evidências",fieldData.field_evidence?.length||0]].map(([label,value])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>backend Field</small></article>)}</div>
             {showFieldAdvanced&&<><div className="fieldOperationPicker">{[["visit","Missão"],["checklist","Checklist"],["verification","Verificação"],["kyc","KYC"],["evidence","Foto/documento"],["form","Formulário"],["response","Resposta"],["incident","Incidente"],["report","Relatório"]].map(([value,label])=><button type="button" className={fieldKind===value?"active":""} onClick={()=>setFieldKind(value)} key={value}>{label}</button>)}</div><form className="financeEntryForm" onSubmit={createFieldRecord}>
@@ -1018,7 +1043,7 @@ export function HQApp() {
             {selectedMapWorker && <div className="mapWorkerDetail"><div><span>TRABALHADOR AUTORIZADO</span><h3>{selectedMapWorker.workerName || selectedMapWorker.role}</h3><p>{selectedMapWorker.platform} · {selectedMapWorker.role} · {selectedMapWorker.status?.replaceAll("_", " ") || "disponível"}</p></div><div><small>Última localização</small><strong>{new Date(selectedMapWorker.updatedAt).toLocaleString("pt-MZ")}</strong><small>{selectedMapWorker.service ? `Serviço: ${selectedMapWorker.service}` : "Sem serviço activo identificado"}</small></div><button onClick={() => setSelectedMapWorker(null)}>Fechar</button></div>}
             <p className="mapPrivacyNote">As posições são atualizadas automaticamente a cada 3 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
           </section>}
-          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Field" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Operações de Campo" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
@@ -1051,10 +1076,10 @@ export function HQApp() {
           <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
-              ["Total de utilizadores", String(totalUsers), "Nas quatro plataformas"],
-              ["Valor total processado", money(dashboard?.modules.totalValue || 0), "Soma operacional das quatro plataformas"],
+              ["GMV hoje", money(commandCenter?.summary.gmvToday || 0), "Pagamentos confirmados no stream corporativo"],
+              ["Receita hoje", money(commandCenter?.summary.revenueToday || 0), "Comissões confirmadas no stream corporativo"],
               ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
-              ["Operações transversais", String((dashboard?.operations.supportCases || 0) + (dashboard?.operations.campaigns || 0) + (dashboard?.operations.fieldVisits || 0)), "Suporte, marketing e field"],
+              ["Operações hoje", String(commandCenter?.summary.operationsToday || 0), "Eventos operacionais recebidos hoje"],
             ].map(([label, value, note], index) => (
               <article className="metric" key={label}>
                 <div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div>
@@ -1165,7 +1190,7 @@ export function HQApp() {
             </article>
             <article className="panel activity">
               <div className="panelTitle"><div><h2>Actividade auditada</h2><p>Eventos reais registados no backend</p></div>{visibleNav.some(([,label])=>label==="Registo de Auditoria")&&<button onClick={()=>navigate("Registo de Auditoria")}>Ver auditoria</button>}</div>
-              <div className="empty"><div>⌁</div><strong>{dashboard?.operations.auditEvents||0} eventos registados</strong><p>{dashboard?.operations.auditEvents?"Consulte o registo conforme a sua permissão.":"Ainda não existem eventos disponíveis neste âmbito."}</p></div>
+              <div className="profileHistory">{(commandCenter?.liveFeed || []).slice(0, 6).map(event => <div key={event.id}><strong>{event.platforms?.name || "Plataforma"} · {event.event_type.replaceAll("_", " ")}</strong><span>{new Date(event.occurred_at).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</span></div>)}{!commandCenter?.liveFeed.length && <div className="empty"><div>⌁</div><strong>Sem eventos operacionais recentes</strong><p>A Central mostrará eventos assim que as plataformas os registarem.</p></div>}</div>
             </article>
           </section>
           <section className="departmentStrip">
@@ -1223,6 +1248,7 @@ export function HQApp() {
           <input autoFocus placeholder="Pesquisar trabalhadores, plataformas, tickets…" />
           <p>ACÇÕES RÁPIDAS</p>
           {["Abrir Finanças", "Ver trabalhadores", "Abrir relatórios", "Estado do sistema"].map((item) => <button key={item} onClick={() => setCommandOpen(false)}>{item}<span>↵</span></button>)}
+          <div className="commandSearch"><input value={commandQuery} onChange={event => void searchGlobal(event.target.value)} placeholder="Pessoa, telefone ou email no ecossistema…" />{commandLoading && <small>A pesquisar…</small>}{commandResults.map(person => <button key={person.user_id} onClick={() => { setCommandOpen(false); setCommandQuery(""); setCommandResults([]); }}><strong>{person.full_name || person.display_name || "Conta Triunfal"}</strong><span>{person.primary_phone || person.primary_email || person.apps.map(app => app.name || app.slug).filter(Boolean).join(" · ")}</span></button>)}{commandQuery.trim().length >= 2 && !commandLoading && commandResults.length === 0 && <small>Nenhum vínculo autorizado encontrado.</small>}</div>
           <small>A pesquisa mostra apenas os resultados permitidos pelo seu role.</small>
         </div>
       </div>}
@@ -1231,11 +1257,12 @@ export function HQApp() {
   );
 }
 
-function platformSlug(platform: string) { return platform.includes("Comun") ? "comunhao" : platform === "DeliGo" ? "deligo" : platform === "SARCA" ? "sarca" : "taomoz"; }
+function platformSlug(platform: string) { return platform.includes("Comun") ? "comunhao" : platform === "DeliGo" ? "deligo" : platform === "SARCA" ? "sarca" : platform === "Mestre24" ? "mestre24" : "taomoz"; }
 
 function PlatformAdminPanel({ snapshot, platform, onAction, onOpenProfile }: { snapshot: PlatformAdminSnapshot; platform: string; onAction: (action: string, decision: "approve" | "reject" | "correction", id: string, reason?: string) => Promise<void>; onOpenProfile: (id:string, name:string) => void }) {
   const entries = Object.entries(snapshot.data);
-  const records = entries.flatMap(([collection, value]) => Array.isArray(value) ? value.slice(0, 20).map(item => ({ collection, row: item as Record<string, unknown> })) : []);
+  const planRecords: Array<{ collection: string; row: Record<string, unknown> }> = platform.includes("Comun") && Array.isArray(snapshot.data.subscription_plans) ? (snapshot.data.subscription_plans as Record<string, unknown>[]).map(plan => ({ collection: "planos Comunhão", row: { id: `plan-${String(plan.code)}`, name: `${String(plan.name)} — ${String(plan.description || "Plano activo")}`, status: `${new Intl.NumberFormat("pt-MZ", { style: "currency", currency: String(plan.currency_code || "MZN"), maximumFractionDigits: 2 }).format(Number(plan.price_mzn || 0))} / ${String(plan.billing_cycle_days || 30)} dias` } })) : [];
+  const records = [...planRecords, ...entries.flatMap(([collection, value]) => collection === "subscription_plans" ? [] : Array.isArray(value) ? value.slice(0, 20).map(item => ({ collection, row: item as Record<string, unknown> })) : [])];
   const reviewable = platform === "DeliGo" || platform === "TaoMoz" || platform.includes("Comun") || platform === "SARCA";
   const actionFor = (decision: "approve" | "reject") => platform.includes("Comun") ? "review_application" : platform === "SARCA" ? "review_driver" : platform === "TaoMoz" ? "review_kyc" : decision;
   const decide = async (decision: "approve" | "reject", id: string, name: string) => {

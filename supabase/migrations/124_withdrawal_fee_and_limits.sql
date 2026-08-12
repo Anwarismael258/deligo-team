@@ -1,0 +1,5 @@
+BEGIN;
+ALTER TABLE IF EXISTS public.withdrawal_requests
+  ADD COLUMN IF NOT EXISTS fee_amount NUMERIC,
+  ADD COLUMN IF NOT EXISTS net_amount NUMERIC;
+COMMIT;
