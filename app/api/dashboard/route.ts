@@ -9,9 +9,8 @@ const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
 export async function GET() {
   const accessToken = (await cookies()).get("hq_access_token")?.value;
   if (!accessToken) return NextResponse.json({ error: "Sessão corporativa necessária." }, { status: 401 });
-  const anonKey = process.env.SUPABASE_ANON_KEY;
-  const integrationSecret = process.env.DELIGO_STAGING_DB_PASSWORD;
-  if (!anonKey || !integrationSecret) {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
     return NextResponse.json({ error: "A integração de staging não está configurada neste ambiente." }, { status: 503 });
   }
 
@@ -19,10 +18,9 @@ export async function GET() {
     const actor = await corporateActor();
     if (!actor) return NextResponse.json({ error: "Sessão inválida, suspensa ou expirada." }, { status: 401 });
     const rpcHeaders = {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
         "Content-Type": "application/json",
-        "x-hq-integration-secret": integrationSecret,
       };
     const [dashboardResponse, modulesResponse, mestre24Response] = await Promise.all([
       fetch(`${process.env.SUPABASE_URL || STAGING_URL}/rest/v1/rpc/hq_dashboard_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),

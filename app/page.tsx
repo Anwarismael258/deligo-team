@@ -666,8 +666,9 @@ if(active==="Operações de Campo")void refreshField();
     [dashboard?.platforms, platform],
   );
   const totalUsers = dashboard?.platforms.reduce((sum, item) => {
-    const users = item.metrics.find((metric) => ["users", "members", "buyers", "passengers"].includes(metric.key));
-    return sum + (users?.value || 0);
+    return sum + item.metrics
+      .filter((metric) => ["users", "members", "buyers", "passengers", "clients", "professionals"].includes(metric.key))
+      .reduce((platformTotal, metric) => platformTotal + Number(metric.value || 0), 0);
   }, 0) || 0;
   const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
   const selectedPlatformStatus = dashboard?.platforms.find((item) => item.name === platform);
