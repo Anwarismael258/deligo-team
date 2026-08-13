@@ -2,7 +2,7 @@
 /* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Activity, BarChart3, Bell, CheckCircle2, ChartNoAxesCombined, ChevronRight, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, ListTodo, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, Bell, Car, CheckCircle2, ChartNoAxesCombined, ChevronRight, Church, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Hammer, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, ListTodo, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 import LiveOperationsMap, { type OperationsMapMarker } from "@/components/LiveOperationsMap";
 import {TechnologyRegistry} from "./components/TechnologyRegistry";
 import {AcquisitionWorkspace} from "./components/AcquisitionWorkspace";
@@ -55,7 +55,7 @@ const moduleIcons: Record<string, LucideIcon> = {
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
 };
 
-const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Users, TaoMoz: ShoppingBag, SARCA: Smartphone, Mestre24: Settings };
+const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Church, TaoMoz: ShoppingBag, SARCA: Car, Mestre24: Hammer };
 
 const moduleDetails: Record<string, string[]> = {
   "Meu Perfil": ["Dados pessoais", "Perfil profissional", "Organização", "Permissões"],
@@ -771,7 +771,7 @@ if(active==="Operações de Campo")void refreshField();
           )}
           {active === "Plataformas" && (
             <section className="platformDirectory" aria-label="Plataformas do grupo">
-              <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Quatro plataformas, operações separadas</h2><p>Abra uma plataforma para ver apenas os seus utilizadores, operações, integrações, equipa e incidentes.</p></div><b>{connectedPlatforms}/4 ligadas</b></div>
+              <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do ecossistema, operações separadas</h2><p>Abra uma plataforma para ver apenas os seus utilizadores, operações, integrações, equipa e incidentes.</p></div><b>{connectedPlatforms}/{dashboard?.platforms.length || 0} ligadas</b></div>
               <div className="platformDirectoryGrid">
                 {platformDirectory.map((item) => {
                   const users = metricFor(item, ["utilizador", "membro", "comprador", "passageiro"]);
