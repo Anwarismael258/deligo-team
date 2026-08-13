@@ -407,13 +407,13 @@ export function HQApp() {
   }, []);
   const refreshNotifications=async()=>{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();setNotifications((await r.json()).notifications||[])};
   useEffect(() => {
-    if (active !== "Visão geral") return;
+    if (active !== "Visão geral" || !sessionUser) return;
     let cancelled = false;
     const refresh = () => fetch("/api/command-center", { cache: "no-store" }).then(response => response.ok ? response.json() : Promise.reject()).then(data => { if (!cancelled) setCommandCenter(data); }).catch(() => { if (!cancelled) setCommandCenter(null); });
     void refresh();
     const interval = window.setInterval(() => void refresh(), 15_000);
     return () => { cancelled = true; window.clearInterval(interval); };
-  }, [active]);
+  }, [active, sessionUser?.id]);
   const searchGlobal = async (value: string) => {
     setCommandQuery(value);
     if (value.trim().length < 2) { setCommandResults([]); return; }
@@ -428,7 +428,7 @@ export function HQApp() {
   const markNotifications=async(id?:string)=>{const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(id?{id}:{all:true})});if(r.ok)await refreshNotifications()};
 
   useEffect(() => {
-    if (!["Visão geral", "Mapa operacional"].includes(active)) return;
+    if (!["Visão geral", "Mapa operacional"].includes(active) || !sessionUser) return;
     let cancelled = false;
     const refreshMap = () => fetch("/api/map", { cache: "no-store" })
       .then(async (response) => { if (!response.ok) throw new Error(); return response.json() as Promise<LiveMapData>; })
@@ -437,7 +437,7 @@ export function HQApp() {
     void refreshMap();
     const interval = window.setInterval(() => void refreshMap(), 3_000);
     return () => { cancelled = true; window.clearInterval(interval); };
-  }, [active]);
+  }, [active, sessionUser?.id]);
 
   useEffect(() => {
     if (!sessionRole || sessionRole === "SUPER_ADMIN") return;
@@ -572,16 +572,22 @@ useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()
   }, []);
 
   useEffect(() => {
+    if (!sessionUser) return;
     let cancelled = false;
-    fetch("/api/dashboard", { cache: "no-store" })
-      .then(async (response) => {
+    const loadDashboard = async () => {
+      try {
+        const response = await fetch("/api/dashboard", { cache: "no-store" });
         if (!response.ok) throw new Error((await response.json()).error || "Falha de ligação");
-        return response.json() as Promise<DashboardData>;
-      })
-      .then((data) => { if (!cancelled) setDashboard(data); })
-      .catch((error: Error) => { if (!cancelled) setConnectionError(error.message); });
-    return () => { cancelled = true; };
-  }, []);
+        const data = await response.json() as DashboardData;
+        if (!cancelled) { setDashboard(data); setConnectionError(""); }
+      } catch (error) {
+        if (!cancelled) setConnectionError(error instanceof Error ? error.message : "A Central ainda não recebeu dados.");
+      }
+    };
+    void loadDashboard();
+    const retry = window.setInterval(() => void loadDashboard(), 15_000);
+    return () => { cancelled = true; window.clearInterval(retry); };
+  }, [sessionUser?.id]);
 
   useEffect(()=>{
     if(!sessionUser)return;

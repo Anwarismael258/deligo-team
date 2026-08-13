@@ -15,6 +15,8 @@ export async function GET(request:NextRequest){
     const rows=Array.isArray(events)?events:[];
     return NextResponse.json({events:rows,cursor:rows.length?Number(rows[rows.length-1].id):after,checkedAt:new Date().toISOString()},{headers:{"Cache-Control":"private, no-store"}});
   }catch{
-    return NextResponse.json({error:"Canal em tempo real temporariamente indisponível."},{status:503});
+    // Realtime is an enhancement. Preserve the dashboard and allow its normal
+    // polling cycle to continue when an adapter is temporarily unavailable.
+    return NextResponse.json({events:[],cursor:after,checkedAt:new Date().toISOString(),degraded:true},{headers:{"Cache-Control":"private, no-store"}});
   }
 }
