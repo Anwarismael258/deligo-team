@@ -15,7 +15,7 @@ import {PermissionMatrix} from "./components/PermissionMatrix";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 
-const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "TaoMoz", "SARCA", "Mestre24"];
+const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"];
 const nav = [
   ["⌂", "Visão geral"],
   ["◇", "Plataformas"],
@@ -55,8 +55,9 @@ const moduleIcons: Record<string, LucideIcon> = {
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
 };
 
-const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Church, TaoMoz: ShoppingBag, SARCA: Car, Mestre24: Hammer };
-const platformArtwork: Record<string, string> = { DeliGo: "/platforms/deligo.png", Comunhão: "/platforms/comunhao.png", TaoMoz: "/platforms/deligo-market.png", SARCA: "/platforms/sarca.png", Mestre24: "/platforms/mestre24.png" };
+const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Church, "DeliGo Market": ShoppingBag, SARCA: Car, Mestre24: Hammer };
+const platformArtwork: Record<string, string> = { DeliGo: "/platforms/deligo.png", Comunhão: "/platforms/comunhao.png", "DeliGo Market": "/platforms/deligo-market.png", SARCA: "/platforms/sarca.png", Mestre24: "/platforms/mestre24.png" };
+const platformDisplayName = (name:string) => name === "TaoMoz" ? "DeliGo Market" : name;
 const imageFields = ["avatar_url", "profile_photo_url", "profile_image_url", "photo_url", "image_url", "selfie_url", "document_url", "file_url", "document_front_path", "document_back_path", "selfie_path", "proof_url"];
 const imagesIn = (row: Record<string, unknown> | null | undefined) => row ? Object.entries(row).flatMap(([key, value]) => imageFields.includes(key) && typeof value === "string" && value ? [{ key, url: value }] : imageFields.includes(key) && Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item)).map(url => ({ key, url })) : []) : [];
 
@@ -204,7 +205,7 @@ const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos H
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
   { name: "Comunhão", color: "#7c5ce5", metrics: ["Igrejas", "Membros", "Eventos", "Receita"] },
-  { name: "TaoMoz", color: "#129a72", metrics: ["Utilizadores", "Empresas", "Transacções", "Receita"] },
+  { name: "DeliGo Market", color: "#129a72", metrics: ["Utilizadores", "Empresas", "Transacções", "Receita"] },
   { name: "SARCA", color: "#e69b22", metrics: ["Utilizadores", "Operações", "Transacções", "Receita"] },
   { name: "Mestre24", color: "#f8bf18", metrics: ["Profissionais", "Pedidos", "Subscrições", "Receita"] },
 ];
@@ -248,6 +249,7 @@ type AuditRecord = { id:string; occurred_at:string; actor:string; action:string;
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
 type PlatformProfile = { platform:string; id:string; profile:Record<string, unknown>|null; kyc:unknown[]; wallets:unknown[]; orders:unknown[]; disputes:unknown[]; activity:unknown[] };
+const normalizeDashboardNames = (data:DashboardData):DashboardData => ({...data,platforms:data.platforms.map(item=>({...item,name:platformDisplayName(item.name)})),modules:{...data.modules,platforms:data.modules.platforms.map(item=>({...item,name:platformDisplayName(item.name)}))}});
 type SessionUser = { id:string; hq_role:string; name:string; employee_code:string; email:string|null; phone:string|null; job_title:string|null; status:string; joined_on:string|null; last_login_at:string|null; department_id:string|null; manager_id:string|null; permissions:string[]; platform_ids:string[]; platform_slugs:string[]; is_super_admin:boolean };
 type GlobalPerson = { user_id:string; full_name?:string|null; display_name?:string|null; primary_phone?:string|null; primary_email?:string|null; profile_status?:string|null; apps:Array<{slug?:string;name?:string;role?:unknown;status?:string}>; kyc?:unknown[]; activity?:unknown[] };
 type CommandCenterData = { summary:{gmvToday:number;revenueToday:number;operationsToday:number;pendingKyc:number;openSupport:number;notificationWork:number}; liveFeed:Array<{id:string;event_type:string;entity_type:string;occurred_at:string;platforms?:{name?:string;platform_code?:string}}> };
@@ -258,9 +260,9 @@ const recordsFor = (snapshot: PlatformSnapshot | null, source: string) => {
   const value = snapshot?.data[source];
   return Array.isArray(value) ? value.length : 0;
 };
-const operationalLabel = (name: string) => ({ DeliGo: "Pedidos", "Comunhão": "Eventos", TaoMoz: "Pedidos", SARCA: "Viagens" }[name] || "Operações");
-const teamLabel = (name: string) => ({ DeliGo: "Estafetas e parceiros", "Comunhão": "Igrejas", TaoMoz: "Vendedores", SARCA: "Motoristas" }[name] || "Equipa");
-const teamValue = (platform: DashboardPlatform | undefined, name: string) => metricFor(platform, name === "DeliGo" ? ["estafeta", "parceiro"] : name === "Comunhão" ? ["igreja"] : name === "TaoMoz" ? ["vendedor", "empresa"] : ["motorista", "viatura"]);
+const operationalLabel = (name: string) => ({ DeliGo: "Pedidos", "Comunhão": "Eventos", "DeliGo Market": "Pedidos", SARCA: "Viagens" }[name] || "Operações");
+const teamLabel = (name: string) => ({ DeliGo: "Estafetas e parceiros", "Comunhão": "Igrejas", "DeliGo Market": "Vendedores", SARCA: "Motoristas" }[name] || "Equipa");
+const teamValue = (platform: DashboardPlatform | undefined, name: string) => metricFor(platform, name === "DeliGo" ? ["estafeta", "parceiro"] : name === "Comunhão" ? ["igreja"] : name === "DeliGo Market" ? ["vendedor", "empresa"] : ["motorista", "viatura"]);
 
 export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
@@ -568,7 +570,7 @@ useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()
       const platformMatch = window.location.pathname.match(/^\/plataformas\/(deligo|comunhao|sarca|taomoz|mestre24)$/);
       const nextModule = platformMatch ? "Plataformas" : moduleByRoute[window.location.pathname] || "Visão geral";
       setActive(nextModule);
-      if (platformMatch) setPlatform(({ deligo: "DeliGo", comunhao: "Comunhão", sarca: "SARCA", taomoz: "TaoMoz" } as const)[platformMatch[1] as "deligo" | "comunhao" | "sarca" | "taomoz"]);
+      if (platformMatch) setPlatform(({ deligo: "DeliGo", comunhao: "Comunhão", sarca: "SARCA", taomoz: "DeliGo Market" } as const)[platformMatch[1] as "deligo" | "comunhao" | "sarca" | "taomoz"]);
       setSubArea(moduleDetails[nextModule]?.[0] || "");
     };
     syncRoute();
@@ -584,7 +586,7 @@ useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()
         const response = await fetch("/api/dashboard", { cache: "no-store" });
         if (!response.ok) throw new Error((await response.json()).error || "Falha de ligação");
         const data = await response.json() as DashboardData;
-        if (!cancelled) { setDashboard(data); setConnectionError(""); }
+        if (!cancelled) { setDashboard(normalizeDashboardNames(data)); setConnectionError(""); }
       } catch (error) {
         if (!cancelled) setConnectionError(error instanceof Error ? error.message : "A Central ainda não recebeu dados.");
       }
@@ -604,7 +606,7 @@ useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()
 
   useEffect(()=>{
     if(!realtimeVersion)return;
-    if(active==="Visão geral")fetch("/api/dashboard",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(setDashboard).catch(()=>undefined);
+    if(active==="Visão geral")fetch("/api/dashboard",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then((data:DashboardData)=>setDashboard(normalizeDashboardNames(data))).catch(()=>undefined);
     if(active==="Finanças")void refreshFinance();
     if(active==="Compras")void refreshProcurement();
     if(active==="Jurídico")void refreshLegal();
@@ -1098,7 +1100,7 @@ if(active==="Operações de Campo")void refreshField();
               <article className="metric" key={label}>
                 <div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div>
                 <p>{label}</p><strong>{value}</strong><span>{note}</span>
-                <div className={`miniTrend trend${index}`}><i /><i /><i /><i /><i /><i /></div>
+                <div className="metricUpdated"><i />Atualizado pelo stream corporativo</div>
               </article>
             ))}
           </section>

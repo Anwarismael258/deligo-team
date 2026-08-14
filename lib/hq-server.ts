@@ -22,7 +22,8 @@ export async function corporateAuthorization():Promise<CorporateAuthorization|nu
   const actor=await corporateActor();
   if(!actor)return null;
   const result=await hqRpc("hq_actor_authorization_v1",{p_employee_id:actor.employee_id}) as {permissions?:string[];platform_ids?:string[];platform_slugs?:string[];is_super_admin?:boolean};
-  return{actor,permissions:result.permissions||[],platformIds:result.platform_ids||[],platformSlugs:result.platform_slugs||[],isSuperAdmin:Boolean(result.is_super_admin)};
+  const isSuperAdmin=Boolean(result.is_super_admin)||actor.role==="SUPER_ADMIN";
+  return{actor,permissions:isSuperAdmin?[...(result.permissions||[]),"platform.manage"]:result.permissions||[],platformIds:result.platform_ids||[],platformSlugs:result.platform_slugs||[],isSuperAdmin};
 }
 
 export async function requireCorporatePermission(permission:string,platform?:string){
