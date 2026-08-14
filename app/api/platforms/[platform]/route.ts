@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 const allowed = ["deligo", "comunhao", "sarca", "taomoz", "mestre24"] as const;
 const isPlatform = (value: string): value is PlatformBackend => allowed.includes(value as PlatformBackend);
 const safeRest = async (platform: PlatformBackend, path: string) => { try { return await platformRest(platform, path); } catch { return []; } };
-const mediaFields = ["photo_url", "image_url", "document_url", "file_url", "selfie_url", "document_front_path", "document_back_path", "selfie_path", "proof_url", "photos", "documents", "files", "attachments"];
+const mediaFields = ["avatar_url", "profile_photo_url", "profile_image_url", "photo_url", "image_url", "document_url", "file_url", "selfie_url", "document_front_path", "document_back_path", "selfie_path", "proof_url", "photos", "documents", "files", "attachments"];
 const signRecordMedia = async (platform: PlatformBackend, row: Record<string, unknown>) => { const copy = { ...row }; for (const field of mediaFields) { const value = copy[field]; if (typeof value === "string" && value) copy[field] = await signPlatformPath(platform, value); else if (Array.isArray(value)) copy[field] = await Promise.all(value.map(item => typeof item === "string" ? signPlatformPath(platform, item) : item)); } return copy; };
 const signSnapshotMedia = async (platform: PlatformBackend, data: Record<string, unknown>) => { const result: Record<string, unknown> = { ...data }; for (const [key, value] of Object.entries(result)) if (Array.isArray(value)) result[key] = await Promise.all(value.map(item => item && typeof item === "object" ? signRecordMedia(platform, item as Record<string, unknown>) : item)); return result; };
 
