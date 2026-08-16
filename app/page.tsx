@@ -45,6 +45,7 @@ const nav = [
   ["⌁", "BI / Análises"],
   ["▤", "Relatórios"],
   ["◎", "Registo de Auditoria"],
+  ["◈", "Homologação"],
 ];
 
 const moduleIcons: Record<string, LucideIcon> = {
@@ -55,6 +56,7 @@ const moduleIcons: Record<string, LucideIcon> = {
   "Apoio ao Cliente": Headphones, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
   "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Centro de Notificações": Bell, "Minhas Tarefas": ListTodo, "Aprovações": CheckCircle2,
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
+  "Homologação": Settings,
 };
 
 const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Church, "DeliGo Market": ShoppingBag, SARCA: Car, Mestre24: Hammer };
@@ -92,6 +94,7 @@ const moduleDetails: Record<string, string[]> = {
   "BI / Análises": ["Crescimento", "Receita", "Despesas", "Performance", "KPIs"],
   "Relatórios": ["Corporativos", "Financeiros", "RH", "Operações", "Auditoria"],
   "Registo de Auditoria": ["Actividade", "Logins", "Segurança", "Alterações", "Exportações"],
+  "Homologação": ["Contas de teste", "DeliGo", "Carteiras zero", "Auditoria"],
 };
 
 const modulePresentation: Record<string, { description: string; action: string; primary: string; secondary: string; visual: string; status: string; color: string }> = {
@@ -119,6 +122,7 @@ const modulePresentation: Record<string, { description: string; action: string; 
   "BI / Análises": { description: "Consolida KPIs, crescimento e desempenho autorizado de todo o grupo.", action: "Criar análise", primary: "Indicadores", secondary: "Relatórios agendados", visual: "Evolução dos KPIs", status: "Camada analítica", color: "#6c5bb5" },
   "Relatórios": { description: "Produz relatórios corporativos, financeiros, operacionais e de auditoria.", action: "Gerar relatório", primary: "Relatórios", secondary: "Agendados", visual: "Produção de relatórios", status: "Serviço documental", color: "#537493" },
   "Registo de Auditoria": { description: "Consulta eventos imutáveis de acesso, segurança e alterações críticas.", action: "Exportar auditoria", primary: "Eventos", secondary: "Alertas críticos", visual: "Actividade auditada", status: "Trilho de auditoria", color: "#555b66" },
+  "Homologação": { description: "Cria contas de teste controladas, sem alterar utilizadores reais nem movimentar pagamentos.", action: "Preparar DeliGo", primary: "Contas de teste", secondary: "Ambiente staging", visual: "Cobertura de QA", status: "Acesso Super Admin", color: "#51607a" },
 };
 
 const routeByModule: Record<string, string> = {
@@ -151,6 +155,7 @@ const routeByModule: Record<string, string> = {
   "BI / Análises": "/analises",
   "Relatórios": "/relatorios",
   "Registo de Auditoria": "/auditoria",
+  "Homologação": "/homologacao",
 };
 
 const moduleByRoute = Object.fromEntries(Object.entries(routeByModule).map(([module, route]) => [route, module]));
@@ -202,7 +207,7 @@ const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sans
 const unpublishedModules = new Set(["Embaixadores"]);
 const universalModules = new Set(["Centro de Notificações","Minhas Tarefas"]);
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
-const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage"};
+const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
@@ -397,6 +402,9 @@ export function HQApp() {
   const [showEmployeeForm, setShowEmployeeForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<ManagedEmployee | null>(null);
   const [platformSnapshot, setPlatformSnapshot] = useState<PlatformSnapshot | null>(null);
+  const [homologationPassword, setHomologationPassword] = useState("");
+  const [homologationNotice, setHomologationNotice] = useState("");
+  const [homologationResult, setHomologationResult] = useState<Array<{ code?: string; created?: boolean }>>([]);
   const personaBase=personas[persona];
   const currentPersona={...personaBase,name:sessionUser?.name||personaBase.name,role:sessionUser?.job_title||personaBase.role,initials:(sessionUser?.name||personaBase.name).split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()};
   const isAccountScreen = active==="Meu Perfil";
@@ -656,6 +664,19 @@ if(active==="Operações de Campo")void refreshField();
     fetch(`/api/platforms/${slug}`, { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<PlatformSnapshot>; }).then(setPlatformSnapshot).catch(() => setPlatformSnapshot(null));
   }, [active, platform]);
 
+  const provisionDeligoTestPersonas = async () => {
+    if (homologationPassword.length < 8) { setHomologationNotice("Defina uma palavra-passe de teste com pelo menos 8 caracteres."); return; }
+    setHomologationNotice("A criar contas DeliGo de homologação…");
+    setHomologationResult([]);
+    try {
+      const response = await fetch("/api/homologation/deligo-personas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ testPassword: homologationPassword }) });
+      const payload = await response.json();
+      if (!response.ok) { setHomologationNotice(payload.error || "A criação das contas foi recusada."); return; }
+      setHomologationPassword("");
+      setHomologationResult(Array.isArray(payload.personas) ? payload.personas : []);
+      setHomologationNotice("Contas de homologação preparadas. Não foram criados pedidos, saldos nem pagamentos.");
+    } catch { setHomologationNotice("Não foi possível contactar a homologação. Tente novamente."); }
+  };
   const navigate = (label: string) => {
     setActive(label);
     setSubArea(moduleDetails[label]?.[0] || "");
@@ -778,6 +799,14 @@ if(active==="Operações de Campo")void refreshField();
               </div>
             </section>
           )}
+          {active === "Homologação" && <section className="homologationWorkspace">
+            <div className="technologyHero"><div><span>AMBIENTE CONTROLADO</span><h2>Homologação DeliGo</h2><p>Cria três contas de teste no staging: Cliente, Restaurante e Estafeta. Os registos recebem marca de teste, carteiras a zero e nunca chamam gateways de pagamento.</p></div><div className="live"><i /> Somente Super Admin</div></div>
+            <div className="financeKpis"><article><span>Personas</span><strong>3</strong><small>Cliente, Restaurante, Estafeta</small></article><article><span>Carteiras</span><strong>0 MT</strong><small>Saldo inicial obrigatório</small></article><article><span>Pedidos</span><strong>0</strong><small>Nenhuma operação criada</small></article><article><span>Destino</span><strong>Staging</strong><small>Nunca produção financeira</small></article></div>
+            <div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Preparar cenário de teste</h3><p>A palavra-passe é transmitida somente para criar estas contas de teste e não é apresentada ou guardada no HQ.</p></div></div><div className="financeEntryForm"><label><span>Palavra-passe das contas de teste</span><input type="password" value={homologationPassword} onChange={event=>setHomologationPassword(event.target.value)} minLength={8} autoComplete="new-password" placeholder="Mínimo 8 caracteres" /></label><button className="primaryAction" onClick={()=>void provisionDeligoTestPersonas()}>Criar / atualizar contas DeliGo</button></div></div>
+            {!!homologationResult.length&&<div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Resultado da preparação</h3><p>Contas que podem ser usadas na próxima fase de testes no BlueStacks.</p></div></div><div className="peopleTable"><div className="peopleRow peopleHeader"><span>Conta de teste</span><span>Estado</span><span>Modo</span><span>Operações</span></div>{homologationResult.map(person=><div className="peopleRow" key={person.code}><span><strong>{String(person.code||"persona")}</strong></span><span className="connectedPill">{person.created?"Criada":"Atualizada"}</span><span>Teste controlado</span><span>0</span></div>)}</div></div>}
+            {homologationNotice&&<div className="operationalNotice">{homologationNotice}</div>}
+            <div className="safeNotice"><b>Limites de segurança</b><span>Esta área não cria utilizadores reais, não envia SMS, não cria pedidos, não credita carteiras e não executa pagamentos. Toda ação permanece rastreável no ambiente de homologação.</span></div>
+          </section>}
           {active === "Plataformas" && (
             <section className="platformDirectory" aria-label="Plataformas do grupo">
               <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do ecossistema, operações separadas</h2><p>Abra uma plataforma para ver apenas os seus utilizadores, operações, integrações, equipa e incidentes.</p></div><b>{connectedPlatforms}/{dashboard?.platforms.length || 0} ligadas</b></div>
