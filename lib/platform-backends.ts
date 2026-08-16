@@ -13,7 +13,7 @@ const headers = (platform: PlatformBackend, authenticatedWrite = false) => {
   const key = platformKey(platform);
   if (!key) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
   const actorToken = authenticatedWrite ? process.env[`${platform.toUpperCase()}_ADMIN_ACCESS_TOKEN`] : null;
-  return { apikey: key, Authorization: `Bearer ${actorToken || key}`, "Content-Type": "application/json" };
+  return new Headers({ apikey: key, Authorization: `Bearer ${actorToken || key}`, "Content-Type": "application/json" });
 };
 
 const storageBuckets: Record<PlatformBackend, string[]> = { deligo: ["kyc"], comunhao: ["church-application-branding", "profile-media"], sarca: ["driver-kyc", "profile-media"], taomoz: ["kyc-documents"], mestre24: ["mestre24-kyc", "mestre24-portfolio"] };

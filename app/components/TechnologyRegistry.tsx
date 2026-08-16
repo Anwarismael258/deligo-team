@@ -1,7 +1,7 @@
 "use client";
 import type{FormEvent}from"react";
-type Row=Record<string,any>&{id:string};
-type Props={data:Record<string,Row[]>;search:string;status:string;showForm:boolean;kind:string;onSearch:(value:string)=>void;onStatus:(value:string)=>void;onShowForm:(value:boolean)=>void;onKind:(value:string)=>void;onSubmit:(event:FormEvent<HTMLFormElement>)=>void;onAction:(resource:string,id:string,action:string)=>void;onRefresh:()=>void;onOpenSupport:()=>void};
+type Row={id:string;name?:unknown;system_type?:unknown;integration_type?:unknown;environment?:unknown;provider?:unknown;status?:unknown;_resource?:string;[key:string]:any};
+type Props={data:Record<string,any[]>;search:string;status:string;showForm:boolean;kind:string;onSearch:(value:string)=>void;onStatus:(value:string)=>void;onShowForm:(value:boolean)=>void;onKind:(value:string)=>void;onSubmit:(event:FormEvent<HTMLFormElement>)=>void;onAction:(resource:string,id:string,action:string)=>void;onRefresh:()=>void;onOpenSupport:()=>void};
 const text=(value:unknown)=>String(value||"");
 export function TechnologyRegistry({data,search,status,showForm,kind,onSearch,onStatus,onShowForm,onKind,onSubmit,onAction,onRefresh,onOpenSupport}:Props){
  const systems:Row[]=data.technology_systems||[],integrations:Row[]=data.technology_integrations||[],systemRows:Row[]=[...systems.map(x=>({...x,_resource:"technology_systems"})),...integrations.map(x=>({...x,_resource:"technology_integrations"}))],matches=(row:Row,fields:string[])=>{const state=text(row.status),haystack=fields.map(f=>text(row[f])).join(" ").toLowerCase();return(status==="all"||state===status)&&haystack.includes(search.toLowerCase())};

@@ -30,7 +30,7 @@ export default function LoginPage() {
           <p>Acesso corporativo seguro para as equipas da DeliGo Triunfal, Lda.</p>
         </div>
         <div className="loginPlatforms">
-          {["DeliGo", "Comunhão", "TaoMoz", "SARCA"].map((item) => <span key={item}>{item}</span>)}
+          {["DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"].map((item) => <span key={item}>{item}</span>)}
         </div>
         <small>Exclusivo para trabalhadores e colaboradores autorizados.</small>
       </section>

@@ -35,7 +35,7 @@ test("inclui navegação corporativa sem expor simulação de perfis", async () 
   assert.match(html, /Plataformas/);
   assert.match(html, /DeliGo/);
   assert.match(html, /Comunhão/);
-  assert.match(html, /TaoMoz/);
+  assert.match(html, /DeliGo Market/);
   assert.match(html, /SARCA/);
   assert.doesNotMatch(html, /Simular perfil/);
 });
