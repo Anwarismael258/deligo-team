@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateAuthorization, supabaseUrl } from "@/lib/hq-server";
+import { supabaseUrl } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Proxies the current HQ session to the staging-only provisioning function.
- * The access token stays HTTP-only and the Edge Function verifies it again.
+ * The access token stays HTTP-only and the Edge Function is the authoritative
+ * Super Admin verifier. Keeping this check in one place avoids a stale HQ
+ * permission projection denying a valid corporate session.
  */
 export async function POST(request: NextRequest) {
-  const authorization = await corporateAuthorization();
-  if (!authorization?.isSuperAdmin) {
-    return NextResponse.json({ error: "A criação de contas de homologação é reservada ao Super Admin." }, { status: 403 });
-  }
-
   const testPassword = String((await request.json().catch(() => ({})) as { testPassword?: unknown }).testPassword ?? "");
   if (testPassword.length < 8) {
     return NextResponse.json({ error: "Defina uma palavra-passe de teste com pelo menos 8 caracteres." }, { status: 400 });
