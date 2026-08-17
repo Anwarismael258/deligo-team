@@ -51,6 +51,10 @@ export async function GET() {
   const data = Object.fromEntries(rows);
   data.payment_events = paymentEventsResponse.ok ? await paymentEventsResponse.json() : [];
   data.profit_destination = profitDestinationResponse?.ok ? await profitDestinationResponse.json() : [];
+  const payrollRunsResponse=await fetch(`${supabaseUrl()}/rest/v1/payroll_runs?select=*&status=in.(submitted_to_finance,pending_approval,approved)&order=created_at.desc&limit=100`,{headers:context.headers,cache:"no-store"});
+  const payrollLinesResponse=await fetch(`${supabaseUrl()}/rest/v1/payroll_lines?select=*&limit=500`,{headers:context.headers,cache:"no-store"});
+  data.payroll_runs=payrollRunsResponse.ok?await payrollRunsResponse.json():[];
+  data.payroll_lines=payrollLinesResponse.ok?await payrollLinesResponse.json():[];
   return NextResponse.json({ data, checkedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
