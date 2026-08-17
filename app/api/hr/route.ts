@@ -21,5 +21,10 @@ export async function POST(request:NextRequest) {
   if(!body.resource||!resources.includes(body.resource as typeof resources[number])||!body.record) return NextResponse.json({error:"Registo de RH inválido."},{status:400});
   const response=await fetch(`${supabaseUrl()}/rest/v1/${body.resource}`,{method:"POST",headers:headers(key),body:JSON.stringify(body.record)});
   if(!response.ok)return NextResponse.json({error:"Não foi possível guardar o registo de RH."},{status:400});
-  return NextResponse.json({record:(await response.json())[0]},{status:201});
+  const record=(await response.json())[0] as Record<string,unknown>;
+  if(body.resource==="hr_employee_events"&&record.employee_id){
+    const notification=(await (await fetch(`${supabaseUrl()}/rest/v1/notifications`,{method:"POST",headers:headers(key),body:JSON.stringify({employee_id:record.employee_id,type:"hr_lifecycle_event",title:`Novo registo laboral: ${String(record.title)}`,body:`Foi criado um registo de ${String(record.event_type)} no seu ciclo laboral.`,target_url:"/recursos-humanos",priority:"normal",origin_department_id:actor.department_id||null,responsible_employee_id:record.employee_id,source_type:"hr_employee_event",source_id:record.id,dedupe_key:`hr-event:${record.id}`})}))).json())[0];
+    if(notification?.id) await fetch(`${supabaseUrl()}/rest/v1/notification_deliveries`,{method:"POST",headers:headers(key),body:JSON.stringify([{notification_id:notification.id,employee_id:record.employee_id,channel:"sms",provider:"moz_esms",template_code:"HR_LIFECYCLE_NOTICE",payload:{title:String(record.title),message:"Tem uma nova comunicação laboral na Central DeliGo Triunfal."},status:"pending"}])});
+  }
+  return NextResponse.json({record},{status:201});
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireCorporatePermission, hqRpc, supabaseUrl } from "@/lib/hq-server";
+import { randomBytes } from "node:crypto";
 
 export async function GET() {
   const authorization = await requireCorporatePermission("users.view"),actor=authorization?.actor;
@@ -23,9 +24,9 @@ export async function POST(request: NextRequest) {
   const phone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
   if (!input.name || !input.jobTitle || !input.department || !input.role || !/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "Preencha correctamente todos os campos." }, { status: 400 });
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const password = process.env.HQ_TEST_DEFAULT_PASSWORD;
-  if (!serviceKey || !password) return NextResponse.json({ error: "Configuração de contas indisponível." }, { status: 503 });
-  const authResponse = await fetch(`${supabaseUrl()}/auth/v1/admin/users`, { method: "POST", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ phone, password, phone_confirm: true, user_metadata: { display_name: input.name, hq_role: input.role, test_account: true, must_change_password: true } }) });
+  if (!serviceKey) return NextResponse.json({ error: "Configuração de contas indisponível." }, { status: 503 });
+  const bootstrapPassword = randomBytes(32).toString("base64url");
+  const authResponse = await fetch(`${supabaseUrl()}/auth/v1/admin/users`, { method: "POST", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ phone, password: bootstrapPassword, phone_confirm: false, user_metadata: { display_name: input.name, hq_role: input.role, auth_method: "phone_otp", must_set_password: true } }) });
   if (!authResponse.ok) return NextResponse.json({ error: "O número já existe ou não pôde ser criado." }, { status: 409 });
   const authUser = await authResponse.json() as { id: string };
   try {

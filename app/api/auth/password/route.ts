@@ -1,0 +1,4 @@
+import { NextRequest,NextResponse } from "next/server";
+import { cookies } from "next/headers";
+const STAGING_URL="https://tpmsgvkdjzoidvyiwwfk.supabase.co";
+export async function POST(request:NextRequest){const anonKey=process.env.SUPABASE_ANON_KEY;const token=(await cookies()).get("hq_access_token")?.value;const {password}=await request.json() as {password?:string};if(!anonKey||!token)return NextResponse.json({error:"Sessão OTP não encontrada."},{status:401});if(!password||password.length<10)return NextResponse.json({error:"A senha deve ter pelo menos 10 caracteres."},{status:400});const r=await fetch(`${process.env.SUPABASE_URL||STAGING_URL}/auth/v1/user`,{method:"PUT",headers:{apikey:anonKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({password,user_metadata:{must_set_password:false}})});if(!r.ok)return NextResponse.json({error:"Não foi possível definir a senha."},{status:400});return NextResponse.json({ok:true});}
