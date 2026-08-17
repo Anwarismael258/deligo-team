@@ -50,15 +50,16 @@ export default function LoginPage() {
             <h2>Bem-vindo de volta</h2>
             <p>Trabalhadores: use OTP no primeiro acesso e defina a sua própria senha.</p>
           </div>
-          {mode==="password"&&<label className="loginField">
+          <label className="loginField">
             <span>Número de telefone</span>
             <div className="phoneInput"><b>+258</b><input name="phone" type="tel" inputMode="tel" placeholder="84 999 0001" autoComplete="tel" required /></div>
-          </label>}
+          </label>
           {mode==="otp"&&otpSent&&<label className="loginField"><span>Código OTP</span><input name="otp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="000000" required /></label>}
-          <label className="loginField">
+          {mode==="password"&&<label className="loginField">
             <span>Palavra-passe</span>
             <div className="passwordInput"><input name="password" type={showPassword ? "text" : "password"} placeholder="Introduza a sua palavra-passe" autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Ocultar" : "Mostrar"}</button></div>
-          </label>
+          </label>}
+          {mode==="otp"&&!otpSent&&<div className="loginInfo"><strong>Primeiro acesso</strong><span>Não coloque uma senha agora. Enviaremos um código OTP para este telefone.</span></div>}
           {mode==="password"&&<div className="loginOptions">
             <label><input type="checkbox" /> <span>Confiar neste dispositivo</span></label>
             <button type="button">Esqueceu a palavra-passe?</button>

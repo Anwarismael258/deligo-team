@@ -7,13 +7,16 @@ export async function GET() {
   if (!actor) return NextResponse.json({ error: "Sem permissão para consultar colaboradores." }, { status: 403 });
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const headers = serviceKey ? { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Accept-Profile": "hq" } : null;
-  const [employees, historyResponse, accessResponse, permissionResponse] = await Promise.all([
+  const [employees, historyResponse, accessResponse, permissionResponse, profilesResponse] = await Promise.all([
     hqRpc("hq_employee_directory_v1"),
     headers ? fetch(`${supabaseUrl()}/rest/v1/employee_change_history?select=*&order=created_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
     headers ? fetch(`${supabaseUrl()}/rest/v1/employee_access_log?select=*&order=occurred_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
     headers ? fetch(`${supabaseUrl()}/rest/v1/employee_permission_overrides?select=*&order=created_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
+    headers ? fetch(`${supabaseUrl()}/rest/v1/employee_display_profiles?select=employee_id,avatar_url,biography&limit=500`, { headers, cache: "no-store" }) : null,
   ]);
-  return NextResponse.json({ actor, employees, history: historyResponse?.ok ? await historyResponse.json() : [], access: accessResponse?.ok ? await accessResponse.json() : [], permissions: permissionResponse?.ok ? await permissionResponse.json() : [] }, { headers: { "Cache-Control": "private, no-store" } });
+  const profiles=profilesResponse?.ok?await profilesResponse.json() as Array<{employee_id:string;avatar_url?:string|null;biography?:string|null}>:[];
+  const profileByEmployee=new Map(profiles.map(profile=>[profile.employee_id,profile]));
+  return NextResponse.json({ actor, employees:(employees||[]).map((employee:Record<string,unknown>)=>({...employee,avatar_url:profileByEmployee.get(String(employee.id))?.avatar_url||null,biography:profileByEmployee.get(String(employee.id))?.biography||null})), history: historyResponse?.ok ? await historyResponse.json() : [], access: accessResponse?.ok ? await accessResponse.json() : [], permissions: permissionResponse?.ok ? await permissionResponse.json() : [] }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {
