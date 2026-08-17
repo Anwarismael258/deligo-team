@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const ui=fs.readFileSync('app/page.tsx','utf8');test('UI mostra decisões Payroll',()=>{for(const x of ['DECISÕES PAYROLL','Validar folha','Enviar ao Financeiro','Aprovar','Rejeitar'])assert.ok(ui.includes(x),x);});
