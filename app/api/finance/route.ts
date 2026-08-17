@@ -45,8 +45,12 @@ export async function GET() {
   }));
   const paymentScope = context.authorization.isSuperAdmin ? "" : context.authorization.platformSlugs.length ? `&platform_code=in.(${context.authorization.platformSlugs.join(",")})` : "&platform_code=eq.__none__";
   const paymentEventsResponse = await fetch(`${supabaseUrl()}/rest/v1/payment_events?select=*&order=occurred_at.desc&limit=500${paymentScope}`, { headers: context.headers, cache: "no-store" });
+  const profitDestinationResponse = context.authorization.isSuperAdmin
+    ? await fetch(`${supabaseUrl()}/rest/v1/confirmed_profit_destination_v1?select=*&limit=1`, { headers: context.headers, cache: "no-store" })
+    : null;
   const data = Object.fromEntries(rows);
   data.payment_events = paymentEventsResponse.ok ? await paymentEventsResponse.json() : [];
+  data.profit_destination = profitDestinationResponse?.ok ? await profitDestinationResponse.json() : [];
   return NextResponse.json({ data, checkedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
