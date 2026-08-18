@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -8,6 +8,10 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"password"|"otp">("password");
   const [otpSent, setOtpSent] = useState(false);
+
+  useEffect(() => {
+    if (window.location.search || window.location.hash) window.history.replaceState({}, "", "/login");
+  }, []);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
