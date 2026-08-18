@@ -16,7 +16,7 @@ export async function GET() {
   ]);
   const profiles=profilesResponse?.ok?await profilesResponse.json() as Array<{employee_id:string;avatar_url?:string|null;biography?:string|null}>:[];
   const profileByEmployee=new Map(profiles.map(profile=>[profile.employee_id,profile]));
-  return NextResponse.json({ actor, employees:(employees||[]).map((employee:Record<string,unknown>)=>({...employee,avatar_url:profileByEmployee.get(String(employee.id))?.avatar_url||null,biography:profileByEmployee.get(String(employee.id))?.biography||null})), history: historyResponse?.ok ? await historyResponse.json() : [], access: accessResponse?.ok ? await accessResponse.json() : [], permissions: permissionResponse?.ok ? await permissionResponse.json() : [] }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ actor, employees:(employees||[]).map((employee:Record<string,unknown>)=>({...employee,name:employee.name||employee.display_name||"Trabalhador",job_title:employee.job_title||employee.title||null,department_name:employee.department_name||employee.department||null,avatar_url:profileByEmployee.get(String(employee.id))?.avatar_url||null,biography:profileByEmployee.get(String(employee.id))?.biography||null})), history: historyResponse?.ok ? await historyResponse.json() : [], access: accessResponse?.ok ? await accessResponse.json() : [], permissions: permissionResponse?.ok ? await permissionResponse.json() : [] }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {
