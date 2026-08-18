@@ -53,14 +53,14 @@ export default defineConfig(async () => {
     plugins: [
       vinext(),
       ...(isLocalPreview ? [] : [sites()]),
-      ...(isLocalPreview
-        ? []
-        : [
+      ...(!isLocalPreview && cloudflare
+        ? [
             cloudflare({
               viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
               config: localBindingConfig,
             }),
-          ]),
+          ]
+        : []),
     ],
   };
 });
