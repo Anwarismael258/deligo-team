@@ -718,10 +718,10 @@ if(active==="Operações de Campo")void refreshField();
   const selectedOperationalValue = selectedFinancialPlatforms.reduce((sum, item) => sum + item.value, 0);
   const connectedPlatforms = dashboard?.platforms.filter((item) => item.connected).length || 0;
   const operationalItems = [
-    { label: "Suporte", value: dashboard ? dashboard.operations.supportCases || 0 : "—", note: dashboard ? "casos registados" : "A carregar", action: "Apoio ao Cliente" },
-    { label: "Operações de Campo", value: dashboard ? dashboard.operations.fieldVisits || 0 : "—", note: dashboard ? "visitas registadas" : "A carregar", action: "Operações de Campo" },
-    { label: "Marketing", value: dashboard ? dashboard.operations.campaigns || 0 : "—", note: dashboard ? "campanhas registadas" : "A carregar", action: "Marketing" },
-    { label: "Auditoria", value: dashboard ? dashboard.operations.auditEvents || 0 : "—", note: dashboard ? "eventos no histórico" : "A carregar", action: "Registo de Auditoria" },
+    { label: "Suporte", value: dashboard?.operations.supportCases || 0, note: "casos registados", action: "Apoio ao Cliente" },
+    { label: "Operações de Campo", value: dashboard?.operations.fieldVisits || 0, note: "visitas registadas", action: "Operações de Campo" },
+    { label: "Marketing", value: dashboard?.operations.campaigns || 0, note: "campanhas registadas", action: "Marketing" },
+    { label: "Auditoria", value: dashboard?.operations.auditEvents || 0, note: "eventos no histórico", action: "Registo de Auditoria" },
   ];
   const mapMarkers = (liveMap?.markers || []).filter((marker) => platform === "Todas as plataformas" || platformDisplayName(marker.platform) === platform);
   const filteredMapMarkers = mapMarkers.filter((marker) => (mapStatus === "todos" || marker.status === mapStatus) && `${marker.workerName || ""} ${marker.workerId || marker.id}`.toLocaleLowerCase("pt").includes(mapSearch.toLocaleLowerCase("pt")));
@@ -1135,11 +1135,11 @@ if(active==="Operações de Campo")void refreshField();
           <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
-              ["Total de utilizadores", dashboard ? String(totalUsers) : "—", dashboard ? "Nas plataformas ligadas ao HQ" : "A carregar dados reais"],
-              ["Valor total processado", dashboard ? money(dashboard.modules.totalValue || 0) : "—", dashboard ? "Volume operacional consolidado" : "A carregar dados reais"],
-              ["Receita hoje", commandCenter ? money(commandCenter.summary.revenueToday || 0) : "—", commandCenter ? "Comissões confirmadas no stream corporativo" : "A carregar dados reais"],
+              ["Total de utilizadores", String(totalUsers), "Nas plataformas ligadas ao HQ"],
+              ["Valor total processado", money(dashboard?.modules.totalValue || 0), "Volume operacional consolidado"],
+              ["Receita hoje", money(commandCenter?.summary.revenueToday || 0), "Comissões confirmadas no stream corporativo"],
               ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
-              ["Operações hoje", commandCenter ? String(commandCenter.summary.operationsToday || 0) : "—", commandCenter ? "Eventos operacionais recebidos hoje" : "A carregar dados reais"],
+              ["Operações hoje", String(commandCenter?.summary.operationsToday || 0), "Eventos operacionais recebidos hoje"],
             ].map(([label, value, note], index) => (
               <article className="metric" key={label}>
                 <div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div>
@@ -1157,7 +1157,7 @@ if(active==="Operações de Campo")void refreshField();
             <div className="missionControlGrid">
               <article className="connectionCard">
                 <div className="connectionPulse"><Activity aria-hidden="true" /></div>
-                <div><span>PLATAFORMAS LIGADAS</span><strong>{dashboard ? `${connectedPlatforms}/${dashboard.platforms.length}` : "—"}</strong><p>{dashboard ? (connectedPlatforms === dashboard.platforms.length ? "Todas as fontes disponíveis estão a responder." : "Há uma ou mais fontes que precisam de verificação.") : "A verificar ligação ao backend central."}</p></div>
+                <div><span>PLATAFORMAS LIGADAS</span><strong>{connectedPlatforms}/{dashboard?.platforms.length || 4}</strong><p>{connectedPlatforms === (dashboard?.platforms.length || 4) ? "Todas as fontes disponíveis estão a responder." : "Há uma ou mais fontes que precisam de verificação."}</p></div>
                 <button onClick={() => navigate("Plataformas")}>Abrir plataformas</button>
               </article>
               <div className="operationalQueue">
