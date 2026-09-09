@@ -10,6 +10,6 @@ export async function POST(request:NextRequest){
   if(!auth.ok||!payload.access_token||!payload.refresh_token)return NextResponse.json({error:"OTP inválido ou expirado."},{status:401});
   const actor=payload.user?.id?await hqRpc("hq_actor_context_v1",{p_auth_user_id:payload.user.id}):null;
   if(!actor)return NextResponse.json({error:"Este telefone não está associado a um trabalhador da Central."},{status:403});
-  const response=NextResponse.json({ok:true,mustSetPassword:Boolean(payload.user?.user_metadata?.must_set_password),active:actor.status==="active"});const secure=process.env.NODE_ENV==="production";
+  const response=NextResponse.json({ok:true,mustSetPassword:Boolean(payload.user?.user_metadata?.must_set_password),active:actor.status==="active"});const secure=request.nextUrl.protocol==="https:";
   response.cookies.set("hq_access_token",payload.access_token,{httpOnly:true,secure,sameSite:"strict",path:"/",maxAge:payload.expires_in||3600});response.cookies.set("hq_refresh_token",payload.refresh_token,{httpOnly:true,secure,sameSite:"strict",path:"/",maxAge:604800});return response;
 }

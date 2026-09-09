@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import loginStyles from "../globals.css?inline";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -8,8 +9,28 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<"password"|"otp">("password");
   const [otpSent, setOtpSent] = useState(false);
+  const [initialPhone, setInitialPhone] = useState("");
+  const [initialPassword, setInitialPassword] = useState("");
+  const autoSubmitted = useRef(false);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const phone = params.get("phone") || "";
+    const password = params.get("password") || "";
+    setInitialPhone(phone.replace(/^\+?258/, "").replace(/^0/, ""));
+    setInitialPassword(password);
+    if (phone && password && !autoSubmitted.current) {
+      autoSubmitted.current = true;
+      window.setTimeout(() => {
+        const form = document.querySelector<HTMLFormElement>(".loginCard");
+        const phoneInput = form?.querySelector<HTMLInputElement>('input[name="phone"]');
+        const passwordInput = form?.querySelector<HTMLInputElement>('input[name="password"]');
+        if (!form || !phoneInput || !passwordInput) return;
+        phoneInput.value = phone.replace(/^\+?258/, "").replace(/^0/, "");
+        passwordInput.value = password;
+        form.requestSubmit();
+      }, 500);
+    }
     if (window.location.search || window.location.hash) window.history.replaceState({}, "", "/login");
   }, []);
 
@@ -17,17 +38,25 @@ export default function LoginPage() {
     event.preventDefault();
     setLoading(true); setNotice("");
     const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: form.get("phone"), password: form.get("password") }) });
-    const result = await response.json() as { error?: string };
-    if (!response.ok) { setNotice(result.error || "Não foi possível entrar."); setLoading(false); return; }
-    window.location.assign("/");
+    try {
+      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: form.get("phone"), password: form.get("password") }) });
+      const result = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) { setNotice(result.error || "Não foi possível entrar."); return; }
+      window.location.assign("/");
+    } catch {
+      setNotice("Não foi possível contactar a Central. Verifique se o localhost está activo e tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const requestOtp = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLoading(true); setNotice(""); const form=new FormData(event.currentTarget); const response=await fetch("/api/auth/otp/request",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone")})}); const result=await response.json() as {error?:string}; setNotice(result.error||"OTP enviado. Consulte o seu telefone."); if(response.ok)setOtpSent(true); setLoading(false); };
   const verifyOtp = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLoading(true); setNotice(""); const form=new FormData(event.currentTarget); const response=await fetch("/api/auth/otp/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone"),token:form.get("otp")})}); const result=await response.json() as {error?:string;mustSetPassword?:boolean;active?:boolean}; if(!response.ok){setNotice(result.error||"OTP inválido.");setLoading(false);return;} if(result.mustSetPassword){const password=window.prompt("Primeiro acesso: defina uma senha com pelo menos 10 caracteres.");if(!password){setNotice("Defina a sua senha para continuar.");setLoading(false);return;}const saved=await fetch("/api/auth/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})});if(!saved.ok){const error=await saved.json() as {error?:string};setNotice(error.error||"Não foi possível guardar a senha.");setLoading(false);return;}} window.location.assign(result.active?"/":"/login"); };
 
   return (
-    <main className="loginPage">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
+      <main className="loginPage">
       <section className="loginBrandPanel">
         <div className="loginBrand">
           <img src="/deligo-icon.png" alt="Símbolo DeliGo Triunfal" />
@@ -56,12 +85,12 @@ export default function LoginPage() {
           </div>
           <label className="loginField">
             <span>Número de telefone</span>
-            <div className="phoneInput"><b>+258</b><input name="phone" type="tel" inputMode="tel" placeholder="84 999 0001" autoComplete="tel" required /></div>
+            <div className="phoneInput"><b>+258</b><input name="phone" type="tel" inputMode="tel" placeholder="84 999 0001" autoComplete="tel" defaultValue={initialPhone} required /></div>
           </label>
           {mode==="otp"&&otpSent&&<label className="loginField"><span>Código OTP</span><input name="otp" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="000000" required /></label>}
           {mode==="password"&&<label className="loginField">
             <span>Palavra-passe</span>
-            <div className="passwordInput"><input name="password" type={showPassword ? "text" : "password"} placeholder="Introduza a sua palavra-passe" autoComplete="current-password" required /><button type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Ocultar" : "Mostrar"}</button></div>
+            <div className="passwordInput"><input name="password" type={showPassword ? "text" : "password"} placeholder="Introduza a sua palavra-passe" autoComplete="current-password" defaultValue={initialPassword} required /><button type="button" onClick={() => setShowPassword(!showPassword)}>{showPassword ? "Ocultar" : "Mostrar"}</button></div>
           </label>}
           {mode==="otp"&&!otpSent&&<div className="loginInfo"><strong>Primeiro acesso</strong><span>Não coloque uma senha agora. Enviaremos um código OTP para este telefone.</span></div>}
           {mode==="password"&&<div className="loginOptions">
@@ -76,6 +105,7 @@ export default function LoginPage() {
         </form>
         <footer className="loginFooter"><span>© 2026 DeliGo Triunfal, Lda.</span><span>Privacidade · Segurança · Suporte interno</span></footer>
       </section>
-    </main>
+      </main>
+    </>
   );
 }

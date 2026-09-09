@@ -14,6 +14,9 @@ import {MyTasksCenter} from "./components/MyTasksCenter";
 import {ApprovalRules} from "./components/ApprovalRules";
 import {TechnicalIncidentAlerts} from "./components/TechnicalIncidentAlerts";
 import {PermissionMatrix} from "./components/PermissionMatrix";
+import {ProfileSettings} from "./components/ProfileSettings";
+import {DeligoCommandButton} from "./components/DeligoCommandButton";
+import {DeligoOperationalMap} from "./components/DeligoOperationalMap";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 
@@ -46,6 +49,15 @@ const nav = [
   ["▤", "Relatórios"],
   ["◎", "Registo de Auditoria"],
   ["◈", "Homologação"],
+];
+const navGroups: Array<[string,string[]]> = [
+  ["GESTÃO", ["Visão geral","Plataformas","Mapa operacional","Direcção Executiva","Pessoas"]],
+  ["CORPORATIVO", ["Recursos Humanos","Finanças","Contabilidade","Jurídico","Conformidade e Risco","Tecnologia / IT","Compras","Património"]],
+  ["OPERAÇÕES & CRESCIMENTO", ["Marketing","Operações de Campo","Apoio ao Cliente","Aquisição de Parceiros","Embaixadores"]],
+  ["EXECUÇÃO", ["Projectos e Tarefas","Apoio Interno"]],
+  ["MEU TRABALHO", ["Centro de Notificações","Minhas Tarefas","Aprovações"]],
+  ["INTELIGÊNCIA & CONTROLO", ["BI / Análises","Relatórios","Registo de Auditoria"]],
+  ["SISTEMA", ["Homologação"]],
 ];
 
 const moduleIcons: Record<string, LucideIcon> = {
@@ -87,7 +99,7 @@ const moduleDetails: Record<string, string[]> = {
   "Aquisição de Parceiros": ["Leads", "Visitas", "Negociações", "Parceiros", "Objectivos"],
   "Embaixadores": ["Embaixadores", "Referências", "Campanhas", "Conversões", "Comissões"],
   "Projectos e Tarefas": ["Projectos", "Tarefas", "Objectivos", "Prazos", "Progresso"],
-  "Apoio Interno": ["IT", "RH", "Finanças", "Jurídico", "Operações"],
+  "Apoio Interno": ["Tecnologia / IT", "RH", "Finanças", "Contabilidade", "Jurídico", "Compliance/Risco", "Operações", "Field", "Marketing", "Compras", "Património", "Aquisição de Parceiros", "Direção"],
   "Centro de Notificações": ["Todas", "Não lidas", "Prioridade", "Prazos"],
   "Minhas Tarefas": ["Pendentes", "Aprovações", "Prazos", "Atrasadas"],
   "Aprovações": ["Finanças", "RH", "Jurídico", "Compras", "Marketing"],
@@ -229,12 +241,21 @@ type DashboardData = {
   checkedAt: string;
   platforms: DashboardPlatform[];
   operations: { supportCases: number; campaigns: number; fieldVisits: number; auditEvents: number };
+  deligoOperations?: {
+    summary: { activeOrders:number; attentionOrders:number; pendingKyc:number; openSupport:number; ticketsSold:number; ticketRevenue:number; ticketProfit:number };
+    activeOrders: Array<{id:string;status:string;total_amount:number;created_at:string}>;
+    pendingKyc: Array<{id:string;full_name:string;role:string;kyc_status:string;updated_at:string}>;
+    openSupport: Array<{id:string;reason:string;status:string;customer_name:string;updated_at:string}>;
+    accountControls: Array<{id:string;full_name:string;role:string;administrative_status:string;administrative_reason?:string}>;
+    openIncidents: Array<{id:string;status:string;reason:string;opened_by:string;created_at:string}>;
+  };
   modules: {
     currency: "MZN";
     totalValue: number;
     platforms: Array<{ slug: string; name: string; value: number; people: Array<{ id: string; name: string; role: string; created_at: string }> }>;
     departments: Record<string, { total: number; active?: number; open?: number }>;
   };
+  test_mode?: { unique_users: number; wallet_count: number; wallet_total: number; currency: string; source: string; updated_at: string } | null;
   governance: {
     legalName: string;
     legalForm: string;
@@ -275,6 +296,7 @@ export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
   const [active, setActive] = useState("Visão geral");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string,boolean>>({});
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [commandResults, setCommandResults] = useState<GlobalPerson[]>([]);
@@ -491,7 +513,7 @@ export function HQApp() {
   useEffect(()=>{if(active!=="Tecnologia / IT")return;refreshTechnology().catch(()=>setTechnologyData({}))},[active]);
   const refreshAcquisition=async()=>{const q=new URLSearchParams({status:acquisitionStage,page:String(acquisitionPage)});if(acquisitionSearch.trim())q.set("search",acquisitionSearch.trim());const r=await fetch(`/api/acquisition?${q}`,{cache:"no-store"});const result=await r.json();if(!r.ok)throw new Error(result.error||"Falha na Aquisição de Parceiros");setAcquisitionData(result.data||{});setAcquisitionHasMore(Boolean(result.pagination?.hasMore))};
   useEffect(()=>{if(active!=="Aquisição de Parceiros")return;const timer=window.setTimeout(()=>{refreshAcquisition().catch(error=>{setAcquisitionData({});setAcquisitionNotice(error instanceof Error?error.message:"Não foi possível carregar a aquisição.")})},250);return()=>window.clearTimeout(timer)},[active,acquisitionSearch,acquisitionStage,acquisitionPage]);
-  const refreshWorkflows=async()=>{const r=await fetch("/api/workflows",{cache:"no-store"});const result=await r.json();if(!r.ok)throw new Error(result.error||"Falha nos processos");setWorkflowData(result.data||{})};
+  const refreshWorkflows=async()=>{const r=await fetch("/api/workflows",{cache:"no-store"});const raw=await r.text();let result:{error?:string;data?:Record<string,unknown>}={};try{result=raw.trim()?JSON.parse(raw):{}}catch{throw new Error("Resposta inválida dos processos")};if(!r.ok)throw new Error(result.error||"Falha nos processos");setWorkflowData(result.data||{})};
   useEffect(()=>{if(!workflowDepartmentByModule[active])return;refreshWorkflows().catch(error=>{setWorkflowData({});setWorkflowNotice(error instanceof Error?error.message:"Não foi possível carregar os processos.")})},[active]);
   const refreshProcurement=async()=>{const r=await fetch("/api/procurement",{cache:"no-store"});if(!r.ok)throw new Error();setProcurementData((await r.json()).data||{})};
   useEffect(()=>{if(active!=="Compras")return;refreshProcurement().catch(()=>setProcurementData({}))},[active]);
@@ -511,7 +533,7 @@ useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()
   useEffect(()=>{if(active!=="Património")return;refreshAssets().catch(()=>{setAssetData({});setAssetNotice("Não foi possível carregar o património para este perfil.")})},[active]);
   const refreshProjects=async()=>{const r=await fetch("/api/projects",{cache:"no-store"});if(!r.ok)throw new Error();setProjectData((await r.json()).data||{})};
   useEffect(()=>{if(active!=="Projectos e Tarefas")return;refreshProjects().catch(()=>{setProjectData({});setProjectNotice("Não foi possível carregar os projectos para este perfil.")})},[active]);
-  const refreshInternal=async()=>{const q=new URLSearchParams({status:internalStatus,page:String(internalPage)});if(internalSearch.trim())q.set("search",internalSearch.trim());const r=await fetch(`/api/internal-support?${q}`,{cache:"no-store"});const result=await r.json();if(!r.ok)throw new Error(result.error||"Falha no Apoio Interno");setInternalData(result.data||{});setInternalHasMore(Boolean(result.pagination?.hasMore))};
+  const refreshInternal=async()=>{const q=new URLSearchParams({status:internalStatus,page:String(internalPage)});if(internalSearch.trim())q.set("search",internalSearch.trim());const r=await fetch(`/api/internal-support?${q}`,{cache:"no-store"});const raw=await r.text();let result:{error?:string;data?:Record<string,FinanceRecord[]>;pagination?:{hasMore?:boolean}}={};try{result=raw.trim()?JSON.parse(raw):{}}catch{throw new Error("Resposta inválida do Apoio Interno")};if(!r.ok)throw new Error(result.error||"Falha no Apoio Interno");setInternalData(result.data||{});setInternalHasMore(Boolean(result.pagination?.hasMore))};
   useEffect(()=>{if(active!=="Apoio Interno")return;const timer=window.setTimeout(()=>{refreshInternal().catch(error=>{setInternalData({});setInternalNotice(error instanceof Error?error.message:"Não foi possível carregar o Apoio Interno.")})},250);return()=>window.clearTimeout(timer)},[active,internalSearch,internalStatus,internalPage]);
 
   useEffect(() => {
@@ -529,7 +551,7 @@ useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()
   const updateEmployee = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!editingEmployee) return; setEmployeeNotice("A guardar alterações…"); const form=new FormData(event.currentTarget); const response=await fetch("/api/employees",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId:editingEmployee.id,name:form.get("name"),phone:form.get("phone"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),updatedAt:editingEmployee.updated_at})}); const result=await response.json(); setEmployeeNotice(response.ok?"Trabalhador actualizado e auditado.":result.error); if(response.ok){setEditingEmployee(null);await refreshEmployees();} };
   const employeeGovernanceAction = async (payload:Record<string,unknown>) => { setEmployeeNotice("A guardar controlo de acesso…"); const response=await fetch("/api/employees",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}); const result=await response.json(); setEmployeeNotice(response.ok?"Supervisor ou permissão actualizado e auditado.":result.error); if(response.ok)await refreshEmployees(); };
   const createHrEvent = async (event:FormEvent<HTMLFormElement>) => { event.preventDefault(); const form=new FormData(event.currentTarget); setHrNotice("A guardar registo de RH…"); const response=await fetch("/api/hr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource:"hr_employee_events",record:{employee_id:form.get("employeeId"),event_type:form.get("eventType"),title:form.get("title"),occurred_on:form.get("occurredOn"),status:form.get("status")||"open"}})}); const result=await response.json(); setHrNotice(response.ok?"Registo criado e notificação encaminhada.":result.error); if(response.ok){setShowHrEventForm(false); const refreshed=await fetch("/api/hr",{cache:"no-store"});if(refreshed.ok)setHrData((await refreshed.json()).data||{});} };
-  const createPayrollRecord=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);setHrNotice("A preparar folha salarial…");const response=await fetch("/api/hr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource:"hr_payroll_records",record:{employee_id:form.get("employeeId"),period_start:form.get("periodStart"),period_end:form.get("periodEnd"),gross_amount:Number(form.get("grossAmount")||0),deductions:Number(form.get("deductions")||0),currency:"MZN",status:"draft"}})});const result=await response.json();setHrNotice(response.ok?"Registo salarial criado em rascunho e aguardando validação.":result.error);if(response.ok){setShowPayrollForm(false);const refreshed=await fetch("/api/hr",{cache:"no-store"});if(refreshed.ok)setHrData((await refreshed.json()).data||{});}};
+  const createPayrollRecord=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget),base=Number(form.get("baseSalary")||0),days=Number(form.get("workedDays")||0),absence=Number(form.get("absenceDays")||0),overtime=Number(form.get("overtimeHours")||0),bonuses=Number(form.get("bonuses")||0),allowances=Number(form.get("allowances")||0),advances=Number(form.get("advances")||0),deductions=Number(form.get("authorizedDeductions")||0),gross=base+bonuses+allowances+(overtime*(base/22/8*1.5)),net=Math.max(0,gross-advances-deductions-(absence*(base/22)));setHrNotice("A preparar folha salarial…");const response=await fetch("/api/hr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource:"hr_payroll_records",record:{employee_id:form.get("employeeId"),period_start:form.get("periodStart"),period_end:form.get("periodEnd"),base_salary:base,worked_days:days,absence_days:absence,overtime_hours:overtime,bonuses,allowances,advances,authorized_deductions:deductions,gross_amount:gross,deductions,net_amount:net,currency:"MZN",status:"draft"}})});const result=await response.json();setHrNotice(response.ok?`Registo salarial criado. Líquido: ${net.toFixed(2)} MZN.`:result.error);if(response.ok){setShowPayrollForm(false);const refreshed=await fetch("/api/hr",{cache:"no-store"});if(refreshed.ok)setHrData((await refreshed.json()).data||{});}};
   const createWorkforceRequest=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);const payload={requestType:workforceKind,employeeId:form.get("employeeId")||undefined,candidateName:form.get("candidateName")||undefined,candidatePhone:form.get("candidatePhone")||undefined,jobTitle:form.get("jobTitle")||undefined,departmentId:form.get("departmentId")||undefined,requestedRoleCode:form.get("requestedRoleCode")||undefined,proposedSalary:form.get("proposedSalary")?Number(form.get("proposedSalary")):undefined,reason:form.get("reason"),platformId:form.get("platformId")||undefined};setWorkforceNotice("A iniciar processo interdepartamental…");const response=await fetch("/api/workforce",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json();setWorkforceNotice(response.ok?`Processo ${String(result.workflow?.case_number||"")} iniciado e encaminhado.`:result.error);if(response.ok){setShowWorkforceForm(false);await Promise.all([refreshWorkforce(),refreshWorkflows()])}};
   const linkWorkforceEmployee=async(requestId:string)=>{const employeeId=window.prompt("ID do colaborador criado na tela Pessoas");if(!employeeId)return;const response=await fetch("/api/workforce",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId,employeeId})});const result=await response.json();setWorkforceNotice(response.ok?"Colaborador associado ao processo.":result.error);if(response.ok)await refreshWorkforce()};
   const createFinanceRecord = async (event:FormEvent<HTMLFormElement>) => {
@@ -571,7 +593,7 @@ useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()
   const fieldDecision=async(entityId:string,action:string)=>{const needsReason=action.startsWith("reject")||action.startsWith("correct"),reason=needsReason?window.prompt("Motivo da decisão")||"":"";if(needsReason&&reason.trim().length<6){setFieldNotice("Indique um motivo com pelo menos 6 caracteres.");return}const r=await fetch("/api/field",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({entityId,action,reason})});const result=await r.json();setFieldNotice(r.ok?"Decisão registada e auditada.":result.error);if(r.ok)await refreshField()};
   const createSupportRecord=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const f=new FormData(event.currentTarget),ticketId=f.get("ticketId")||selectedSupportTicket;const configs:Record<string,unknown>={ticket:{resource:"ticket",record:{platform_slug:f.get("platform"),ticket_type:f.get("ticketType"),category:f.get("category"),subject:f.get("subject"),description:f.get("description"),priority:f.get("priority"),customer_reference:f.get("customerReference"),customer_name:f.get("customerName"),customer_contact:f.get("customerContact"),external_reference:f.get("externalReference")||null}},message:{resource:"message",record:{ticket_id:ticketId,message:f.get("message"),is_internal:f.get("internal")==="on"}},attachment:{resource:"attachment",record:{ticket_id:ticketId,file_name:f.get("fileName"),mime_type:f.get("mimeType")||null,storage_reference:f.get("reference")}}};setSupportNotice("A guardar atendimento…");const r=await fetch("/api/support",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(configs[supportKind])});const result=await r.json();setSupportNotice(r.ok?"Atendimento atualizado e auditado.":result.error);if(r.ok){setShowSupportForm(false);await refreshSupport()}};
   const supportAction=async(ticketId:string,action:string)=>{const employeeId=supportTargets[ticketId]||undefined,reason=action==="escalate"?window.prompt("Motivo do escalonamento")||"":undefined,resolution=action==="resolve"?window.prompt("Resolução aplicada")||"":undefined;setSupportNotice("A validar o estado do atendimento…");const r=await fetch("/api/support",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({ticketId,action,employeeId,reason,resolution})});const result=await r.json();setSupportNotice(r.ok?"Estado do atendimento atualizado.":result.error);if(r.ok)await refreshSupport()};
-  const decideApproval=async(requestId:string,decision:"approved"|"rejected")=>{const comment=window.prompt("Comentário da decisão")||"",reason=decision==="rejected"?window.prompt("Motivo da rejeição")||"":"";setApprovalNotice("A validar permissão e separação de funções…");const r=await fetch("/api/approvals",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId,decision,comment,reason})});const result=await r.json();setApprovalNotice(r.ok?"Decisão guardada e auditada.":result.error);if(r.ok)await refreshApprovals()};
+  const decideApproval=async(requestId:string,decision:"approved"|"rejected"|"returned")=>{const comment=window.prompt("Comentário da decisão")||"",reason=decision!=="approved"?window.prompt(decision==="returned"?"Motivo da devolução":"Motivo da rejeição")||"":"";setApprovalNotice("A validar permissão, separação de funções e quorum…");const r=await fetch("/api/approvals",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId,decision,comment,reason})});const result=await r.json();setApprovalNotice(r.ok?result.quorum&&result.quorum.required>result.quorum.received?`Aprovação ${result.quorum.received}/${result.quorum.required} registada; aguardando o próximo aprovador.`:"Decisão guardada e auditada.":result.error);if(r.ok)await refreshApprovals()};
   const createReportRecord=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const f=new FormData(event.currentTarget),resource=f.get("resource"),record=resource==="saved_report"?{name:f.get("name"),report_type:f.get("reportType"),filters:{platform:f.get("platform"),department:f.get("department"),from:f.get("from"),to:f.get("to")}}:{saved_report_id:f.get("savedReportId"),frequency:f.get("frequency"),recipient_reference:f.get("recipient"),next_run_at:f.get("nextRun"),status:"active"};const r=await fetch("/api/reports",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource,record})});const result=await r.json();setReportNotice(r.ok?"Relatório guardado ou programado.":result.error);if(r.ok){setShowReportForm(false);await refreshReports()}};
   const createAssetRecord=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const f=new FormData(event.currentTarget);const configs:Record<string,unknown>={asset:{resource:"asset",record:{platform_slug:f.get("platform")||null,asset_tag:f.get("assetTag"),name:f.get("name"),asset_type:f.get("assetType"),serial_number:f.get("serial")||null,manufacturer:f.get("manufacturer")||null,model:f.get("model")||null,department_id:f.get("departmentId")||null,location:f.get("location")||null,acquired_on:f.get("acquiredOn")||null,acquisition_cost:f.get("cost")?Number(f.get("cost")):null,warranty_until:f.get("warrantyUntil")||null,notes:f.get("notes")||null,status:"available"}},maintenance:{resource:"maintenance",record:{asset_id:f.get("assetId"),maintenance_type:f.get("maintenanceType"),description:f.get("description"),provider:f.get("provider")||null,cost:f.get("cost")?Number(f.get("cost")):null,status:"planned",scheduled_at:f.get("scheduledAt")||null,next_due_at:f.get("nextDueAt")||null}},document:{resource:"document",record:{asset_id:f.get("assetId"),document_type:f.get("documentType"),title:f.get("title"),storage_reference:f.get("reference")}}};setAssetNotice("A guardar registo patrimonial…");const r=await fetch("/api/assets",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(configs[assetKind])});const result=await r.json();setAssetNotice(r.ok?"Registo patrimonial guardado e auditado.":result.error);if(r.ok){setShowAssetForm(false);await refreshAssets()}};
   const assetAction=async(assetId:string,action:string,maintenanceId?:string)=>{const employeeId=assetTargets[assetId]||undefined,condition=["assign","return"].includes(action)?window.prompt("Estado físico do ativo","Bom")||"Bom":undefined,expectedReturn=action==="assign"?window.prompt("Data prevista de devolução (AAAA-MM-DD), opcional")||undefined:undefined;setAssetNotice("A validar estado e responsabilidade…");const r=await fetch("/api/assets",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({assetId,action,maintenanceId,employeeId,condition,expectedReturn})});const result=await r.json();setAssetNotice(r.ok?"Património atualizado e auditado.":result.error);if(r.ok)await refreshAssets()};
@@ -701,11 +723,12 @@ if(active==="Operações de Campo")void refreshField();
     },
     [dashboard?.platforms, platform],
   );
-  const totalUsers = dashboard?.platforms.reduce((sum, item) => {
+  const historicalTotalUsers = dashboard?.platforms.reduce((sum, item) => {
     return sum + item.metrics
       .filter((metric) => ["users", "members", "buyers", "passengers", "clients", "professionals"].includes(metric.key))
       .reduce((platformTotal, metric) => platformTotal + Number(metric.value || 0), 0);
   }, 0) || 0;
+  const totalUsers = dashboard?.test_mode?.unique_users ?? historicalTotalUsers;
   const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
   const selectedPlatformStatus = dashboard?.platforms.find((item) => item.name === platform);
   const platformDirectory = (dashboard?.platforms || []).map((item) => ({
@@ -739,13 +762,7 @@ if(active==="Operações de Campo")void refreshField();
           <div><strong>DeliGo Triunfal</strong><span>Central Web</span></div>
         </div>
         <nav>
-          <p className="navLabel">ÁREAS DA EMPRESA</p>
-          {visibleNav.map(([icon, label]) => (
-            <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}>
-              <span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{label}
-            </button>
-          ))}
-          <p className="navLabel">SISTEMA</p>
+          {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{label}</button>)}</div> })}
           <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span>Meu Perfil</button>
         </nav>
         <div className="user">
@@ -813,6 +830,7 @@ if(active==="Operações de Campo")void refreshField();
             {homologationNotice&&<div className="operationalNotice">{homologationNotice}</div>}
             <div className="safeNotice"><b>Limites de segurança</b><span>Esta área não cria utilizadores reais, não envia SMS, não cria pedidos, não credita carteiras e não executa pagamentos. Toda ação permanece rastreável no ambiente de homologação.</span></div>
           </section>}
+          {active === "Meu Perfil" && <ProfileSettings/>}
           {active === "Plataformas" && (
             <section className="platformDirectory" aria-label="Plataformas do grupo">
               <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do ecossistema, operações separadas</h2><p>Abra uma plataforma para ver apenas os seus utilizadores, operações, integrações, equipa e incidentes.</p></div><b>{connectedPlatforms}/{dashboard?.platforms.length || 0} ligadas</b></div>
@@ -823,7 +841,7 @@ if(active==="Operações de Campo")void refreshField();
                   const Icon = platformIcons[item.name] || Sparkles;
                   return <button className={`platformDirectoryCard ${platform === item.name ? "selected" : ""}`} key={item.slug} onClick={() => { setPlatform(item.name); setPlatformCollection(""); setSubArea("Resumo"); }}>
                     <div><i className="platformArtwork" style={{ background: platformCards.find((card) => card.name === item.name)?.color || "#555" }}><img src={platformArtwork[item.name]} alt={`Marca ${item.name}`} /><Icon aria-hidden="true" /></i><span className={item.connected ? "connectedPill" : "warningPill"}>{item.connected ? "Ligada" : "A verificar"}</span></div>
-                    <h3>{item.name}</h3><p>{operationalLabel(item.name)} e dados próprios no backend central.</p>
+                    <h3>{item.name}</h3><p>{operationalLabel(item.name)} e dados próprios no backend central.</p><small>Plataforma: {String((item as Record<string,unknown>).platform_status||"Em desenvolvimento")} · HQ: {String((item as Record<string,unknown>).integration_status||"A verificar")}{(item as Record<string,unknown>).last_sync_at?` · Sync ${new Date(String((item as Record<string,unknown>).last_sync_at)).toLocaleString("pt-MZ")}`:""}</small>
                     <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>{operationalLabel(item.name)}</dt><dd>{operations}</dd></div><div><dt>Volume observado</dt><dd>{money(item.value)}</dd></div></dl>
                     <strong>Abrir painel da plataforma <ChevronRight aria-hidden="true" /></strong>
                   </button>;
@@ -1093,15 +1111,7 @@ if(active==="Operações de Campo")void refreshField();
           {active==="Minhas Tarefas"&&<MyTasksCenter/>}
           {active==="Aprovações"&&<ApprovalRules/>}
           {workflowDepartmentByModule[active]&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>}
-          {active === "Mapa operacional" && <section className="fullMapWorkspace">
-            <div className="fullMapHead"><div><span>TRACKING OPERACIONAL</span><h2>Mapa em tempo real</h2><p>Escolha a plataforma para ver apenas os profissionais que estão online e a enviar GPS.</p></div><div className="mapFilter" role="group" aria-label="Filtrar plataforma do mapa">{["Todas as plataformas", "DeliGo", "SARCA", "TaoMoz"].map((item) => <button key={item} className={platform === item ? "active" : ""} onClick={() => setPlatform(item)}>{item === "Todas as plataformas" ? "Todas" : item}</button>)}</div></div>
-            <div className="mapLegend"><span><i className="deligo" />DeliGo · Estafetas</span><span><i className="sarca" />SARCA · Motoristas</span><span><i className="taomoz" />TaoMoz · Couriers</span><b>{mapMarkers.length} ao vivo</b></div>
-            <div className="mapControlBar"><input value={mapSearch} onChange={(event) => setMapSearch(event.target.value)} placeholder="Pesquisar trabalhador ou identificação" aria-label="Pesquisar trabalhador no mapa" /><div className="mapFilter" role="group" aria-label="Filtrar estado">{[["todos","Todos"],["disponivel","Disponível"],["ocupado","Ocupado"],["em_servico","Em serviço"],["offline","Offline"]].map(([value,label]) => <button key={value} className={mapStatus === value ? "active" : ""} onClick={() => setMapStatus(value)}>{label}</button>)}</div></div>
-            <div className="fullOperationsMap"><LiveOperationsMap markers={filteredMapMarkers} /></div>
-            <div className="mapWorkerList">{filteredMapMarkers.map((marker) => <button key={marker.id} onClick={() => setSelectedMapWorker(marker)}><strong>{marker.workerName || marker.role}</strong><span>{marker.platform} · {marker.role} · {marker.status?.replaceAll("_", " ") || "disponível"}</span><small>Atualizado {new Date(marker.updatedAt).toLocaleTimeString("pt-MZ", { hour:"2-digit", minute:"2-digit" })}</small></button>)}{!filteredMapMarkers.length && <div className="peopleEmpty">Sem trabalhadores autorizados com localização recente para este filtro.</div>}</div>
-            {selectedMapWorker && <div className="mapWorkerDetail"><div><span>TRABALHADOR AUTORIZADO</span><h3>{selectedMapWorker.workerName || selectedMapWorker.role}</h3><p>{selectedMapWorker.platform} · {selectedMapWorker.role} · {selectedMapWorker.status?.replaceAll("_", " ") || "disponível"}</p></div><div><small>Última localização</small><strong>{new Date(selectedMapWorker.updatedAt).toLocaleString("pt-MZ")}</strong><small>{selectedMapWorker.service ? `Serviço: ${selectedMapWorker.service}` : "Sem serviço activo identificado"}</small></div><button onClick={() => setSelectedMapWorker(null)}>Fechar</button></div>}
-            <p className="mapPrivacyNote">As posições são atualizadas automaticamente a cada 3 segundos e desaparecem se deixarem de ser recebidas durante cinco minutos.</p>
-          </section>}
+          {active === "Mapa operacional" && <DeligoOperationalMap/>}
           {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Operações de Campo" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
@@ -1135,8 +1145,8 @@ if(active==="Operações de Campo")void refreshField();
           <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
-              ["Total de utilizadores", String(totalUsers), "Nas plataformas ligadas ao HQ"],
-              ["Valor total processado", money(dashboard?.modules.totalValue || 0), "Volume operacional consolidado"],
+              ["Total de utilizadores", String(totalUsers), dashboard?.test_mode ? "3 contas de teste · 15 carteiras" : "Nas plataformas ligadas ao HQ"],
+              [dashboard?.test_mode ? "Saldo fictício de teste" : "Valor total processado", money(dashboard?.test_mode?.wallet_total ?? dashboard?.modules.totalValue ?? 0), dashboard?.test_mode ? "Ledger central · actualizado em tempo real" : "Volume operacional consolidado"],
               ["Receita hoje", money(commandCenter?.summary.revenueToday || 0), "Comissões confirmadas no stream corporativo"],
               ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
               ["Operações hoje", String(commandCenter?.summary.operationsToday || 0), "Eventos operacionais recebidos hoje"],
@@ -1167,6 +1177,26 @@ if(active==="Operações de Campo")void refreshField();
                 <LiveOperationsMap markers={mapMarkers} />
                 <div className="liveMapCopy"><span>MAPA OPERACIONAL · {mapMarkers.length} AO VIVO</span><strong>Tracking em tempo real</strong><p>{mapMarkers.length ? "Posições recentes de estafetas, motoristas e couriers. Actualiza a cada 10 segundos." : "Sem posições recentes para o filtro actual."}</p><button onClick={() => navigate("Mapa operacional")}>Abrir mapa completo</button></div>
               </article>
+            </div>
+          </section>
+
+          <section className="deligoSyncPanel">
+            <div className="sectionHeading"><div><h2>DeliGo em sintonia com a Central</h2><p>Cliente, restaurante e estafeta · filas operacionais reais</p></div><button onClick={()=>{setPlatform("DeliGo");navigate("Plataformas")}}>Abrir DeliGo →</button></div>
+            <div className="deligoSyncMetrics">
+              {[
+                ["Pedidos activos",dashboard?.deligoOperations?.summary.activeOrders||0,"Operação"],
+                ["Precisam de atenção",dashboard?.deligoOperations?.summary.attentionOrders||0,"Mais de 45 minutos"],
+                ["KYC pendente",dashboard?.deligoOperations?.summary.pendingKyc||0,"Restaurantes e estafetas"],
+                ["Apoio aberto",dashboard?.deligoOperations?.summary.openSupport||0,"Mensagens dos utilizadores"],
+                ["Bilhetes vendidos",dashboard?.deligoOperations?.summary.ticketsSold||0,money(dashboard?.deligoOperations?.summary.ticketRevenue||0)],
+              ].map(([label,value,note])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>)}
+            </div>
+            <div className="deligoSyncQueues">
+              <article><header><strong>Pedidos em curso</strong><button onClick={()=>navigate("Plataformas")}>Ver operação</button></header>{(dashboard?.deligoOperations?.activeOrders||[]).slice(0,4).map(order=><div key={order.id}><span><b>#{order.id.slice(0,8)}</b>{String(order.status).replaceAll("_"," ")}</span><strong>{money(order.total_amount)}</strong><DeligoCommandButton action="cancel_order" entityId={order.id} label="Cancelar" danger/></div>)}{!dashboard?.deligoOperations?.activeOrders.length&&<p>Sem pedidos activos.</p>}</article>
+              <article><header><strong>KYC por rever</strong><button onClick={()=>navigate("Operações de Campo")}>Abrir KYC</button></header>{(dashboard?.deligoOperations?.pendingKyc||[]).slice(0,4).map(item=><div key={item.id}><span><b>{item.full_name||"Utilizador"}</b>{item.role==="courier"?"Estafeta":"Restaurante"}</span><strong>Pendente</strong><span className="deligo-inline-actions"><DeligoCommandButton action="approve_kyc" entityId={item.id} label="Aprovar"/><DeligoCommandButton action="reject_kyc" entityId={item.id} label="Rejeitar" danger/></span></div>)}{!dashboard?.deligoOperations?.pendingKyc.length&&<p>Sem KYC pendente.</p>}</article>
+              <article><header><strong>Apoio ao cliente</strong><button onClick={()=>navigate("Apoio ao Cliente")}>Abrir apoio</button></header>{(dashboard?.deligoOperations?.openSupport||[]).slice(0,4).map(item=><div key={item.id}><span><b>{item.reason||"Pedido de apoio"}</b>{item.customer_name||"Cliente"}</span><strong>{String(item.status).replaceAll("_"," ")}</strong></div>)}{!dashboard?.deligoOperations?.openSupport.length&&<p>Sem tickets abertos.</p>}</article>
+              <article><header><strong>Controlo de contas</strong><button onClick={()=>navigate("Plataformas")}>Todos os perfis</button></header>{(dashboard?.deligoOperations?.accountControls||[]).slice(0,4).map(item=>{const inactive=["blocked","suspended","disabled"].includes(item.administrative_status);const action=item.role==="restaurant"?(inactive?"reactivate_restaurant":"suspend_restaurant"):item.role==="courier"?(inactive?"reactivate_courier":"disable_courier"):(inactive?"unblock_client":"block_client");return <div key={item.id}><span><b>{item.full_name||"Utilizador"}</b>{item.role} · {item.administrative_status||"active"}</span><DeligoCommandButton action={action} entityId={item.id} label={inactive?"Reativar":"Restringir"} danger={!inactive}/></div>})}{!dashboard?.deligoOperations?.accountControls?.length&&<p>Sem perfis disponíveis.</p>}</article>
+              <article><header><strong>Ocorrências abertas</strong><button onClick={()=>navigate("Apoio ao Cliente")}>Ver ocorrências</button></header>{(dashboard?.deligoOperations?.openIncidents||[]).slice(0,4).map(item=><div key={item.id}><span><b>{item.reason||"Ocorrência de pedido"}</b>{String(item.status).replaceAll("_"," ")}</span><DeligoCommandButton action="resolve_incident" entityId={item.id} label="Resolver"/></div>)}{!dashboard?.deligoOperations?.openIncidents?.length&&<p>Sem ocorrências abertas.</p>}</article>
             </div>
           </section>
 

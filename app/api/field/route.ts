@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCorporatePermission, hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 const entity="10000000-0000-0000-0000-000000000001";
-const platforms:Record<string,string>={deligo:"20000000-0000-0000-0000-000000000001",comunhao:"20000000-0000-0000-0000-000000000002",taomoz:"20000000-0000-0000-0000-000000000003",sarca:"20000000-0000-0000-0000-000000000004",mestre24:"20000000-0000-0000-0000-000000000005"};
+const platforms:Record<string,string>={deligo:"20000000-0000-0000-0000-000000000001",sarca:"20000000-0000-0000-0000-000000000004",mestre24:"20000000-0000-0000-0000-000000000005",comunhao:"20000000-0000-0000-0000-000000000002",corporate:"20000000-0000-0000-0000-000000000006"};
 const resources=["field_visits","field_checklists","field_evidence","field_reports","field_verifications","field_kyc_cases","field_form_templates","field_form_responses","field_incidents","field_history","workflow_cases","employees","platforms"];
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 async function ctx(permission="field.view",platform?:string){const authorization=await requireCorporatePermission(permission,platform),key=process.env.SUPABASE_SERVICE_ROLE_KEY;return authorization&&key?{actor:authorization.actor,authorization,key}:null}
@@ -36,7 +36,7 @@ export async function POST(request:NextRequest){
 
 export async function PATCH(request:NextRequest){
   const body=await request.json() as {visitId?:string;entityId?:string;action?:string;reason?:string;result?:string;latitude?:number|null;longitude?:number|null};if(!body.action)return NextResponse.json({error:"Ação inválida."},{status:400});
-  const decision=["approve_verification","reject_verification","correct_verification","approve_kyc","reject_kyc","correct_kyc"].includes(body.action),c=await ctx(decision?"field.approveKyc":"field.createVisit");if(!c)return NextResponse.json({error:"Sem acesso a esta ação Field."},{status:403});
+  const decision=["approve_verification","reject_verification","correct_verification","approve_kyc","reject_kyc","correct_kyc"].includes(body.action),kycDecision=["approve_kyc","reject_kyc","correct_kyc"].includes(body.action),c=await ctx(decision?(kycDecision?"field.kyc.decide":"field.kyc.review"):"field.createVisit");if(!c)return NextResponse.json({error:"Sem acesso a esta ação Field."},{status:403});
   if(["approve_verification","reject_verification","correct_verification","approve_kyc","reject_kyc","correct_kyc"].includes(body.action)){
     if(!body.entityId)return NextResponse.json({error:"Decisão reservada à supervisão autorizada."},{status:403});
     const isKyc=body.action.endsWith("_kyc"),table=isKyc?"field_kyc_cases":"field_verifications";

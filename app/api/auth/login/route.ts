@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const actor = authUserId ? await hqRpc("hq_actor_context_v1", { p_auth_user_id: authUserId }) : null;
   if (!actor || actor.status !== "active") return NextResponse.json({ error: actor?.status === "suspended" ? "Esta conta está suspensa." : "A conta ainda não foi activada pelo Super Administrador." }, { status: 403 });
   const response = NextResponse.json({ user: { email: payload.user?.email, ...payload.user?.user_metadata } });
-  const secure = process.env.NODE_ENV === "production";
+  const secure = request.nextUrl.protocol === "https:";
   response.cookies.set("hq_access_token", payload.access_token, { httpOnly: true, secure, sameSite: "strict", path: "/", maxAge: payload.expires_in || 3600 });
   response.cookies.set("hq_refresh_token", payload.refresh_token, { httpOnly: true, secure, sameSite: "strict", path: "/", maxAge: 60 * 60 * 24 * 7 });
   return response;

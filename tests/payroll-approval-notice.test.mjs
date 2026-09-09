@@ -1,0 +1,1 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';const sql=fs.readFileSync('supabase/migrations/402_payroll_approval_employee_notice.sql','utf8');test('aprovação notifica mas não paga automaticamente',()=>{assert.match(sql,/payroll_approved/);assert.match(sql,/moz_esms/);assert.match(sql,/never initiates a provider payout/);});
