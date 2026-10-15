@@ -237,7 +237,6 @@ type DashboardData = {
     platforms: Array<{ slug: string; name: string; value: number; people: Array<{ id: string; name: string; role: string; created_at: string }> }>;
     departments: Record<string, { total: number; active?: number; open?: number }>;
   };
-  test_mode?: { unique_users: number; wallet_count: number; wallet_total: number; currency: string; source: string; updated_at: string } | null;
   governance: {
     legalName: string;
     legalForm: string;
@@ -715,7 +714,7 @@ if(active==="Operações de Campo")void refreshField();
       .filter((metric) => ["users", "members", "buyers", "passengers", "clients", "professionals"].includes(metric.key))
       .reduce((platformTotal, metric) => platformTotal + Number(metric.value || 0), 0);
   }, 0) || 0;
-  const totalUsers = dashboard?.test_mode?.unique_users ?? historicalTotalUsers;
+  const totalUsers = historicalTotalUsers;
   const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
   const selectedPlatformStatus = dashboard?.platforms.find((item) => item.name === platform);
   const platformDirectory = (dashboard?.platforms || []).map((item) => ({
@@ -1134,9 +1133,9 @@ if(active==="Operações de Campo")void refreshField();
           <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
-              ["Total de utilizadores", String(totalUsers), dashboard?.test_mode ? "3 contas de teste · 15 carteiras" : "Nas plataformas ligadas ao HQ"],
-              [dashboard?.test_mode ? "Saldo fictício de teste" : "Valor total processado", money(dashboard?.test_mode?.wallet_total ?? dashboard?.modules.totalValue ?? 0), dashboard?.test_mode ? "Ledger central · actualizado em tempo real" : "Volume operacional consolidado"],
-              ["Receita hoje", money(commandCenter?.summary.revenueToday || 0), "Comissões confirmadas no stream corporativo"],
+              ["Total de utilizadores", String(totalUsers), "Nas plataformas ligadas ao HQ"],
+              ["Financeiro confirmado", "—", "Apenas depósitos PaySuite reconciliados"],
+              ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Comissões confirmadas no stream corporativo"],
               ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
               ["Operações hoje", String(commandCenter?.summary.operationsToday || 0), "Eventos operacionais recebidos hoje"],
             ].map(([label, value, note], index) => (

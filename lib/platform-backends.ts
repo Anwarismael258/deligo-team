@@ -4,7 +4,9 @@ export type PlatformBackend = "deligo" | "comunhao" | "sarca" | "taomoz" | "mest
 
 const backendUrl = (platform: PlatformBackend) => {
   const envName = { deligo: "DELIGO_SUPABASE_URL", comunhao: "COMUNHAO_SUPABASE_URL", sarca: "SARCA_SUPABASE_URL", taomoz: "TAOMOZ_SUPABASE_URL", mestre24: "MESTRE24_SUPABASE_URL" }[platform];
-  return process.env[envName] || supabaseUrl();
+  const url = process.env[envName]?.trim();
+  if (!url) throw new Error(`PLATFORM_${platform.toUpperCase()}_URL_NOT_CONFIGURED`);
+  return url.replace(/\/$/, "");
 };
 
 const platformKey = (platform: PlatformBackend) => process.env[`${platform.toUpperCase()}_SUPABASE_SERVICE_ROLE_KEY`] || process.env.SUPABASE_SERVICE_ROLE_KEY;
