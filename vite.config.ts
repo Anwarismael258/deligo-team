@@ -1,5 +1,6 @@
 import vinext from "vinext";
 import { defineConfig } from "vite";
+import { nitro } from "nitro/vite";
 import hostingConfig from "./.openai/hosting.json";
 import { sites } from "./build/sites-vite-plugin";
 
@@ -11,6 +12,7 @@ const { d1, r2 } = hostingConfig;
 // macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
 const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const isLocalPreview = process.env.DELIGO_LOCAL_PREVIEW === "1";
+const isVercel = Boolean(process.env.VERCEL);
 
 const localBindingConfig = {
   main: "./worker/index.ts",
@@ -42,7 +44,7 @@ export default defineConfig(async () => {
   process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
 
   // Wrangler snapshots its log path while the Cloudflare plugin is imported.
-  const { cloudflare } = isLocalPreview
+  const { cloudflare } = isLocalPreview || isVercel
     ? { cloudflare: null }
     : await import("@cloudflare/vite-plugin");
 
@@ -56,7 +58,9 @@ export default defineConfig(async () => {
     plugins: [
       vinext(),
       ...(isLocalPreview ? [] : [sites()]),
-      ...(!isLocalPreview && cloudflare
+      ...(isVercel
+        ? [nitro()]
+        : !isLocalPreview && cloudflare
         ? [
             cloudflare({
               viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
