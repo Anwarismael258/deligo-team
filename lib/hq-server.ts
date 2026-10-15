@@ -1,7 +1,11 @@
 import { cookies } from "next/headers";
 
-const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
-export const supabaseUrl = () => process.env.SUPABASE_URL || STAGING_URL;
+/** Production HQ must never silently fall back to a staging project. */
+export const supabaseUrl = () => {
+  const url = process.env.SUPABASE_URL?.trim();
+  if (!url) throw new Error("SUPABASE_URL_NOT_CONFIGURED");
+  return url.replace(/\/$/, "");
+};
 
 export async function corporateActor() {
   const anonKey = process.env.SUPABASE_ANON_KEY;

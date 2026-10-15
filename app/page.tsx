@@ -26,41 +26,21 @@ const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market
 const nav = [
   ["⌂", "Visão geral"],
   ["◇", "Plataformas"],
-  ["⌖", "Mapa operacional"],
-  ["♛", "Direcção Executiva"],
   ["♙", "Pessoas"],
-  ["♧", "Recursos Humanos"],
   ["□", "Finanças"],
-  ["▦", "Contabilidade"],
-  ["§", "Jurídico"],
-  ["⚑", "Conformidade e Risco"],
-  ["⌘", "Tecnologia / IT"],
-  ["▧", "Compras"],
-  ["▣", "Património"],
   ["↗", "Marketing"],
   ["⌖", "Operações de Campo"],
   ["◌", "Apoio ao Cliente"],
-  ["★", "Avaliações & Reputação"],
-  ["＋", "Aquisição de Parceiros"],
-  ["☆", "Embaixadores"],
   ["✓", "Projectos e Tarefas"],
-  ["?", "Apoio Interno"],
   ["!", "Centro de Notificações"],
-  ["✓", "Minhas Tarefas"],
-  ["●", "Aprovações"],
   ["⌁", "BI / Análises"],
   ["▤", "Relatórios"],
-  ["◎", "Registo de Auditoria"],
-  ["◈", "Homologação"],
 ];
 const navGroups: Array<[string,string[]]> = [
-  ["GESTÃO", ["Visão geral","Plataformas","Mapa operacional","Direcção Executiva","Pessoas"]],
-  ["CORPORATIVO", ["Recursos Humanos","Finanças","Contabilidade","Jurídico","Conformidade e Risco","Tecnologia / IT","Compras","Património"]],
-  ["OPERAÇÕES & CRESCIMENTO", ["Marketing","Operações de Campo","Apoio ao Cliente","Avaliações & Reputação","Aquisição de Parceiros","Embaixadores"]],
-  ["EXECUÇÃO", ["Projectos e Tarefas","Apoio Interno"]],
-  ["MEU TRABALHO", ["Centro de Notificações","Minhas Tarefas","Aprovações"]],
-  ["INTELIGÊNCIA & CONTROLO", ["BI / Análises","Relatórios","Registo de Auditoria"]],
-  ["SISTEMA", ["Homologação"]],
+  ["PRINCIPAL", ["Visão geral","Plataformas","Pessoas","Finanças"]],
+  ["OPERAÇÕES", ["Marketing","Operações de Campo","Apoio ao Cliente"]],
+  ["TRABALHO", ["Projectos e Tarefas","Centro de Notificações"]],
+  ["RESULTADOS", ["BI / Análises","Relatórios"]],
 ];
 
 const moduleIcons: Record<string, LucideIcon> = {
@@ -71,7 +51,6 @@ const moduleIcons: Record<string, LucideIcon> = {
   "Apoio ao Cliente": Headphones, "Avaliações & Reputação": Star, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
   "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Centro de Notificações": Bell, "Minhas Tarefas": ListTodo, "Aprovações": CheckCircle2,
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
-  "Homologação": Settings,
 };
 
 const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Church, "DeliGo Market": ShoppingBag, SARCA: Car, Mestre24: Hammer };
@@ -110,7 +89,6 @@ const moduleDetails: Record<string, string[]> = {
   "BI / Análises": ["Crescimento", "Receita", "Despesas", "Performance", "KPIs"],
   "Relatórios": ["Corporativos", "Financeiros", "RH", "Operações", "Auditoria"],
   "Registo de Auditoria": ["Actividade", "Logins", "Segurança", "Alterações", "Exportações"],
-  "Homologação": ["Contas de teste", "DeliGo", "Carteiras zero", "Auditoria"],
 };
 
 const modulePresentation: Record<string, { description: string; action: string; primary: string; secondary: string; visual: string; status: string; color: string }> = {
@@ -139,7 +117,6 @@ const modulePresentation: Record<string, { description: string; action: string; 
   "BI / Análises": { description: "Consolida KPIs, crescimento e desempenho autorizado de todo o grupo.", action: "Criar análise", primary: "Indicadores", secondary: "Relatórios agendados", visual: "Evolução dos KPIs", status: "Camada analítica", color: "#6c5bb5" },
   "Relatórios": { description: "Produz relatórios corporativos, financeiros, operacionais e de auditoria.", action: "Gerar relatório", primary: "Relatórios", secondary: "Agendados", visual: "Produção de relatórios", status: "Serviço documental", color: "#537493" },
   "Registo de Auditoria": { description: "Consulta eventos imutáveis de acesso, segurança e alterações críticas.", action: "Exportar auditoria", primary: "Eventos", secondary: "Alertas críticos", visual: "Actividade auditada", status: "Trilho de auditoria", color: "#555b66" },
-  "Homologação": { description: "Cria contas de teste controladas, sem alterar utilizadores reais nem movimentar pagamentos.", action: "Preparar DeliGo", primary: "Contas de teste", secondary: "Ambiente staging", visual: "Cobertura de QA", status: "Acesso Super Admin", color: "#51607a" },
 };
 
 const routeByModule: Record<string, string> = {
@@ -173,7 +150,6 @@ const routeByModule: Record<string, string> = {
   "BI / Análises": "/analises",
   "Relatórios": "/relatorios",
   "Registo de Auditoria": "/auditoria",
-  "Homologação": "/homologacao",
 };
 
 const moduleByRoute = Object.fromEntries(Object.entries(routeByModule).map(([module, route]) => [route, module]));
@@ -817,7 +793,7 @@ if(active==="Operações de Campo")void refreshField();
 
         <div className="content">
           <div className="eyebrow"><span>HQ</span> / {active}</div>
-          <div className="frozenBanner"><i /> {dashboard ? `Dados reais ligados a ${dashboard.environment} · actualizados ${new Date(dashboard.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}` : connectionError || "A ligar ao backend Deligo Staging…"}</div>
+          <div className="frozenBanner"><i /> {dashboard ? `Dados reais ligados a ${dashboard.environment} · actualizados ${new Date(dashboard.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}` : connectionError || "A ligar ao backend configurado…"}</div>
           <div className="titleRow">
             <div>
               <h1>{active === "Visão geral" ? "Visão geral do grupo" : active}</h1>
@@ -833,7 +809,7 @@ if(active==="Operações de Campo")void refreshField();
               </div>
             </section>
           )}
-          {active === "Homologação" && <section className="homologationWorkspace">
+          {false && active === "Homologação" && <section className="homologationWorkspace">
             <div className="technologyHero"><div><span>AMBIENTE CONTROLADO</span><h2>Homologação DeliGo</h2><p>Cria três contas de teste no staging: Cliente, Restaurante e Estafeta. Os registos recebem marca de teste, carteiras a zero e nunca chamam gateways de pagamento.</p></div><div className="live"><i /> Somente Super Admin</div></div>
             <div className="financeKpis"><article><span>Personas</span><strong>3</strong><small>Cliente, Restaurante, Estafeta</small></article><article><span>Carteiras</span><strong>0 MT</strong><small>Saldo inicial obrigatório</small></article><article><span>Pedidos</span><strong>0</strong><small>Nenhuma operação criada</small></article><article><span>Destino</span><strong>Staging</strong><small>Nunca produção financeira</small></article></div>
             <div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Preparar cenário de teste</h3><p>A palavra-passe é transmitida somente para criar estas contas de teste e não é apresentada ou guardada no HQ.</p></div></div><div className="financeEntryForm"><label><span>Palavra-passe das contas de teste</span><input type="password" value={homologationPassword} onChange={event=>setHomologationPassword(event.target.value)} minLength={8} autoComplete="new-password" placeholder="Mínimo 8 caracteres" /></label><button className="primaryAction" onClick={()=>void provisionDeligoTestPersonas()}>Criar / atualizar contas DeliGo</button></div></div>
