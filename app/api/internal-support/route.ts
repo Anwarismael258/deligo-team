@@ -17,7 +17,8 @@ export async function GET(req:NextRequest){
   if(status&&status!=="all")filters.push(`status.eq.${encodeURIComponent(status)}`);
   if(search){const term=encodeURIComponent(search.replace(/[,*()]/g," ").trim());filters.push(`or(subject.ilike.*${term}*,category.ilike.*${term}*,description.ilike.*${term}*)`)}
   if(filters.length)query+=`&and=(${filters.join(",")})`;
-  const [requests,departments,employees]=await Promise.all([rest(c.key,query),rest(c.key,"departments?select=id,name,code&active=eq.true&order=name"),rest(c.key,"employees?select=id,name,employee_code,status,department_id&status=eq.active&order=name&limit=500")]);
+  const [requests,departments,employeesRaw]=await Promise.all([rest(c.key,query),rest(c.key,"departments?select=id,name,code&order=name"),rest(c.key,"employees?select=id,display_name,employee_code,status,department_id&status=eq.active&order=display_name&limit=500")]);
+  const employees=(employeesRaw||[]).map((employee:Record<string,unknown>)=>({...employee,name:employee.display_name||"Trabalhador"}));
   const ids=(requests||[]).map((x:Record<string,unknown>)=>x.id);
   const [messages,events]=ids.length?await Promise.all([rest(c.key,`internal_request_messages?request_id=in.(${ids.join(",")})&select=*&order=created_at.asc`),rest(c.key,`internal_request_history?request_id=in.(${ids.join(",")})&select=*&order=created_at.desc`)]):[[],[]];
   return NextResponse.json({data:{requests,messages,history:events,departments,employees},pagination:{page,pageSize,hasMore:(requests||[]).length===pageSize},permissions:{canManageDepartment:true,canViewInternalNotes:admin||Boolean(c.employee.department_id)}},{headers:{"Cache-Control":"private, no-store"}});

@@ -45,7 +45,9 @@ export async function GET() {
     ]) as [Record<string, unknown>, Record<string, unknown>, { platform: Record<string, unknown>; module: Record<string, unknown> }, unknown, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>];
     const dashboardPlatforms = Array.isArray(dashboard.platforms) ? dashboard.platforms : [];
     const modulePlatforms = Array.isArray(modules.platforms) ? modules.platforms : [];
-    const totalValue = Number(modules.totalValue || 0) + Number(mestre24.module.value || 0);
+    // Module catalogue values are not cash and must never appear as corporate
+    // money. Until real finance transactions exist, the launch baseline is zero.
+    const totalValue = 0;
     const mergedModules = { ...modules, totalValue, platforms: [...modulePlatforms, mestre24.module] };
     const statusBySlug = new Map(platformStatuses.map((item) => [String(item.slug), item]));
     const enrichedPlatforms = [...dashboardPlatforms, mestre24.platform].map((item) => { const row = item as Record<string, unknown>; const status = statusBySlug.get(String(row.slug || "")); return { ...row, platform_status: status?.status || row.platform_status || "development", integration_status: status?.integration_status || (row.connected ? "connected" : "unknown"), last_sync_at: status?.last_sync_at || status?.updated_at || null }; });

@@ -122,7 +122,8 @@ export async function POST(request: NextRequest) {
 
   if (body.module === "support" && body.entity === "message" && body.id && (body.text || "").trim().length >= 2) {
     const text = body.text?.trim() || "";
-    await stagingRest("support_messages", { method: "POST", body: JSON.stringify({ ticket_id: body.id, sender_id: actor.authUserId, sender_name: actor.name, sender_role: actor.role, text }) });
+    const signedText = `${text}\n\n— ${actor.name}`;
+    await stagingRest("support_messages", { method: "POST", body: JSON.stringify({ ticket_id: body.id, sender_id: actor.authUserId, sender_name: actor.name, sender_role: actor.role, text: signedText }) });
     await stagingRest(`support_tickets?id=eq.${encodeURIComponent(body.id)}`, { method: "PATCH", body: JSON.stringify({ status: "in_progress", updated_at: new Date().toISOString() }) });
     await hqRpc("hq_log_operational_action_v1", { p_actor_auth_user_id: actor.authUserId, p_module: "support", p_action: "SUPPORT_MESSAGE_SENT", p_target_type: "support_ticket", p_target_id: body.id, p_metadata: { length: text.length } });
     return NextResponse.json({ ok: true }, { status: 201 });

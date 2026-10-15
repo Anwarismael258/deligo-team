@@ -1,0 +1,11 @@
+begin;
+alter table hq.hr_payroll_records add column if not exists base_salary numeric(14,2) not null default 0;
+alter table hq.hr_payroll_records add column if not exists worked_days numeric(6,2) not null default 0;
+alter table hq.hr_payroll_records add column if not exists absence_days numeric(6,2) not null default 0;
+alter table hq.hr_payroll_records add column if not exists overtime_hours numeric(8,2) not null default 0;
+alter table hq.hr_payroll_records add column if not exists bonuses numeric(14,2) not null default 0;
+alter table hq.hr_payroll_records add column if not exists allowances numeric(14,2) not null default 0;
+alter table hq.hr_payroll_records add column if not exists advances numeric(14,2) not null default 0;
+alter table hq.hr_payroll_records add column if not exists authorized_deductions numeric(14,2) not null default 0;
+alter table hq.hr_payroll_records add column if not exists net_amount numeric(14,2) not null default 0;
+commit;

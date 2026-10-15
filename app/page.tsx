@@ -4,12 +4,13 @@
 /* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { Activity, BarChart3, Bell, Car, CheckCircle2, ChartNoAxesCombined, ChevronRight, Church, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Hammer, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, ListTodo, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { Activity, BarChart3, Bell, Car, CheckCircle2, ChartNoAxesCombined, ChevronRight, Church, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Hammer, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, ListTodo, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, Star, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 import LiveOperationsMap, { type OperationsMapMarker } from "@/components/LiveOperationsMap";
 import {TechnologyRegistry} from "./components/TechnologyRegistry";
 import {AcquisitionWorkspace} from "./components/AcquisitionWorkspace";
 import {WorkflowInbox} from "./components/WorkflowInbox";
 import {NotificationCenter} from "./components/NotificationCenter";
+import {ManualCommunication} from "./components/ManualCommunication";
 import {MyTasksCenter} from "./components/MyTasksCenter";
 import {ApprovalRules} from "./components/ApprovalRules";
 import {TechnicalIncidentAlerts} from "./components/TechnicalIncidentAlerts";
@@ -17,6 +18,7 @@ import {PermissionMatrix} from "./components/PermissionMatrix";
 import {ProfileSettings} from "./components/ProfileSettings";
 import {DeligoCommandButton} from "./components/DeligoCommandButton";
 import {DeligoOperationalMap} from "./components/DeligoOperationalMap";
+import {DeligoFinance} from "./components/DeligoFinance";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 
@@ -38,6 +40,7 @@ const nav = [
   ["↗", "Marketing"],
   ["⌖", "Operações de Campo"],
   ["◌", "Apoio ao Cliente"],
+  ["★", "Avaliações & Reputação"],
   ["＋", "Aquisição de Parceiros"],
   ["☆", "Embaixadores"],
   ["✓", "Projectos e Tarefas"],
@@ -53,7 +56,7 @@ const nav = [
 const navGroups: Array<[string,string[]]> = [
   ["GESTÃO", ["Visão geral","Plataformas","Mapa operacional","Direcção Executiva","Pessoas"]],
   ["CORPORATIVO", ["Recursos Humanos","Finanças","Contabilidade","Jurídico","Conformidade e Risco","Tecnologia / IT","Compras","Património"]],
-  ["OPERAÇÕES & CRESCIMENTO", ["Marketing","Operações de Campo","Apoio ao Cliente","Aquisição de Parceiros","Embaixadores"]],
+  ["OPERAÇÕES & CRESCIMENTO", ["Marketing","Operações de Campo","Apoio ao Cliente","Avaliações & Reputação","Aquisição de Parceiros","Embaixadores"]],
   ["EXECUÇÃO", ["Projectos e Tarefas","Apoio Interno"]],
   ["MEU TRABALHO", ["Centro de Notificações","Minhas Tarefas","Aprovações"]],
   ["INTELIGÊNCIA & CONTROLO", ["BI / Análises","Relatórios","Registo de Auditoria"]],
@@ -65,7 +68,7 @@ const moduleIcons: Record<string, LucideIcon> = {
   "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Contabilidade": Coins,
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
   "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Operações de Campo": Route,
-  "Apoio ao Cliente": Headphones, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
+  "Apoio ao Cliente": Headphones, "Avaliações & Reputação": Star, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
   "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Centro de Notificações": Bell, "Minhas Tarefas": ListTodo, "Aprovações": CheckCircle2,
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
   "Homologação": Settings,
@@ -96,6 +99,7 @@ const moduleDetails: Record<string, string[]> = {
   "Marketing": ["Campanhas", "Conteúdos", "Promoções", "Leads", "Análises"],
   "Operações de Campo": ["Tarefas", "Visitas", "Verificações", "Localização", "Relatórios"],
   "Apoio ao Cliente": ["Tickets", "Chat", "Reclamações", "Incidentes", "Histórico"],
+  "Avaliações & Reputação": ["Visão Geral", "Avaliações", "Denúncias", "Restaurantes", "Pratos", "Entregas", "Alertas", "Relatórios"],
   "Aquisição de Parceiros": ["Leads", "Visitas", "Negociações", "Parceiros", "Objectivos"],
   "Embaixadores": ["Embaixadores", "Referências", "Campanhas", "Conversões", "Comissões"],
   "Projectos e Tarefas": ["Projectos", "Tarefas", "Objectivos", "Prazos", "Progresso"],
@@ -124,6 +128,7 @@ const modulePresentation: Record<string, { description: string; action: string; 
   "Marketing": { description: "Planeia campanhas, conteúdos, promoções, leads e desempenho de comunicação.", action: "Nova campanha", primary: "Campanhas", secondary: "Conteúdos pendentes", visual: "Desempenho de campanhas", status: "Canais de marketing", color: "#d14f6f" },
   "Operações de Campo": { description: "Coordena equipas no terreno, visitas, verificações e relatórios operacionais.", action: "Nova missão", primary: "Missões operacionais", secondary: "Visitas pendentes", visual: "Execução no terreno", status: "Operações de Campo", color: "#2b8a7b" },
   "Apoio ao Cliente": { description: "Centraliza tickets, reclamações, conversas e histórico de atendimento.", action: "Novo ticket", primary: "Tickets", secondary: "Por responder", visual: "Qualidade do atendimento", status: "Canais de suporte", color: "#4b7bec" },
+  "Avaliações & Reputação": { description: "Supervisiona a qualidade de restaurantes, pratos e entregas em todas as plataformas.", action: "Rever avaliações", primary: "Avaliações", secondary: "Denúncias pendentes", visual: "Reputação do ecossistema", status: "Qualidade e moderação", color: "#d18b22" },
   "Aquisição de Parceiros": { description: "Gere leads comerciais, visitas, negociações e conversão de parceiros.", action: "Novo lead", primary: "Leads", secondary: "Negociações", visual: "Funil de aquisição", status: "Pipeline de parceiros", color: "#8c63b8" },
   "Embaixadores": { description: "Acompanha embaixadores, referências, conversões e comissões.", action: "Novo embaixador", primary: "Embaixadores", secondary: "Comissões pendentes", visual: "Conversão por referência", status: "Programa de embaixadores", color: "#d18b22" },
   "Projectos e Tarefas": { description: "Organiza objectivos, responsáveis, prazos, dependências e progresso.", action: "Novo projecto", primary: "Projectos", secondary: "Tarefas em atraso", visual: "Progresso dos projectos", status: "Gestão de trabalho", color: "#5f66c9" },
@@ -157,6 +162,7 @@ const routeByModule: Record<string, string> = {
   "Marketing": "/marketing",
   "Operações de Campo": "/field",
   "Apoio ao Cliente": "/apoio-cliente",
+  "Avaliações & Reputação": "/operacoes/avaliacoes-reputacao",
   "Aquisição de Parceiros": "/aquisicao-parceiros",
   "Embaixadores": "/embaixadores",
   "Projectos e Tarefas": "/projectos-tarefas",
@@ -552,6 +558,7 @@ useEffect(()=>{if(active!=="Operações de Campo")return;refreshField().catch(()
   const employeeGovernanceAction = async (payload:Record<string,unknown>) => { setEmployeeNotice("A guardar controlo de acesso…"); const response=await fetch("/api/employees",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)}); const result=await response.json(); setEmployeeNotice(response.ok?"Supervisor ou permissão actualizado e auditado.":result.error); if(response.ok)await refreshEmployees(); };
   const createHrEvent = async (event:FormEvent<HTMLFormElement>) => { event.preventDefault(); const form=new FormData(event.currentTarget); setHrNotice("A guardar registo de RH…"); const response=await fetch("/api/hr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource:"hr_employee_events",record:{employee_id:form.get("employeeId"),event_type:form.get("eventType"),title:form.get("title"),occurred_on:form.get("occurredOn"),status:form.get("status")||"open"}})}); const result=await response.json(); setHrNotice(response.ok?"Registo criado e notificação encaminhada.":result.error); if(response.ok){setShowHrEventForm(false); const refreshed=await fetch("/api/hr",{cache:"no-store"});if(refreshed.ok)setHrData((await refreshed.json()).data||{});} };
   const createPayrollRecord=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget),base=Number(form.get("baseSalary")||0),days=Number(form.get("workedDays")||0),absence=Number(form.get("absenceDays")||0),overtime=Number(form.get("overtimeHours")||0),bonuses=Number(form.get("bonuses")||0),allowances=Number(form.get("allowances")||0),advances=Number(form.get("advances")||0),deductions=Number(form.get("authorizedDeductions")||0),gross=base+bonuses+allowances+(overtime*(base/22/8*1.5)),net=Math.max(0,gross-advances-deductions-(absence*(base/22)));setHrNotice("A preparar folha salarial…");const response=await fetch("/api/hr",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({resource:"hr_payroll_records",record:{employee_id:form.get("employeeId"),period_start:form.get("periodStart"),period_end:form.get("periodEnd"),base_salary:base,worked_days:days,absence_days:absence,overtime_hours:overtime,bonuses,allowances,advances,authorized_deductions:deductions,gross_amount:gross,deductions,net_amount:net,currency:"MZN",status:"draft"}})});const result=await response.json();setHrNotice(response.ok?`Registo salarial criado. Líquido: ${net.toFixed(2)} MZN.`:result.error);if(response.ok){setShowPayrollForm(false);const refreshed=await fetch("/api/hr",{cache:"no-store"});if(refreshed.ok)setHrData((await refreshed.json()).data||{});}};
+  const payrollDecision=async(run:FinanceRecord,forcedAction?:string)=>{const status=String(run.status),action=forcedAction||(status==="calculated"?"validate":status==="validated"?"submit":"approve");setHrNotice("A processar decisão Payroll…");const response=await fetch("/api/payroll",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:run.id,action})});const result=await response.json();if(!response.ok){setHrNotice(result.error||"A decisão Payroll foi recusada.");return}setHrNotice(action==="validate"?"Folha validada.":action==="submit"?"Folha enviada ao Financeiro.":action==="approve"?"Folha aprovada.":"Folha rejeitada.");const refreshed=await fetch("/api/payroll",{cache:"no-store"});if(refreshed.ok)setPayrollData(await refreshed.json())};
   const createWorkforceRequest=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);const payload={requestType:workforceKind,employeeId:form.get("employeeId")||undefined,candidateName:form.get("candidateName")||undefined,candidatePhone:form.get("candidatePhone")||undefined,jobTitle:form.get("jobTitle")||undefined,departmentId:form.get("departmentId")||undefined,requestedRoleCode:form.get("requestedRoleCode")||undefined,proposedSalary:form.get("proposedSalary")?Number(form.get("proposedSalary")):undefined,reason:form.get("reason"),platformId:form.get("platformId")||undefined};setWorkforceNotice("A iniciar processo interdepartamental…");const response=await fetch("/api/workforce",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json();setWorkforceNotice(response.ok?`Processo ${String(result.workflow?.case_number||"")} iniciado e encaminhado.`:result.error);if(response.ok){setShowWorkforceForm(false);await Promise.all([refreshWorkforce(),refreshWorkflows()])}};
   const linkWorkforceEmployee=async(requestId:string)=>{const employeeId=window.prompt("ID do colaborador criado na tela Pessoas");if(!employeeId)return;const response=await fetch("/api/workforce",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({requestId,employeeId})});const result=await response.json();setWorkforceNotice(response.ok?"Colaborador associado ao processo.":result.error);if(response.ok)await refreshWorkforce()};
   const createFinanceRecord = async (event:FormEvent<HTMLFormElement>) => {
@@ -706,6 +713,10 @@ if(active==="Operações de Campo")void refreshField();
     } catch { setHomologationNotice("Não foi possível contactar a homologação. Tente novamente."); }
   };
   const navigate = (label: string) => {
+    if (label === "Avaliações & Reputação") {
+      window.location.assign(routeByModule[label]);
+      return;
+    }
     setActive(label);
     setSubArea(moduleDetails[label]?.[0] || "");
     setMenuOpen(false);
@@ -882,6 +893,7 @@ if(active==="Operações de Campo")void refreshField();
           )}
           {active === "Finanças" && (
             <section className="financeWorkspace">
+              <DeligoFinance/>
               <div className="financeHero">
                 <div><span>SALDO DE TESOURARIA CORPORATIVA</span><strong>{money(treasuryBalance)}</strong><small>{platform} · soma das contas corporativas registadas no HQ.</small></div>
                 <div className="financeGuard"><ShieldCheck aria-hidden="true" /><div><b>Separação financeira activa</b><span>Carteiras de utilizadores não são tratadas como dinheiro da empresa.</span></div></div>
@@ -1040,6 +1052,7 @@ if(active==="Operações de Campo")void refreshField();
           {active==="Registo de Auditoria"&&<section className="auditDetailGrid">{auditRecords.slice(0,30).map(event=><article key={`detail-${event.id}`}><div><strong>{event.action.replaceAll("_"," ")}</strong><b>{event.result}</b></div><span>{event.actor} · {event.module||event.target_type} · {new Date(event.occurred_at).toLocaleString("pt-MZ")}</span><small>IP: {event.ip_address||"não registado"} · Dispositivo: {event.device||event.user_agent||"não registado"}</small><pre>Antes: {JSON.stringify(event.before_state||{})}{"\n"}Depois: {JSON.stringify(event.after_state||{})}</pre></article>)}</section>}
           {active === "Marketing" && <section className="marketingWorkspace">
             <div className="marketingHero"><div><span>CENTRO DE CAMPANHAS</span><h2>Marketing, comunicação e crescimento</h2><p>Planeamento, aprovação, publicação e resultados reais por plataforma.</p></div><button onClick={()=>setShowMarketingForm(!showMarketingForm)}>Novo registo</button></div>
+            <div className="operationalNotice"><strong>Conteúdo global da DeliGo</strong> · Banners, notícias, eventos e campanhas para todas as plataformas são publicados apenas pela Central. Restaurantes gerem exclusivamente os seus pratos, estabelecimento e promoções próprias.</div>
             <div className="financeKpis">{[
               ["Campanhas",marketingData.marketing_campaigns?.length||0],
               ["Em aprovação",(marketingData.marketing_campaigns||[]).filter(c=>c.status==="pending_approval").length],
@@ -1107,7 +1120,7 @@ if(active==="Operações de Campo")void refreshField();
           </section>}
           {active==="Recursos Humanos"&&<section className="hrEventActions"><div className="hrLifecycleHead"><div><span>FLUXOS INTERDEPARTAMENTAIS</span><h2>Contratação e desligamento</h2><p>RH inicia e o backend encaminha Jurídico, Direção, Pessoas, IT, Património, Finanças e Contabilidade.</p></div><button className="hrCreateButton" onClick={()=>setShowWorkforceForm(!showWorkforceForm)}>Iniciar processo</button></div>{showWorkforceForm&&<form className="hrEventForm" onSubmit={createWorkforceRequest}><label><span>Processo</span><select value={workforceKind} onChange={event=>setWorkforceKind(event.target.value)}><option value="hiring">Contratação</option><option value="offboarding">Desligamento</option></select></label>{workforceKind==="hiring"?<><label><span>Nome do candidato</span><input name="candidateName" required/></label><label><span>Telefone</span><input name="candidatePhone"/></label><label><span>Cargo</span><input name="jobTitle" required/></label><label><span>Departamento</span><select name="departmentId" required><option value="">Selecionar</option>{(workforceData.departments||[]).map(department=><option key={department.id} value={department.id}>{String(department.name)}</option>)}</select></label><label><span>Role previsto</span><input name="requestedRoleCode"/></label><label><span>Salário proposto</span><input name="proposedSalary" type="number" min="0" step=".01"/></label></>:<label><span>Colaborador</span><select name="employeeId" required><option value="">Selecionar</option>{managedEmployees.filter(employee=>employee.status==="active").map(employee=><option key={employee.id} value={employee.id}>{employee.name} · {employee.employee_code}</option>)}</select></label>}<label><span>Plataforma</span><select name="platformId"><option value="">Grupo</option>{(workforceData.platforms||[]).map(platform=><option key={platform.id} value={platform.id}>{String(platform.name)}</option>)}</select></label><label><span>Motivo</span><input name="reason" required minLength={3}/></label><button type="submit">Iniciar e encaminhar</button></form>}<div className="procurementList">{(workforceData.requests||[]).map(request=><article key={request.id}><div><strong>RH-{String(request.request_number)} · {String(request.request_type)==="hiring"?String(request.candidate_name):managedEmployees.find(employee=>employee.id===request.employee_id)?.name||"Colaborador"}</strong><span>{String(request.request_type)} · {String(request.status)}</span></div>{request.request_type==="hiring"&&!request.employee_id&&<button onClick={()=>void linkWorkforceEmployee(String(request.id))}>Associar conta criada</button>}</article>)}{!(workforceData.requests||[]).length&&<div className="peopleEmpty">Sem processos laborais.</div>}</div>{workforceNotice&&<div className="operationalNotice">{workforceNotice}</div>}</section>}
           {active==="Pessoas"&&selectedEmployee&&hasPermission("settings.manage")&&<PermissionMatrix employeeId={selectedEmployee.id} overrides={employeePermissions} onChange={(permissionCode,allowed)=>void employeeGovernanceAction({employeeId:selectedEmployee.id,action:"set_permission",permissionCode,allowed})}/>}
-          {active==="Centro de Notificações"&&<NotificationCenter/>}
+          {active==="Centro de Notificações"&&<><NotificationCenter/><ManualCommunication/></>}
           {active==="Minhas Tarefas"&&<MyTasksCenter/>}
           {active==="Aprovações"&&<ApprovalRules/>}
           {workflowDepartmentByModule[active]&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>}
@@ -1151,10 +1164,10 @@ if(active==="Operações de Campo")void refreshField();
               ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
               ["Operações hoje", String(commandCenter?.summary.operationsToday || 0), "Eventos operacionais recebidos hoje"],
             ].map(([label, value, note], index) => (
-              <article className="metric" key={label}>
-                <div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div>
-                <p>{label}</p><strong>{value}</strong><span>{note}</span>
-                <div className="metricUpdated"><i />Atualizado pelo stream corporativo</div>
+              <article className={`metric metric-${index}`} key={label}>
+                <div className="metricTopline"><span>INDICADOR CENTRAL</span><div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity, PackageCheck].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div></div>
+                <p>{label}</p><strong>{value}</strong><span className="metricNote">{note}</span>
+                <div className="metricUpdated"><i />Dados sincronizados</div>
               </article>
             ))}
           </section>
@@ -1344,7 +1357,7 @@ if(active==="Operações de Campo")void refreshField();
       </div>}
       {selectedPlatformRecord && <PlatformRecordModal selected={selectedPlatformRecord} onClose={() => setSelectedPlatformRecord(null)} />}
       {selectedProfile && <PlatformProfileModal selected={selectedProfile} detail={profileDetail} onClose={() => setSelectedProfile(null)} />}
-      {active === "Recursos Humanos" && payrollData.runs.length > 0 && <section className="hrEventActions"><div className="hrLifecycleHead"><div><span>DECISÕES PAYROLL</span><h2>Validação e aprovação</h2><p>O período fica protegido depois da aprovação.</p></div></div>{payrollData.runs.map(run=><article className="financePayment" key={`payroll-decision-${run.id}`}><div><strong>{String(run.period_label||"Período salarial")}</strong><span>Estado: {String(run.status)}</span></div><div>{String(run.status)==="calculated"&&<button onClick={()=>void fetch("/api/payroll",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:run.id,action:"validate"})}).then(()=>fetch("/api/payroll")).then(r=>r.ok?r.json():null).then(data=>data&&setPayrollData(data))}>Validar folha</button>}{String(run.status)==="validated"&&<button onClick={()=>void fetch("/api/payroll",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:run.id,action:"submit"})}).then(()=>fetch("/api/payroll")).then(r=>r.ok?r.json():null).then(data=>data&&setPayrollData(data))}>Enviar ao Financeiro</button>}{String(run.status)==="submitted_to_finance"&&<><button onClick={()=>void fetch("/api/payroll",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:run.id,action:"approve"})}).then(()=>fetch("/api/payroll")).then(r=>r.ok?r.json():null).then(data=>data&&setPayrollData(data))}>Aprovar</button><button onClick={()=>void fetch("/api/payroll",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:run.id,action:"reject"})}).then(()=>fetch("/api/payroll")).then(r=>r.ok?r.json():null).then(data=>data&&setPayrollData(data))}>Rejeitar</button></>}</div></article>)}</section>}
+      {active === "Recursos Humanos" && payrollData.runs.length > 0 && <section className="hrEventActions"><div className="hrLifecycleHead"><div><span>DECISÕES PAYROLL</span><h2>Validação e aprovação</h2><p>O período fica protegido depois da aprovação.</p></div></div>{payrollData.runs.map(run=><article className="financePayment" key={`payroll-decision-${run.id}`}><div><strong>{String(run.period_label||"Período salarial")}</strong><span>Estado: {String(run.status)}</span></div><div>{(["calculated","validated","submitted_to_finance"].includes(String(run.status)))&&<button onClick={()=>void payrollDecision(run)}>{String(run.status)==="calculated"?"Validar folha":String(run.status)==="validated"?"Enviar ao Financeiro":"Aprovar"}</button>}{String(run.status)==="submitted_to_finance"&&<button onClick={()=>void payrollDecision(run,"reject")}>Rejeitar</button>}</div></article>)}</section>}
       {active === "Finanças" && (financeData.payroll_runs||[]).length>0 && <section className="financePanel"><div className="panelTitle"><div><h2>Payroll recebido do RH</h2><p>Folhas enviadas para validação financeira</p></div><b>{(financeData.payroll_runs||[]).length} pendente(s)</b></div>{(financeData.payroll_runs||[]).map(run=><div className="financePayment" key={`finance-payroll-${run.id}`}><div><strong>{String(run.period_label||"Período salarial")}</strong><span>{String(run.period_start)} → {String(run.period_end)} · {String(run.status)}</span></div><button onClick={()=>window.location.assign("/recursos-humanos")}>Abrir Payroll</button></div>)}</section>}
     </main>
   );

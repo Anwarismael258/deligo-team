@@ -36,7 +36,7 @@ export async function POST(request:NextRequest){
 
 export async function PATCH(request:NextRequest){
   const body=await request.json() as {visitId?:string;entityId?:string;action?:string;reason?:string;result?:string;latitude?:number|null;longitude?:number|null};if(!body.action)return NextResponse.json({error:"Ação inválida."},{status:400});
-  const decision=["approve_verification","reject_verification","correct_verification","approve_kyc","reject_kyc","correct_kyc"].includes(body.action),kycDecision=["approve_kyc","reject_kyc","correct_kyc"].includes(body.action),c=await ctx(decision?(kycDecision?"field.kyc.decide":"field.kyc.review"):"field.createVisit");if(!c)return NextResponse.json({error:"Sem acesso a esta ação Field."},{status:403});
+  const decision=["approve_verification","reject_verification","correct_verification","approve_kyc","reject_kyc","correct_kyc"].includes(body.action),kycDecision=["approve_kyc","reject_kyc","correct_kyc"].includes(body.action),c=await ctx(decision?(kycDecision?"field.approveKyc":"field.kyc.review"):"field.createVisit");if(!c)return NextResponse.json({error:"Sem acesso a esta ação Field."},{status:403});
   if(["approve_verification","reject_verification","correct_verification","approve_kyc","reject_kyc","correct_kyc"].includes(body.action)){
     if(!body.entityId)return NextResponse.json({error:"Decisão reservada à supervisão autorizada."},{status:403});
     const isKyc=body.action.endsWith("_kyc"),table=isKyc?"field_kyc_cases":"field_verifications";
