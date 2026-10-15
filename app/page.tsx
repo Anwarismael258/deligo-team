@@ -817,9 +817,9 @@ if(active==="Operações de Campo")void refreshField();
             <div className="safeNotice"><b>Limites de segurança</b><span>Esta área não cria utilizadores reais, não envia SMS, não cria pedidos, não credita carteiras e não executa pagamentos. Toda ação permanece rastreável no ambiente de homologação.</span></div>
           </section>}
           {active === "Meu Perfil" && <ProfileSettings/>}
-          {active === "Plataformas" && (
+          {active === "Plataformas" && platform === "Todas as plataformas" && (
             <section className="platformDirectory" aria-label="Plataformas do grupo">
-              <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do ecossistema, operações separadas</h2><p>Abra uma plataforma para ver apenas os seus utilizadores, operações, integrações, equipa e incidentes.</p></div><b>{connectedPlatforms}/{dashboard?.platforms.length || 0} ligadas</b></div>
+              <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do grupo</h2><p>Estado verificado e acesso directo aos painéis autorizados.</p></div><b>{connectedPlatforms}/{dashboard?.platforms.length || 0} operacionais</b></div>
               <div className="platformDirectoryGrid">
                 {platformDirectory.map((item) => {
                   const users = metricFor(item, ["utilizador", "membro", "comprador", "passageiro"]);
@@ -827,8 +827,8 @@ if(active==="Operações de Campo")void refreshField();
                   const Icon = platformIcons[item.name] || Sparkles;
                   return <button className={`platformDirectoryCard ${platform === item.name ? "selected" : ""}`} key={item.slug} onClick={() => { setPlatform(item.name); setPlatformCollection(""); setSubArea("Resumo"); }}>
                     <div><i className="platformArtwork" style={{ background: platformCards.find((card) => card.name === item.name)?.color || "#555" }}><img src={platformArtwork[item.name]} alt={`Marca ${item.name}`} /><Icon aria-hidden="true" /></i><span className={item.connected ? "connectedPill" : "warningPill"}>{item.connected ? "Ligada" : "A verificar"}</span></div>
-                    <h3>{item.name}</h3><p>{operationalLabel(item.name)} e dados próprios no backend central.</p><small>Plataforma: {String((item as Record<string,unknown>).platform_status||"Em desenvolvimento")} · HQ: {String((item as Record<string,unknown>).integration_status||"A verificar")}{(item as Record<string,unknown>).last_sync_at?` · Sync ${new Date(String((item as Record<string,unknown>).last_sync_at)).toLocaleString("pt-MZ")}`:""}</small>
-                    <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>{operationalLabel(item.name)}</dt><dd>{operations}</dd></div><div><dt>Volume observado</dt><dd>{money(item.value)}</dd></div></dl>
+                    <h3>{item.name}</h3><p>{operationalLabel(item.name)} · painel independente.</p><small>Estado: {String((item as Record<string,unknown>).integration_status || "Não verificado")}{(item as Record<string,unknown>).last_sync_at ? ` · Actualizado ${new Date(String((item as Record<string,unknown>).last_sync_at)).toLocaleString("pt-MZ")}` : " · Actualização não disponível"}</small>
+                    <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>{operationalLabel(item.name)}</dt><dd>{operations}</dd></div><div><dt>Indicadores</dt><dd>{item.metrics.length}</dd></div></dl>
                     <strong>Abrir painel da plataforma <ChevronRight aria-hidden="true" /></strong>
                   </button>;
                 })}
@@ -1136,8 +1136,7 @@ if(active==="Operações de Campo")void refreshField();
               ["Total de utilizadores", String(totalUsers), "Nas plataformas ligadas ao HQ"],
               ["Financeiro confirmado", "—", "Apenas depósitos PaySuite reconciliados"],
               ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Comissões confirmadas no stream corporativo"],
-              ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
-              ["Operações hoje", String(commandCenter?.summary.operationsToday || 0), "Eventos operacionais recebidos hoje"],
+              ["Lucro líquido", "—", "Não disponível sem reconciliação contabilística"],
             ].map(([label, value, note], index) => (
               <article className={`metric metric-${index}`} key={label}>
                 <div className="metricTopline"><span>INDICADOR CENTRAL</span><div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity, PackageCheck].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div></div>
@@ -1161,14 +1160,14 @@ if(active==="Operações de Campo")void refreshField();
               <div className="operationalQueue">
                 {operationalItems.map((item) => <button key={item.label} onClick={() => navigate(item.action)}><div><span>{item.label}</span><small>{item.note}</small></div><strong>{item.value}</strong><ChevronRight aria-hidden="true" /></button>)}
               </div>
-              <article className="liveMapCard">
+              <article className="liveMapCard" hidden>
                 <LiveOperationsMap markers={mapMarkers} />
                 <div className="liveMapCopy"><span>MAPA OPERACIONAL · {mapMarkers.length} AO VIVO</span><strong>Tracking em tempo real</strong><p>{mapMarkers.length ? "Posições recentes de estafetas, motoristas e couriers. Actualiza a cada 10 segundos." : "Sem posições recentes para o filtro actual."}</p><button onClick={() => navigate("Mapa operacional")}>Abrir mapa completo</button></div>
               </article>
             </div>
           </section>
 
-          <section className="deligoSyncPanel">
+          <section className="deligoSyncPanel" hidden>
             <div className="sectionHeading"><div><h2>DeliGo em sintonia com a Central</h2><p>Cliente, restaurante e estafeta · filas operacionais reais</p></div><button onClick={()=>{setPlatform("DeliGo");navigate("Plataformas")}}>Abrir DeliGo →</button></div>
             <div className="deligoSyncMetrics">
               {[
@@ -1188,7 +1187,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>
           </section>
 
-          <section className="insightGrid">
+          <section className="insightGrid" hidden>
             <article className="chartPanel">
               <div className="panelTitle"><div><h2>Desempenho do grupo</h2><p>Receita, operações e crescimento consolidados</p></div><div className="chartLegend"><span><i /> Receita</span><span><i /> Operações</span></div></div>
               <div className="groupRealChart">{(dashboard?.modules.platforms || []).map(item => { const maximum = Math.max(...(dashboard?.modules.platforms || []).map(platform => platform.value), 1); return <div className="groupBar" key={item.slug}><div><strong>{item.name}</strong><span>{money(item.value)}</span></div><i><b style={{width:`${Math.max((item.value/maximum)*100,item.value>0?3:0)}%`}} /></i><small>Volume operacional observado</small></div>; })}{!dashboard?.modules.platforms.length && <div className="peopleEmpty">A aguardar indicadores do backend.</div>}</div>
@@ -1209,8 +1208,8 @@ if(active==="Operações de Campo")void refreshField();
               <article className="platformCard" key={card.name}>
                 <div className="platformAccent" style={{ background: card.color }} />
                 <div className="platformTop">
-                  <div className="platformIdentity"><i style={{ background: card.color }}>{(() => { const Icon = platformIcons[card.name] || Sparkles; return <Icon aria-hidden="true" />; })()}</i><div><strong>{card.name}</strong><span>Deligo Staging</span></div></div>
-                  <span className="status"><i /> Ligada</span>
+                  <div className="platformIdentity"><i style={{ background: card.color }}>{(() => { const Icon = platformIcons[card.name] || Sparkles; return <Icon aria-hidden="true" />; })()}</i><div><strong>{card.name}</strong><span>{String(card.platform_status || "Ambiente não confirmado")}</span></div></div>
+                  <span className="status"><i /> {card.connected ? "Ligada" : "Indisponível"}</span>
                 </div>
                 <div className="platformMetrics">
                   {card.metrics.map((metric) => <div key={metric.key}><span>{metric.label}</span><strong>{Number(metric.value).toLocaleString("pt-MZ")}</strong></div>)}
@@ -1220,7 +1219,7 @@ if(active==="Operações de Campo")void refreshField();
             ))}
           </section>
 
-          <section className="governance">
+          <section className="governance" hidden>
             <div className="sectionHeading">
               <div><h2>Controlos corporativos</h2><p>Separação financeira e salvaguardas de governação</p></div>
               <span className="protected">● Área protegida</span>
@@ -1240,7 +1239,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>
           </section>
 
-          <section className="workflowPanel">
+          <section className="workflowPanel" hidden>
             <div className="panelTitle">
               <div><h2>Controlo da distribuição de lucros</h2><p>Separação de funções — nenhuma pessoa controla todo o ciclo</p></div>
               <span className="draftStatus">Sem proposta activa</span>
@@ -1261,7 +1260,7 @@ if(active==="Operações de Campo")void refreshField();
           </section>
 
           <section className="lowerGrid">
-            <article className="panel">
+            <article className="panel" hidden>
               <div className="panelTitle"><div><h2>Estrutura societária</h2><p>Dados autorizados de governação</p></div>{visibleNav.some(([,label])=>label==="Pessoas")&&<button onClick={()=>navigate("Pessoas")}>Gerir pessoas</button>}</div>
               {(dashboard?.governance?.shareholders||[]).map((person,index)=><div className="person" key={person.employeeId||person.displayName}><div className={`personAvatar p${index}`}>{person.displayName.split(/\s+/).slice(0,2).map(part=>part[0]).join("")}</div><div className="personName"><strong>{person.displayName}</strong><span>{person.corporateTitle}</span></div><span className="role">{person.isSuperAdministrator?"SUPER ADMIN":"SÓCIO"}</span><span className="ownership">{person.quotaPercent}% participação</span></div>)}
               {!dashboard?.governance?.shareholders?.length&&<div className="peopleEmpty">Informação societária restrita ao cargo autorizado.</div>}
@@ -1271,7 +1270,7 @@ if(active==="Operações de Campo")void refreshField();
               <div className="profileHistory">{(commandCenter?.liveFeed || []).slice(0, 6).map(event => <div key={event.id}><strong>{event.platforms?.name || "Plataforma"} · {event.event_type.replaceAll("_", " ")}</strong><span>{new Date(event.occurred_at).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</span></div>)}{!commandCenter?.liveFeed.length && <div className="empty"><div>⌁</div><strong>Sem eventos operacionais recentes</strong><p>A Central mostrará eventos assim que as plataformas os registarem.</p></div>}</div>
             </article>
           </section>
-          <section className="departmentStrip">
+          <section className="departmentStrip" hidden>
             {[
               ["Contabilidade", "Plano de contas · Reconciliação · Impostos"],
               ["Recursos Humanos", "Contratos · Férias · Payroll · Ciclo de vida"],
@@ -1279,7 +1278,7 @@ if(active==="Operações de Campo")void refreshField();
               ["Colaboradores externos", "Acesso temporário · Revogação · Auditoria"],
             ].map(([title, text]) => <button key={title} onClick={() => navigate(title)}><strong>{title}</strong><span>{text}</span><b>→</b></button>)}
           </section>
-          <section className="operationsSuite">
+          <section className="operationsSuite" hidden>
             <div className="sectionHeading">
               <div><h2>Operações corporativas</h2><p>Fluxos controlados entre departamentos</p></div>
               <button onClick={() => navigate("Aprovações")}>Abrir aprovações →</button>
@@ -1299,7 +1298,7 @@ if(active==="Operações de Campo")void refreshField();
               ))}
             </div>
           </section>
-          <section className="accessModel">
+          <section className="accessModel" hidden>
             <div>
               <span className="accessEyebrow">ACESSO BASEADO EM PERMISSÕES</span>
               <h2>A autoridade segue o âmbito, nunca apenas o cargo.</h2>
