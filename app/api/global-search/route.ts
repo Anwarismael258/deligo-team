@@ -10,13 +10,14 @@ export async function GET(request: NextRequest) {
   if (!authorization) return NextResponse.json({ error: "Sessão corporativa necessária." }, { status: 401 });
   const query = safeQuery(request.nextUrl.searchParams.get("q") || "");
   const userId = request.nextUrl.searchParams.get("userId")?.trim();
-  if (!query && !userId) return NextResponse.json({ data: [] });
+  const listAll = request.nextUrl.searchParams.get("list") === "all";
+  if (!query && !userId && !listAll) return NextResponse.json({ data: [] });
   const scope = !authorization.isSuperAdmin && authorization.platformSlugs.length
     ? `&app_slug=in.(${authorization.platformSlugs.join(",")})`
     : !authorization.isSuperAdmin ? "&app_slug=eq.__forbidden__" : "";
-  const where = userId ? `user_id=eq.${encodeURIComponent(userId)}` : `or=(full_name.ilike.*${encodeURIComponent(query)}*,display_name.ilike.*${encodeURIComponent(query)}*,primary_phone.ilike.*${encodeURIComponent(query)}*,primary_email.ilike.*${encodeURIComponent(query)}*)`;
+  const where = userId ? `user_id=eq.${encodeURIComponent(userId)}` : listAll ? "" : `or=(full_name.ilike.*${encodeURIComponent(query)}*,display_name.ilike.*${encodeURIComponent(query)}*,primary_phone.ilike.*${encodeURIComponent(query)}*,primary_email.ilike.*${encodeURIComponent(query)}*)`;
   try {
-    const memberships = await hqRest(`global_user_platforms_v1?select=*&${where}${scope}&order=last_seen_at.desc.nullslast&limit=100`) as Record<string, unknown>[];
+    const memberships = await hqRest(`global_user_platforms_v1?select=*&${where}${scope}&order=last_seen_at.desc.nullslast&limit=${listAll ? 500 : 100}`) as Record<string, unknown>[];
     const users = new Map<string, Record<string, unknown>>();
     for (const membership of memberships) {
       const id = String(membership.user_id);

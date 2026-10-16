@@ -31,17 +31,16 @@ const nav = [
   ["↗", "Marketing"],
   ["⌖", "Operações de Campo"],
   ["◌", "Apoio ao Cliente"],
-  ["✓", "Projectos e Tarefas"],
-  ["!", "Centro de Notificações"],
-  ["⌁", "BI / Análises"],
   ["▤", "Relatórios"],
+  ["☷", "Projectos e Tarefas"],
+  ["♢", "Centro de Notificações"],
 ];
 const navGroups: Array<[string,string[]]> = [
   ["PRINCIPAL", ["Visão geral","Plataformas","Pessoas","Finanças"]],
-  ["OPERAÇÕES", ["Marketing","Operações de Campo","Apoio ao Cliente"]],
-  ["TRABALHO", ["Projectos e Tarefas","Centro de Notificações"]],
-  ["RESULTADOS", ["BI / Análises","Relatórios"]],
+  ["OPERAÇÕES", ["Marketing","Operações de Campo","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
+
+const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : label;
 
 const moduleIcons: Record<string, LucideIcon> = {
   "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
@@ -159,19 +158,19 @@ const personas = {
     name: "Anwar Ismael",
     role: "Super Administrador",
     initials: "AA",
-    modules: nav.map(([, label]) => label),
+    modules: Object.keys(modulePresentation),
   },
   sara: {
     name: "Sara Ismael",
     role: "Sócia · Diretora Financeira",
     initials: "SI",
-    modules: ["Visão geral", "Direcção Executiva", "Finanças", "Contabilidade", "Aprovações", "BI / Análises", "Relatórios"],
+    modules: Object.keys(modulePresentation),
   },
   sansao: {
     name: "Sansão Chume",
     role: "Supervisor de Operações",
     initials: "SC",
-    modules: ["Visão geral", "Pessoas", "Marketing", "Operações de Campo", "Apoio ao Cliente", "Aquisição de Parceiros", "Embaixadores", "Projectos e Tarefas", "BI / Análises", "Relatórios"],
+    modules: ["Visão geral", "Plataformas", "Marketing", "Operações de Campo", "Apoio ao Cliente", "Projectos e Tarefas", "Centro de Notificações", "Relatórios"],
   },
   contabilista: {
     name: "Contabilista",
@@ -185,9 +184,9 @@ const personas = {
     initials: "IT",
     modules: ["Visão geral", "Plataformas", "Tecnologia / IT", "Património", "Projectos e Tarefas", "Apoio Interno", "Relatórios", "Registo de Auditoria"],
   },
-  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Marketing", "Projectos e Tarefas", "BI / Análises", "Relatórios"] },
-  field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Operações de Campo", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
-  support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Apoio ao Cliente", "Projectos e Tarefas", "Relatórios"] },
+  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Plataformas", "Marketing", "Projectos e Tarefas"] },
+  field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Plataformas", "Operações de Campo", "Projectos e Tarefas"] },
+  support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Plataformas", "Apoio ao Cliente", "Projectos e Tarefas"] },
   hr: { name: "Recursos Humanos", role: "Recursos Humanos", initials: "RH", modules: ["Visão geral", "Pessoas", "Recursos Humanos", "Projectos e Tarefas", "Relatórios"] },
   legal: { name: "Jurídico", role: "Jurídico", initials: "JL", modules: ["Visão geral", "Jurídico", "Conformidade e Risco", "Relatórios"] },
   operations: { name: "Operações", role: "Operações", initials: "OP", modules: ["Visão geral", "Pessoas", "Operações de Campo", "Apoio ao Cliente", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
@@ -199,7 +198,7 @@ const personas = {
 
 const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
 const unpublishedModules = new Set(["Embaixadores"]);
-const universalModules = new Set(["Centro de Notificações","Minhas Tarefas"]);
+const universalModules = new Set<string>();
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
 const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
 
@@ -223,6 +222,7 @@ type DashboardData = {
   checkedAt: string;
   platforms: DashboardPlatform[];
   operations: { supportCases: number; campaigns: number; fieldVisits: number; auditEvents: number };
+  deligoFinance?: { summary?: { gross_sales?: number; deligo_revenue?: number; restaurant_due?: number; courier_due?: number; settlements_pending?: number; withdrawals_pending?: number; reconciliation_mismatches?: number } } | null;
   deligoOperations?: {
     summary: { activeOrders:number; attentionOrders:number; pendingKyc:number; openSupport:number; ticketsSold:number; ticketRevenue:number; ticketProfit:number };
     activeOrders: Array<{id:string;status:string;total_amount:number;created_at:string}>;
@@ -281,6 +281,8 @@ export function HQApp() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [commandResults, setCommandResults] = useState<GlobalPerson[]>([]);
+  const [overviewPeople, setOverviewPeople] = useState<GlobalPerson[]>([]);
+  const [overviewPeopleSearch, setOverviewPeopleSearch] = useState("");
   const [commandLoading, setCommandLoading] = useState(false);
   const [commandCenter, setCommandCenter] = useState<CommandCenterData | null>(null);
   const [persona, setPersona] = useState<keyof typeof personas>("anwar");
@@ -416,6 +418,7 @@ export function HQApp() {
   const [homologationResult, setHomologationResult] = useState<Array<{ code?: string; created?: boolean }>>([]);
   const personaBase=personas[persona];
   const currentPersona={...personaBase,name:sessionUser?.name||personaBase.name,role:sessionUser?.job_title||personaBase.role,initials:(sessionUser?.name||personaBase.name).split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()};
+  const canCreateEmployee = ["SUPER_ADMIN", "SUPERVISOR", "FINANCE"].includes(sessionRole);
   const isAccountScreen = active==="Meu Perfil";
   const activePresentation = modulePresentation[active];
   const hasPermission=(code:string)=>Boolean(sessionUser?.is_super_admin||sessionUser?.permissions?.includes(code));
@@ -439,6 +442,10 @@ export function HQApp() {
     void refresh();
     const interval = window.setInterval(() => void refresh(), 15_000);
     return () => { cancelled = true; window.clearInterval(interval); };
+  }, [active, sessionUser?.id]);
+  useEffect(() => {
+    if (active !== "Visão geral" || !sessionUser) return;
+    fetch("/api/global-search?list=all", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(result => setOverviewPeople(Array.isArray(result.data) ? result.data : [])).catch(() => setOverviewPeople([]));
   }, [active, sessionUser?.id]);
   const searchGlobal = async (value: string) => {
     setCommandQuery(value);
@@ -467,7 +474,7 @@ export function HQApp() {
 
   useEffect(() => {
     if (!sessionRole || sessionRole === "SUPER_ADMIN") return;
-    const universallyAllowed = ["Meu Perfil", "DefiniÃ§Ãµes", "SeguranÃ§a", "Centro de Notificações", "Minhas Tarefas"];
+    const universallyAllowed = ["Meu Perfil", "DefiniÃ§ões", "SeguranÃ§a"];
     if (!visibleNav.some(([,label])=>label===active) && !universallyAllowed.includes(active)) {
       setActive("VisÃ£o geral");
       setSubArea("");
@@ -717,6 +724,7 @@ if(active==="Operações de Campo")void refreshField();
       .reduce((platformTotal, metric) => platformTotal + Number(metric.value || 0), 0);
   }, 0) || 0;
   const totalUsers = historicalTotalUsers;
+  const filteredOverviewPeople = overviewPeople.filter(person => `${person.full_name || ""} ${person.display_name || ""} ${person.primary_email || ""} ${person.primary_phone || ""} ${person.apps.map(app => `${app.name || ""} ${app.slug || ""}`).join(" ")}`.toLocaleLowerCase("pt").includes(overviewPeopleSearch.toLocaleLowerCase("pt")));
   const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
   const selectedPlatformStatus = dashboard?.platforms.find((item) => item.name === platform);
   const platformDirectory = (dashboard?.platforms || []).map((item) => ({
@@ -746,6 +754,8 @@ if(active==="Operações de Campo")void refreshField();
   const financePlatformIds:Record<string,string>={DeliGo:"20000000-0000-0000-0000-000000000001",Comunhão:"20000000-0000-0000-0000-000000000002",TaoMoz:"20000000-0000-0000-0000-000000000003","DeliGo Market":"20000000-0000-0000-0000-000000000003",SARCA:"20000000-0000-0000-0000-000000000004"};
   const financeFilter=(rows:FinanceRecord[])=>platform==="Todas as plataformas"?rows:rows.filter(row=>row.platform_id===financePlatformIds[platform]);
   const financeAccounts=financeFilter(financeData.financial_accounts); const financeTransactions=financeFilter(financeData.financial_transactions); const financePayments=financeFilter(financeData.payment_requests); const financeBudgets=financeFilter(financeData.budgets); const financeForecasts=financeFilter(financeData.cashflow_forecasts);
+  const supportEmployeeId=String(supportData.current_employee_id||"");
+  const supportInbox=(supportData.support_tickets||[]).filter(ticket=>String(ticket.assigned_to||"")===supportEmployeeId);
   const treasuryBalance=financeAccounts.reduce((sum,row)=>sum+Number(row.current_balance||0),0); const recognizedIncome=financeTransactions.filter(row=>row.transaction_type==="income"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const recognizedExpense=financeTransactions.filter(row=>row.transaction_type==="expense"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const pendingPayments=financePayments.filter(row=>["pending","approved"].includes(row.status||"")); const pendingPaymentTotal=pendingPayments.reduce((sum,row)=>sum+Number(row.amount||0),0); const paidTotal=financePayments.filter(row=>row.status==="paid").reduce((sum,row)=>sum+Number(row.amount||0),0); const budgetTotal=financeBudgets.reduce((sum,row)=>sum+Number(row.amount||0),0); const forecastNet=financeForecasts.reduce((sum,row)=>sum+Number(row.expected_income||0)-Number(row.expected_expense||0),0);
 
   return (
@@ -756,7 +766,7 @@ if(active==="Operações de Campo")void refreshField();
           <div><strong>DeliGo Triunfal</strong><span>Central Web</span></div>
         </div>
         <nav>
-          {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{label}</button>)}</div> })}
+          {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{displayModuleLabel(label)}</button>)}</div> })}
           <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span>Meu Perfil</button>
         </nav>
         <div className="user">
@@ -799,18 +809,18 @@ if(active==="Operações de Campo")void refreshField();
         </header>
 
         <div className="content">
-          <div className="eyebrow"><span>HQ</span> / {active}</div>
+          <div className="eyebrow"><span>HQ</span> / {displayModuleLabel(active)}</div>
           <div className="frozenBanner"><i /> {dashboard ? `Dados reais ligados a ${dashboard.environment} · actualizados ${new Date(dashboard.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}` : connectionError || "A ligar ao backend configurado…"}</div>
           <div className="titleRow">
             <div>
-              <h1>{active === "Visão geral" ? "Visão geral do grupo" : active}</h1>
+              <h1>{active === "Visão geral" ? "Visão geral do grupo" : displayModuleLabel(active)}</h1>
               <p>{active === "Visão geral" ? "Gestão consolidada da DeliGo Triunfal, Lda." : `Área dedicada a ${active}, sem conteúdos de outros departamentos.`}</p>
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
           {active !== "Visão geral" && !isAccountScreen && (
             <section className="moduleContext">
-              <div><span>MÓDULO</span><h2>{active}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
+              <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
                 {(moduleDetails[active] || []).map((item) => <span key={item}>{item}</span>)}
               </div>
@@ -876,7 +886,8 @@ if(active==="Operações de Campo")void refreshField();
           )}
           {active === "Finanças" && (
             <section className="financeWorkspace">
-              <DeligoFinance/>
+              <div className="financeKpis"><article><span>Valor total confirmado</span><strong>{dashboard?.deligoFinance?.summary?.gross_sales == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.gross_sales))}</strong><small>Fonte oficial do Admin</small></article><article><span>Total levantável</span><strong>{dashboard?.deligoFinance?.summary?.deligo_revenue == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue))}</strong><small>Receita total confirmada</small></article><article><span>Levantamento</span><strong>Protegido</strong><small>Exige aprovação OTP</small></article></div><button className="primaryAction" disabled title="Fluxo OTP financeiro ainda não publicado no backend">Levantar ganhos</button><div className="safeNotice"><b>Dupla aprovação obrigatória</b><span>O levantamento só poderá ser executado depois de existir no backend um fluxo OTP entre o CEO e a Diretora Financeira, com auditoria e confirmação PaySuite.</span></div>
+              {false && <>
               <div className="financeHero">
                 <div><span>SALDO DE TESOURARIA CORPORATIVA</span><strong>{money(treasuryBalance)}</strong><small>{platform} · soma das contas corporativas registadas no HQ.</small></div>
                 <div className="financeGuard"><ShieldCheck aria-hidden="true" /><div><b>Separação financeira activa</b><span>Carteiras de utilizadores não são tratadas como dinheiro da empresa.</span></div></div>
@@ -907,6 +918,7 @@ if(active==="Operações de Campo")void refreshField();
 
               {financeNotice&&<div className="operationalNotice">{financeNotice}</div>}
               <div className="safeNotice"><b>Controlo protegido</b><span>O HQ regista e aprova; “marcar pago” não movimenta dinheiro no banco nem executa Vodacom/Movitel. Distribuição de lucros continua sujeita à governação societária.</span></div>
+              </>}
             </section>
           )}
           {active === "Contabilidade"&&<section className="accountingWorkspace">
@@ -1094,11 +1106,11 @@ if(active==="Operações de Campo")void refreshField();
             <div className="safeNotice"><b>Privacidade de localização</b><span>Coordenadas só são guardadas quando a autorização de localização está marcada. Trabalhadores sem autorização não entram neste fluxo nem no mapa operacional.</span></div>
           </section>}
           {active === "Apoio ao Cliente" && <section className="supportWorkspace">
-            <div className="supportHero"><div><span>CENTRO DE ATENDIMENTO</span><h2>Apoio aos utilizadores das quatro plataformas</h2><p>Tickets, conversas, reclamações, dúvidas, escalonamento e resolução.</p></div><button onClick={()=>setShowSupportForm(!showSupportForm)}>Novo atendimento</button></div>
+            <div className="supportHero"><div><span>INBOX DE SUPORTE</span><h2>Mensagens atribuídas a si</h2><p>Responda apenas às tarefas encaminhadas para o seu utilizador.</p></div><button hidden onClick={()=>setShowSupportForm(!showSupportForm)}>Novo atendimento</button></div>
             <div className="financeKpis">{[["Tickets",supportData.support_tickets?.length||0],["Abertos",(supportData.support_tickets||[]).filter(t=>t.status==="open").length],["Em análise",(supportData.support_tickets||[]).filter(t=>t.status==="in_analysis").length],["Aguardam cliente",(supportData.support_tickets||[]).filter(t=>t.status==="waiting_customer").length],["Escalados",(supportData.support_tickets||[]).filter(t=>t.status==="escalated").length],["Resolvidos",(supportData.support_tickets||[]).filter(t=>["resolved","closed"].includes(String(t.status))).length]].map(([label,value])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>fila central</small></article>)}</div>
             {showSupportForm&&<><div className="supportKindPicker">{[["ticket","Novo ticket"],["message","Resposta"],["attachment","Anexo"]].map(([value,label])=><button type="button" key={value} className={supportKind===value?"active":""} onClick={()=>setSupportKind(value)}>{label}</button>)}</div><form className="financeEntryForm" onSubmit={createSupportRecord}>{supportKind!=="ticket"&&<label><span>Ticket</span><select name="ticketId" required value={selectedSupportTicket} onChange={e=>setSelectedSupportTicket(e.target.value)}><option value="">Selecionar</option>{(supportData.support_tickets||[]).filter(t=>t.status!=="closed").map(t=><option value={t.id} key={t.id}>{String(t.subject)} · {String(t.status)}</option>)}</select></label>}{supportKind==="ticket"&&<><label><span>Plataforma</span><select name="platform" required><option value="deligo">DeliGo</option><option value="comunhao">Comunhão</option><option value="taomoz">TaoMoz</option><option value="sarca">SARCA</option></select></label><label><span>Tipo</span><select name="ticketType"><option value="complaint">Reclamação</option><option value="question">Dúvida</option><option value="request">Pedido</option><option value="incident">Incidente</option></select></label><label><span>Categoria</span><input name="category" placeholder="pagamento, conta, viagem…" required/></label><label><span>Prioridade</span><select name="priority"><option value="normal">Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option><option value="low">Baixa</option></select></label><label><span>Assunto</span><input name="subject" required/></label><label><span>Descrição</span><input name="description" required/></label><label><span>Cliente</span><input name="customerName" required/></label><label><span>Referência do cliente</span><input name="customerReference" required/></label><label><span>Contacto</span><input name="customerContact"/></label><label><span>Referência externa</span><input name="externalReference"/></label></>}{supportKind==="message"&&<><label><span>Resposta</span><input name="message" required/></label><label className="fieldCheck"><input name="internal" type="checkbox"/><span>Nota interna</span></label></>}{supportKind==="attachment"&&<><label><span>Nome do ficheiro</span><input name="fileName" required/></label><label><span>Tipo MIME</span><input name="mimeType" placeholder="image/jpeg, application/pdf…"/></label><label><span>Referência segura</span><input name="reference" required/></label></>}<button className="primaryAction">Guardar</button></form></>}
             {supportNotice&&<div className="operationalNotice">{supportNotice}</div>}
-            <div className="workflowBridge"><div><span>ROTEAMENTO CENTRAL</span><h3>Um ticket, vários departamentos, um único histórico</h3><p>Categoria técnica, financeira, laboral, jurídica ou de risco define o departamento e notifica a equipa responsável.</p></div>{(supportData.support_tickets||[]).slice(0,6).map(t=>{const department=(supportData.departments||[]).find(d=>d.id===t.current_department_id);return <article key={t.id}><strong>{String(t.ticket_number||"Ticket sem número")}</strong><span>{String(department?.name||"Apoio ao Cliente")} · {String(t.status).replaceAll("_"," ")}</span></article>})}</div>
+            <div className="workflowBridge" hidden></div>
             <div className="supportTicketList"><div className="panelTitle"><div><h2>Fila de atendimento</h2><p>Estado, cliente, agente, respostas e resolução</p></div></div>{(supportData.support_tickets||[]).map(t=>{const platformName=(supportData.platforms||[]).find(p=>p.id===t.platform_id)?.name,agent=(supportData.employees||[]).find(e=>e.id===t.assigned_to);return <article key={t.id} className={`supportTicket priority-${String(t.priority)}`}><button className="supportTicketOpen" onClick={()=>setSelectedSupportTicket(String(t.id))}><div><span>{String(t.ticket_type).replaceAll("_"," ")} · {String(t.category)}</span><strong>{String(t.subject)}</strong><small>{String(t.customer_name||t.customer_reference)} · {String(platformName||"Plataforma")} · Agente: {String(agent?.name||"não atribuído")}</small></div><b>{String(t.status).replaceAll("_"," ")}</b></button><div className="supportTicketActions"><select value={supportTargets[String(t.id)]||""} onChange={e=>setSupportTargets(current=>({...current,[String(t.id)]:e.target.value}))}><option value="">Selecionar agente</option>{(supportData.employees||[]).filter(e=>e.status==="active").map(e=><option value={e.id} key={e.id}>{String(e.name)}</option>)}</select>{t.status==="open"&&<button onClick={()=>void supportAction(String(t.id),"assign")}>Atribuir</button>}{["open","waiting_customer","escalated","resolved"].includes(String(t.status))&&<button onClick={()=>void supportAction(String(t.id),"analysis")}>Em análise</button>}{t.status==="in_analysis"&&<button onClick={()=>void supportAction(String(t.id),"waiting_customer")}>Aguardar cliente</button>}{!["resolved","closed"].includes(String(t.status))&&<button onClick={()=>void supportAction(String(t.id),"escalate")}>Escalar</button>}{!["resolved","closed"].includes(String(t.status))&&<button onClick={()=>void supportAction(String(t.id),"resolve")}>Resolver</button>}{t.status==="resolved"&&<button onClick={()=>void supportAction(String(t.id),"close")}>Fechar</button>}</div></article>})}{!supportData.support_tickets?.length&&<div className="peopleEmpty">Sem tickets no atendimento central.</div>}</div>
             {selectedSupportTicket&&<div className="supportCaseDetail"><div className="supportCaseHead"><div><span>HISTÓRICO COMPLETO</span><h3>{String((supportData.support_tickets||[]).find(t=>t.id===selectedSupportTicket)?.subject||"Ticket")}</h3></div><button onClick={()=>setSelectedSupportTicket("")}>Fechar detalhe</button></div><div className="supportCaseColumns"><article><h4>Conversas e respostas</h4>{(supportData.support_conversations||[]).filter(m=>m.ticket_id===selectedSupportTicket).map(m=><p key={m.id}><strong>{m.sender_type==="agent"?"Agente":"Cliente"}{m.is_internal?" · nota interna":""}</strong><span>{String(m.message)}</span><small>{new Date(String(m.created_at)).toLocaleString("pt-MZ")}</small></p>)}{!(supportData.support_conversations||[]).some(m=>m.ticket_id===selectedSupportTicket)&&<div className="peopleEmpty">Sem conversas.</div>}</article><article><h4>Anexos e escalonamentos</h4>{(supportData.support_attachments||[]).filter(a=>a.ticket_id===selectedSupportTicket).map(a=><p key={a.id}><strong>{String(a.file_name)}</strong><span>{String(a.mime_type||"ficheiro")}</span></p>)}{(supportData.support_escalations||[]).filter(e=>e.ticket_id===selectedSupportTicket).map(e=><p key={e.id}><strong>Escalonamento</strong><span>{String(e.reason)} · {String(e.status)}</span></p>)}</article><article><h4>Histórico</h4>{(supportData.support_history||[]).filter(h=>h.ticket_id===selectedSupportTicket).map(h=><p key={h.id}><strong>{String(h.event_type).replaceAll("_"," ")}</strong><span>{String(h.description)}</span><small>{new Date(String(h.created_at)).toLocaleString("pt-MZ")}</small></p>)}</article></div></div>}
             <div className="safeNotice"><b>Fluxo protegido</b><span>Tickets só podem ser fechados depois da resolução. Escalonamentos exigem destino e motivo, e todas as respostas, atribuições e mudanças de estado ficam no histórico.</span></div>
@@ -1143,10 +1155,10 @@ if(active==="Operações de Campo")void refreshField();
           <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
-              ["Total de utilizadores", String(totalUsers), "Nas plataformas ligadas ao HQ"],
-              ["Financeiro confirmado", "—", "Apenas depósitos PaySuite reconciliados"],
-              ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Comissões confirmadas no stream corporativo"],
-              ["Lucro líquido", "—", "Não disponível sem reconciliação contabilística"],
+              ["Total de utilizadores", String(overviewPeople.length || totalUsers), "Contas autorizadas no ecossistema"],
+              ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Taxas, comissões e ganhos confirmados"],
+              ["Receita total levantável", dashboard?.deligoFinance?.summary?.deligo_revenue == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue)), "Receita total confirmada no Admin"],
+              ["Estado das plataformas", `${connectedPlatforms}/${dashboard?.platforms.length || 0}`, "Ligações operacionais confirmadas"],
             ].map(([label, value, note], index) => (
               <article className={`metric metric-${index}`} key={label}>
                 <div className="metricTopline"><span>INDICADOR CENTRAL</span><div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity, PackageCheck].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div></div>
@@ -1156,7 +1168,17 @@ if(active==="Operações de Campo")void refreshField();
             ))}
           </section>
 
-          <section className="missionControl">
+          <section className="peoplePanel">
+            <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>navigate("Pessoas")}>Gerir pessoas →</button></div>
+            <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
+            <div className="peopleList">
+              {filteredOverviewPeople.slice(0, 100).map(person => { const app = person.apps[0]; return <button className="peopleRow" key={person.user_id} onClick={()=>app?.slug && setSelectedProfile({ platform: String(app.slug), id: person.user_id, name: String(person.full_name || person.display_name || person.user_id) })}><span className="personIdentity"><i>{String(person.full_name || person.display_name || "U").split(" ").slice(0,2).map(part=>part[0]).join("")}</i><strong>{person.full_name || person.display_name || "Utilizador"}</strong></span><span className="rolePill">{String(app?.name || app?.slug || "Plataforma não indicada")}</span><span>{String(app?.role || "—")}</span><span className="connectedPill">{person.profile_status || "Activo"}</span></button>; })}
+              {!filteredOverviewPeople.length && <div className="peopleEmpty">Nenhum utilizador autorizado encontrado.</div>}
+              {filteredOverviewPeople.length > 100 && <div className="peopleEmpty">A mostrar os primeiros 100 resultados. Use a pesquisa para localizar uma conta.</div>}
+            </div>
+          </section>
+
+          <section className="missionControl" hidden>
             <div className="missionControlHead">
               <div><span>CENTRAL DE OPERAÇÕES</span><h2>O que precisa de atenção agora</h2><p>Leitura consolidada do backend central, sem simular estados que ainda não foram integrados.</p></div>
               <button onClick={() => navigate("Tecnologia / IT")}>Ver saúde técnica <ChevronRight aria-hidden="true" /></button>
@@ -1175,6 +1197,21 @@ if(active==="Operações de Campo")void refreshField();
                 <div className="liveMapCopy"><span>MAPA OPERACIONAL · {mapMarkers.length} AO VIVO</span><strong>Tracking em tempo real</strong><p>{mapMarkers.length ? "Posições recentes de estafetas, motoristas e couriers. Actualiza a cada 10 segundos." : "Sem posições recentes para o filtro actual."}</p><button onClick={() => navigate("Mapa operacional")}>Abrir mapa completo</button></div>
               </article>
             </div>
+          </section>
+
+          <section className="financePanel" aria-label="Resumo financeiro oficial por plataforma">
+            <div className="panelTitle"><div><span>FONTE FINANCEIRA OFICIAL</span><h2>Valores reais por plataforma</h2><p>Sem somar carteiras de utilizadores com lucro corporativo. Só mostramos valores quando a fonte financeira foi validada.</p></div><button onClick={()=>navigate("Finanças")}>Abrir Finanças →</button></div>
+            <div className="financeKpis">
+              {[["Receita DeliGo", "deligo_revenue"], ["Vendas brutas DeliGo", "gross_sales"], ["A pagar a estafetas", "courier_due"], ["A pagar a restaurantes", "restaurant_due"]].map(([label,key])=>{
+                const summary = dashboard?.deligoFinance?.summary as Record<string, unknown> | undefined;
+                const available = Boolean(summary);
+                return <article key={label}><span>{label}</span><strong>{available ? money(Number(summary?.[key] || 0)) : "Indisponível"}</strong><small>{available ? "RPC oficial do DeliGo Admin" : "Sem permissão ou fonte validada"}</small></article>;
+              })}
+            </div>
+            <div className="platformFinanceRows">
+              {(dashboard?.platforms || []).map(item => <div className="biRow" key={`finance-platform-${item.slug}`}><strong>{item.name}</strong><span>{item.slug === "deligo" && dashboard?.deligoFinance ? "Resumo financeiro oficial disponível" : "Sem resumo financeiro validado"}</span><span>{String(item.platform_status || "Estado não confirmado")}</span><button onClick={()=>{setPlatform(item.name);navigate("Plataformas")}}>Abrir painel</button></div>)}
+            </div>
+            <div className="safeNotice"><b>Separação preservada</b><span>O envio de valores para trabalhadores deve continuar a usar a RPC oficial do Admin, com autorização, saldo disponível e registo de auditoria.</span></div>
           </section>
 
           <section className="deligoSyncPanel" hidden>
