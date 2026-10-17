@@ -766,6 +766,7 @@ if(active==="Operações de Campo")void refreshField();
           <div><strong>DeliGo Triunfal</strong><span>Central Web</span></div>
         </div>
         <nav>
+          {visibleNav.some(([, label]) => label === "Visão geral") && <button className={active === "Visão geral" ? "navItem active" : "navItem"} onClick={() => navigate("Visão geral")}><span><LayoutDashboard aria-hidden="true" /></span>Visão Geral</button>}
           {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{displayModuleLabel(label)}</button>)}</div> })}
           <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span>Meu Perfil</button>
         </nav>
