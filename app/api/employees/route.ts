@@ -22,6 +22,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const authorization = await requireCorporatePermission("users.create"),actor=authorization?.actor;
   if (!actor) return NextResponse.json({ error: "Sem permissão para cadastrar trabalhadores." }, { status: 403 });
+  if (!new Set(["SUPER_ADMIN", "SUPERVISOR", "FINANCE"]).has(actor.role)) return NextResponse.json({ error: "Apenas Admin, Supervisor ou Co-CEO podem cadastrar trabalhadores." }, { status: 403 });
   const input = await request.json() as { name?: string; phone?: string; jobTitle?: string; department?: string; role?: string; activate?: boolean };
   const digits = (input.phone || "").replace(/\D/g, "");
   const phone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
