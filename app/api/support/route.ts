@@ -1,31 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireCorporatePermission, hqRpc, supabaseUrl } from "@/lib/hq-server";
+import { corporateAuthorization, hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 const entity = "10000000-0000-0000-0000-000000000001";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
 const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
-const directRoles = new Set(["SUPER_ADMIN","CUSTOMER_SUPPORT","OPERATIONS","SUPERVISOR"]);
-const departmentRoles = new Set(["FINANCE","TECHNOLOGY","HUMAN_RESOURCES","LEGAL","COMPLIANCE"]);
+// Central support access is role-based and shared across all connected apps.
+const viewerRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT","FINANCE"]);
+const replyRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT"]);
+const financeReplyActions = new Set(["analysis","waiting_customer","resolve"]);
+const financialTerms = /finance|finan[cç]|pagamento|pagar|dep[oó]sito|levantamento|saldo|cobran[cç]a|reembolso|estorno|fatura|transa[cç][aã]o|transfer[eê]ncia|payment|refund|withdrawal|deposit|billing/i;
 const headers = (key:string) => ({ apikey:key, Authorization:`Bearer ${key}`, "Accept-Profile":"hq", "Content-Profile":"hq", "Content-Type":"application/json", Prefer:"return=representation" });
 
 async function rest(key:string,path:string,init:RequestInit={}) { const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json() }
 const coreHeaders=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"core","Content-Profile":"core","Content-Type":"application/json",Prefer:"return=representation"});
 async function coreRest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...coreHeaders(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
 async function safe<T>(operation:Promise<T>,fallback:T):Promise<T>{try{return await operation}catch(error){console.error("SUPPORT_OPTIONAL_SOURCE_FAILED",String(error));return fallback}}
-async function context(permission="support.viewTickets",platform?:string){const authorization=await requireCorporatePermission(permission,platform),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;if(!actor||!key||(!directRoles.has(actor.role)&&!departmentRoles.has(actor.role)))return null;const employee=(await rest(key,`employees?id=eq.${actor.employee_id}&select=department_id`))?.[0];return{actor,authorization,key,departmentId:String(employee?.department_id||"")}}
+async function context(_permission="support.viewTickets",platform?:string){
+  const authorization=await corporateAuthorization(),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;
+  const role=String(actor?.role||"").toUpperCase();
+  if(!actor||!authorization||!key||!viewerRoles.has(role))return null;
+  if(platform&&!Object.prototype.hasOwnProperty.call(platforms,platform))return null;
+  return{actor:{...actor,role},authorization,key,departmentId:""};
+}
+function isFinancialTicket(ticket:Record<string,unknown>){
+  return financialTerms.test([ticket.category,ticket.ticket_type,ticket.subject,ticket.description,ticket.resolution].map(v=>String(v||"")).join(" "));
+}
+function canReplyToTicket(current:{actor:{role:string}},ticket:Record<string,unknown>){
+  return replyRoles.has(current.actor.role)||(current.actor.role==="FINANCE"&&isFinancialTicket(ticket));
+}
 async function history(key:string,ticketId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"support_history",{method:"POST",body:JSON.stringify({ticket_id:ticketId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
 async function audit(key:string,actorId:string,action:string,ticketId:string,metadata:Record<string,unknown>={}){await rest(key,"audit_logs",{method:"POST",body:JSON.stringify({actor_employee_id:actorId,action,legal_entity_id:entity,module:"support",target_type:"support_ticket",target_id:ticketId,result:"success",metadata})})}
 function departmentFor(category:unknown,type:unknown){const value=`${String(category||"")} ${String(type||"")}`.toLowerCase();if(/t[eé]cnic|aplica[cç][aã]o|erro|sistema|api/.test(value))return"TECHNOLOGY";if(/pagamento|dep[oó]sito|levantamento|saldo|cobran[cç]a|reembolso/.test(value))return"FINANCE";if(/trabalhador|motorista|estafeta|agente|comportamento/.test(value))return"HR";if(/contrato|legal|jur[ií]dic|amea[cç]a/.test(value))return"LEGAL";if(/risco|fraude|seguran[cç]a|grave/.test(value))return"COMPLIANCE";return"SUPPORT"}
-function ticketAllowed(current:{actor:{role:string};departmentId:string},ticket:Record<string,unknown>){return directRoles.has(current.actor.role)||String(ticket.current_department_id||ticket.department_id||"")===current.departmentId}
+function ticketAllowed(current:{actor:{role:string}},ticket:Record<string,unknown>){return current.actor.role==="FINANCE"?isFinancialTicket(ticket):replyRoles.has(current.actor.role)}
 
 export async function GET(request:NextRequest){
   const requestedPlatform=request.nextUrl.searchParams.get("platform")||undefined,current=await context("support.viewTickets",requestedPlatform);if(!current)return NextResponse.json({error:"Acesso reservado ao atendimento e plataformas atribuídas."},{status:403});
-  const departmentScope=departmentRoles.has(current.actor.role)?`&current_department_id=eq.${encodeURIComponent(current.departmentId)}`:"";
-  const requestedPlatformId=requestedPlatform?platforms[requestedPlatform]:null,platformScope=requestedPlatformId?`&platform_id=eq.${requestedPlatformId}`:current.authorization.isSuperAdmin?"":current.authorization.platformIds.length?`&platform_id=in.(${current.authorization.platformIds.join(",")})`:`&platform_id=eq.00000000-0000-0000-0000-000000000000`,scope=`${departmentScope}${platformScope}`;
+  // Authorized support roles can see the shared queue across every connected platform.
+  const requestedPlatformId=requestedPlatform?platforms[requestedPlatform]:null;
+  const scope=requestedPlatformId?`&platform_id=eq.${requestedPlatformId}`:"";
   const tickets=await safe(rest(current.key,`support_tickets?select=*&limit=600${scope}&order=updated_at.desc`),[]);
   const appCases=await safe(coreRest(current.key,"support_cases?select=*,app:apps(slug,name)&order=updated_at.desc&limit=600"),[]);
   const platformIdBySlug=platforms;
-  const coreTickets=(Array.isArray(appCases)?appCases:[]).filter((item:{app?:{slug?:string}})=>{const slug=String(item.app?.slug||"");return (!requestedPlatform||slug===requestedPlatform)&&(current.authorization.isSuperAdmin||current.authorization.platformSlugs.includes(slug))}).map((item:{id:string;case_number:number;app?:{slug?:string;name?:string};subject:string;description:string;status:string;priority:string;requester_name?:string;requester_phone?:string;requester_email?:string;requester_user_id?:string;category:string;assigned_user_id?:string;created_at:string;updated_at:string;source_channel?:string})=>({id:`core:${item.id}`,source:"app",ticket_number:`${String(item.app?.slug||"app").toUpperCase()}-${String(item.case_number).padStart(6,"0")}`,platform_id:platformIdBySlug[String(item.app?.slug||"")],platform_slug:item.app?.slug,platform_name:item.app?.name,subject:item.subject,description:item.description,status:item.status==="waiting_internal"?"escalated":item.status,priority:item.priority,ticket_type:"app_message",category:item.category,customer_name:item.requester_name,customer_contact:item.requester_phone||item.requester_email,customer_reference:item.requester_user_id,assigned_to:item.assigned_user_id,created_at:item.created_at,updated_at:item.updated_at,external_reference:item.source_channel}));
+  const coreTickets=(Array.isArray(appCases)?appCases:[]).filter((item:{app?:{slug?:string}})=>{const slug=String(item.app?.slug||"");return (!requestedPlatform||slug===requestedPlatform)}).map((item:{id:string;case_number:number;app?:{slug?:string;name?:string};subject:string;description:string;status:string;priority:string;requester_name?:string;requester_phone?:string;requester_email?:string;requester_user_id?:string;category:string;assigned_user_id?:string;created_at:string;updated_at:string;source_channel?:string})=>({id:`core:${item.id}`,source:"app",ticket_number:`${String(item.app?.slug||"app").toUpperCase()}-${String(item.case_number).padStart(6,"0")}`,platform_id:platformIdBySlug[String(item.app?.slug||"")],platform_slug:item.app?.slug,platform_name:item.app?.name,subject:item.subject,description:item.description,status:item.status==="waiting_internal"?"escalated":item.status,priority:item.priority,ticket_type:"app_message",category:item.category,customer_name:item.requester_name,customer_contact:item.requester_phone||item.requester_email,customer_reference:item.requester_user_id,assigned_to:item.assigned_user_id,created_at:item.created_at,updated_at:item.updated_at,external_reference:item.source_channel}));
   const allTickets=[...(Array.isArray(tickets)?tickets:[]),...coreTickets];
   const ids=(tickets||[]).map((row:{id:string})=>row.id),ticketFilter=ids.length?`ticket_id=in.(${ids.join(",")})`:"ticket_id=eq.00000000-0000-0000-0000-000000000000";
   const caseIds=(tickets||[]).map((row:{workflow_case_id?:string})=>row.workflow_case_id).filter(Boolean);
@@ -48,6 +64,7 @@ export async function GET(request:NextRequest){
 export async function POST(request:NextRequest){
   const body=await request.json() as {resource?:string;record?:Record<string,unknown>};if(!body.resource||!body.record)return NextResponse.json({error:"Dados insuficientes."},{status:400});
   const platform=body.resource==="ticket"?String(body.record.platform_slug||""):undefined,current=await context("support.reply",platform);if(!current)return NextResponse.json({error:"Sem permissão para gerir este atendimento ou plataforma."},{status:403});
+  if(body.resource==="ticket"&&!replyRoles.has(current.actor.role))return NextResponse.json({error:"Este perfil pode consultar e responder apenas a atendimentos financeiros já existentes."},{status:403});
   try{
     if(body.resource==="ticket"){
       if(departmentRoles.has(current.actor.role))return NextResponse.json({error:"A abertura de tickets pertence ao Apoio ao Cliente."},{status:403});
@@ -60,12 +77,17 @@ export async function POST(request:NextRequest){
     if(String(body.record.ticket_id||"").startsWith("core:")){
       const caseId=String(body.record.ticket_id).slice(5);
       if(body.resource!=="message")return NextResponse.json({error:"Anexos de casos dos apps devem usar o armazenamento do app."},{status:409});
+      const coreCase=(await coreRest(current.key,`support_cases?id=eq.${caseId}&select=*,app:apps(slug,name)`))?.[0];
+      if(!coreCase)return NextResponse.json({error:"Atendimento não encontrado."},{status:404});
+      const coreCategory={category:coreCase.category,subject:coreCase.subject,description:coreCase.description};
+      if(!canReplyToTicket(current,coreCategory))return NextResponse.json({error:"O perfil Finance só pode responder a assuntos financeiros."},{status:403});
       const signedBody=`${String(body.record.message||"").trim()}\n\n— ${current.actor.name}`;
       const created=(await coreRest(current.key,"support_case_messages",{method:"POST",body:JSON.stringify({case_id:caseId,author_type:"staff",body:signedBody,is_internal:body.record.is_internal==="true"||body.record.is_internal===true,metadata:{hq_employee_id:current.actor.employee_id}})}))?.[0];
       await coreRest(current.key,`support_cases?id=eq.${caseId}`,{method:"PATCH",body:JSON.stringify({status:"assigned",updated_at:new Date().toISOString()})});
+      await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,event_type:"hq_reply_sent",metadata:{hq_employee_id:current.actor.employee_id,channel:coreCase.source_channel||"app"}})});
       return NextResponse.json({record:{...created,id:`core-msg:${created.id}`,ticket_id:`core:${caseId}`,sender_type:"agent",message:created.body}},{status:201});
     }
-    const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(String(body.record.ticket_id||""))}&select=*`))?.[0];if(!ticket||!ticketAllowed(current,ticket))return NextResponse.json({error:"O ticket não pertence ao seu departamento."},{status:403});
+    const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(String(body.record.ticket_id||""))}&select=*`))?.[0];if(!ticket||!canReplyToTicket(current,ticket))return NextResponse.json({error:"Sem permissão para responder a este atendimento. O perfil Finance só pode responder a assuntos financeiros."},{status:403});
     const record={...body.record} as Record<string,unknown>;if(table==="support_conversations"){record.sender_type="agent";record.sender_employee_id=current.actor.employee_id;record.message=`${String(record.message||"").trim()}\n\n— ${current.actor.name}`}if(table==="support_attachments")record.uploaded_by=current.actor.employee_id;
     const created=(await rest(current.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];await history(current.key,ticket.id,body.resource==="message"?"response_sent":"attachment_added",body.resource==="message"?"Resposta adicionada à conversa":"Anexo associado ao ticket",current.actor.employee_id,{department_id:current.departmentId});await audit(current.key,current.actor.employee_id,`support_${body.resource}_created`,ticket.id,{record_id:created.id,department_id:current.departmentId});return NextResponse.json({record:created},{status:201});
   }catch{return NextResponse.json({error:"Não foi possível guardar o atendimento. Confirme cliente, plataforma e dados obrigatórios."},{status:409})}
@@ -74,6 +96,7 @@ export async function POST(request:NextRequest){
 export async function PATCH(request:NextRequest){
   const body=await request.json() as {ticketId?:string;action?:string;employeeId?:string;reason?:string;resolution?:string};if(!body.ticketId||!body.action)return NextResponse.json({error:"Ação inválida."},{status:400});
   const permission=["resolve","close"].includes(body.action)?"support.close":"support.reply",current=await context(permission);if(!current)return NextResponse.json({error:"Sem permissão para atualizar atendimento."},{status:403});
+  if(current.actor.role==="FINANCE"&&!financeReplyActions.has(body.action))return NextResponse.json({error:"Finance só pode atualizar o estado de atendimentos financeiros através das ações permitidas."},{status:403});
   try{
     if(String(body.ticketId).startsWith("core:")){
       const caseId=String(body.ticketId).slice(5),coreCase=(await coreRest(current.key,`support_cases?id=eq.${caseId}&select=*`))?.[0];if(!coreCase)return NextResponse.json({error:"Caso do app não encontrado."},{status:404});
@@ -85,7 +108,7 @@ export async function PATCH(request:NextRequest){
       await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,event_type:`hq_${body.action}`,old_value:{status:coreCase.status},new_value:{status:next},metadata:{hq_employee_id:current.actor.employee_id,reason:body.reason||null}})});
       return NextResponse.json({ok:true,record:updated});
     }
-    const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(body.ticketId)}&select=*`))?.[0];if(!ticket)return NextResponse.json({error:"Ticket não encontrado."},{status:404});if(!ticketAllowed(current,ticket))return NextResponse.json({error:"O ticket não pertence ao seu departamento."},{status:403});
+    const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(body.ticketId)}&select=*`))?.[0];if(!ticket)return NextResponse.json({error:"Ticket não encontrado."},{status:404});if(!canReplyToTicket(current,ticket))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
     const changes:Record<string,unknown>={};
     if(body.action==="assign"){if(departmentRoles.has(current.actor.role))return NextResponse.json({error:"A atribuição pertence ao Apoio ao Cliente."},{status:403});if(!body.employeeId)return NextResponse.json({error:"Selecione o agente responsável."},{status:400});changes.assigned_to=body.employeeId;changes.assigned_by=current.actor.employee_id;changes.status=ticket.status==="open"?"in_analysis":ticket.status}
     else if(body.action==="analysis")changes.status="in_analysis";
