@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { corporateAuthorization, hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 const entity = "10000000-0000-0000-0000-000000000001";
+const financeDepartment = "30000000-0000-0000-0000-000000000002";
+const accountingDepartment = "30000000-0000-0000-0000-000000000003";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
 const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
 // Central support access is role-based and shared across all connected apps.
@@ -28,10 +30,15 @@ async function context(_permission="support.viewTickets",platform?:string){
   return{actor:{...actor,role},authorization,key,departmentId:""};
 }
 function isFinancialTicket(ticket:Record<string,unknown>){
-  return financialTerms.test([ticket.category,ticket.ticket_type,ticket.subject,ticket.description,ticket.resolution].map(v=>String(v||"")).join(" "));
+  const routedDepartment=String(ticket.current_department_id||ticket.department_id||"");
+  if([financeDepartment,accountingDepartment].includes(routedDepartment))return true;
+  // Never classify a ticket as financial from customer-controlled subject or description text.
+  return financialTerms.test([ticket.category,ticket.ticket_type,ticket.assigned_team].map(v=>String(v||"")).join(" "));
 }
 function canReplyToTicket(current:{actor:{role:string}},ticket:Record<string,unknown>){
-  return replyRoles.has(current.actor.role)||(isFinanceRole(current.actor.role)&&isFinancialTicket(ticket));
+  // Finance may respond only to financial matters; do not let role membership bypass this check.
+  if(isFinanceRole(current.actor.role))return isFinancialTicket(ticket);
+  return replyRoles.has(current.actor.role);
 }
 async function sendWhatsAppReply(channel:unknown, contact:unknown, message:string):Promise<string|null>{
   if(String(channel||"").toLowerCase()!=="whatsapp")return null;
@@ -62,24 +69,26 @@ export async function GET(request:NextRequest){
   const tickets=await safe(rest(current.key,`support_tickets?select=*&limit=600${scope}&order=updated_at.desc`),[]);
   const appCases=await safe(coreRest(current.key,"support_cases?select=*,app:apps(slug,name)&order=updated_at.desc&limit=600"),[]);
   const platformIdBySlug=platforms;
-  const coreTickets=(Array.isArray(appCases)?appCases:[]).filter((item:{app?:{slug?:string}})=>{const slug=String(item.app?.slug||"");return (!requestedPlatform||slug===requestedPlatform)}).map((item:{id:string;case_number:number;app?:{slug?:string;name?:string};subject:string;description:string;status:string;priority:string;requester_name?:string;requester_phone?:string;requester_email?:string;requester_user_id?:string;category:string;assigned_user_id?:string;created_at:string;updated_at:string;source_channel?:string})=>({id:`core:${item.id}`,source:"app",ticket_number:`${String(item.app?.slug||"app").toUpperCase()}-${String(item.case_number).padStart(6,"0")}`,platform_id:platformIdBySlug[String(item.app?.slug||"")],platform_slug:item.app?.slug,platform_name:item.app?.name,subject:item.subject,description:item.description,status:item.status==="waiting_internal"?"escalated":item.status,priority:item.priority,ticket_type:"app_message",category:item.category,customer_name:item.requester_name,customer_contact:item.requester_phone||item.requester_email,customer_reference:item.requester_user_id,assigned_to:item.assigned_user_id,created_at:item.created_at,updated_at:item.updated_at,external_reference:item.source_channel,source_channel:item.source_channel||"app"}));
-  const allTickets=[...(Array.isArray(tickets)?tickets:[]),...coreTickets];
+  const coreTickets=(Array.isArray(appCases)?appCases:[]).filter((item:{app?:{slug?:string}})=>{const slug=String(item.app?.slug||"");return (!requestedPlatform||slug===requestedPlatform)}).map((item:{id:string;case_number:number;app?:{slug?:string;name?:string};subject:string;description:string;status:string;priority:string;requester_name?:string;requester_phone?:string;requester_email?:string;requester_user_id?:string;category:string;assigned_user_id?:string;created_at:string;updated_at:string;source_channel?:string})=>({id:`core:${item.id}`,source:"app",ticket_number:`${String(item.app?.slug||"app").toUpperCase()}-${String(item.case_number).padStart(6,"0")}`,platform_id:platformIdBySlug[String(item.app?.slug||"")],platform_slug:item.app?.slug,platform_name:item.app?.slug==="taomoz"?"DeliGo Market":item.app?.name,subject:item.subject,description:item.description,status:item.status==="waiting_internal"?"escalated":item.status==="assigned"?"in_analysis":item.status,priority:item.priority,ticket_type:"app_message",category:item.category,customer_name:item.requester_name,customer_contact:item.requester_phone||item.requester_email,customer_reference:item.requester_user_id,assigned_to:item.assigned_user_id,created_at:item.created_at,updated_at:item.updated_at,external_reference:item.source_channel,source_channel:item.source_channel||"app"}));
   const ids=(tickets||[]).map((row:{id:string})=>row.id),ticketFilter=ids.length?`ticket_id=in.(${ids.join(",")})`:"ticket_id=eq.00000000-0000-0000-0000-000000000000";
   const caseIds=(tickets||[]).map((row:{workflow_case_id?:string})=>row.workflow_case_id).filter(Boolean);
   const coreIds=coreTickets.map((row:{id:string})=>row.id.slice(5));
   const coreFilter=coreIds.length?`case_id=in.(${coreIds.join(",")})`:"case_id=eq.00000000-0000-0000-0000-000000000000";
-  const [conversations,attachments,escalations,assignments,events,cases,steps,employees,platformRows,departments,coreConversations,coreEvents]=await Promise.all([
+  const [conversations,attachments,escalations,assignments,events,cases,steps,employeeRows,platformRows,departments,coreConversations,coreEvents]=await Promise.all([
     safe(rest(current.key,`support_conversations?select=*&${ticketFilter}&order=created_at.desc&limit=600`),[]),safe(rest(current.key,`support_attachments?select=*&${ticketFilter}&limit=600`),[]),
     safe(rest(current.key,`support_escalations?select=*&${ticketFilter}&limit=600`),[]),safe(rest(current.key,`support_department_assignments?select=*&${ticketFilter}&order=created_at.desc&limit=600`),[]),
     safe(rest(current.key,`support_history?select=*&${ticketFilter}&order=created_at.desc&limit=600`),[]),
     caseIds.length?safe(rest(current.key,`workflow_cases?id=in.(${caseIds.join(",")})&select=*&limit=600`),[]):[],
     caseIds.length?safe(rest(current.key,`workflow_steps?case_id=in.(${caseIds.join(",")})&select=*&order=step_order&limit=600`),[]):[],
-    safe(rest(current.key,"employees?select=id,employee_code,name:display_name,job_title,status,department_id&limit=600"),[]),safe(rest(current.key,"platforms?select=id,slug,name&limit=20"),[]),safe(rest(current.key,"departments?select=id,code,name&active=eq.true&limit=100"),[]),
+    safe(rest(current.key,"employees?select=id,auth_user_id,employee_code,name:display_name,job_title,status,department_id&limit=600"),[]),safe(rest(current.key,"platforms?select=id,slug,name&limit=20"),[]),safe(rest(current.key,"departments?select=id,code,name&active=eq.true&limit=100"),[]),
     safe(coreRest(current.key,`support_case_messages?select=*&${coreFilter}&order=created_at.asc&limit=1000`),[]),safe(coreRest(current.key,`support_case_events?select=*&${coreFilter}&order=created_at.desc&limit=1000`),[])
   ]);
   const coreMessages=(Array.isArray(coreConversations)?coreConversations:[]).map((item:{id:string;case_id:string;author_type:string;body:string;is_internal:boolean;created_at:string})=>({id:`core-msg:${item.id}`,ticket_id:`core:${item.case_id}`,sender_type:item.author_type==="staff"?"agent":"customer",message:item.body,is_internal:item.is_internal,created_at:item.created_at}));
   const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));
-  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...(Array.isArray(conversations)?conversations:[]),...coreMessages],support_attachments:attachments,support_escalations:escalations,support_department_assignments:assignments,support_history:[...(Array.isArray(events)?events:[]),...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments}},{headers:{"Cache-Control":"private, no-store"}});
+  const enrichedCoreTickets=coreTickets.map((item:{assigned_to?:string})=>({...item,assigned_to_name:(Array.isArray(employeeRows)?employeeRows:[]).find((employee:{auth_user_id?:string;name?:string})=>employee.auth_user_id===item.assigned_to)?.name||null}));
+  const employees=(Array.isArray(employeeRows)?employeeRows:[]).map((employee:Record<string,unknown>)=>Object.fromEntries(Object.entries(employee).filter(([key])=>key!=="auth_user_id")));
+  const displayPlatforms=(Array.isArray(platformRows)?platformRows:[]).map((item:{slug?:string;name?:string})=>item.slug==="taomoz"?{...item,name:"DeliGo Market"}:item);
+  return NextResponse.json({data:{support_tickets:[...(Array.isArray(tickets)?tickets:[]),...enrichedCoreTickets],support_conversations:[...(Array.isArray(conversations)?conversations:[]),...coreMessages],support_attachments:attachments,support_escalations:escalations,support_department_assignments:assignments,support_history:[...(Array.isArray(events)?events:[]),...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:displayPlatforms,departments}},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(request:NextRequest){
@@ -132,16 +141,27 @@ export async function PATCH(request:NextRequest){
   try{
     if(String(body.ticketId).startsWith("core:")){
       const caseId=String(body.ticketId).slice(5),coreCase=(await coreRest(current.key,`support_cases?id=eq.${caseId}&select=*`))?.[0];if(!coreCase)return NextResponse.json({error:"Caso do app não encontrado."},{status:404});
-      if(!canReplyToTicket(current,{category:coreCase.category,subject:coreCase.subject,description:coreCase.description}))return NextResponse.json({error:"O perfil Finance só pode atualizar atendimentos financeiros."},{status:403});
-      const statusMap:Record<string,string>={assign:"assigned",analysis:"assigned",waiting_customer:"waiting_customer",resolve:"resolved",close:"closed",reopen:"open"};
-      if(body.action==="escalate")return NextResponse.json({error:"Escalonamento de casos dos apps requer encaminhamento pelo departamento."},{status:409});
+      const assignmentAction=["assign","escalate"].includes(body.action||"");
+      if(!assignmentAction&&!canReplyToTicket(current,{category:coreCase.category,subject:coreCase.subject,description:coreCase.description}))return NextResponse.json({error:"O perfil Finance só pode atualizar atendimentos financeiros."},{status:403});
+      if(assignmentAction){
+        if(!escalationRoles.has(current.actor.role))return NextResponse.json({error:"Só Admin, Finance e Supervisor podem atribuir ou escalar atendimentos."},{status:403});
+        if(!body.employeeId)return NextResponse.json({error:"Selecione o agente responsável."},{status:400});
+        if(body.action==="escalate"&&String(body.reason||"").trim().length<6)return NextResponse.json({error:"Indique o motivo do escalonamento com pelo menos 6 caracteres."},{status:400});
+        const employee=(await rest(current.key,`employees?id=eq.${encodeURIComponent(body.employeeId)}&select=id,department_id,status,auth_user_id`))?.[0];
+        const department=(await rest(current.key,`departments?id=eq.${encodeURIComponent(String(employee?.department_id||""))}&select=code`))?.[0];
+        if(employee?.status!=="active"||!employee?.auth_user_id||!["SUPPORT","CUSTOMER_SUPPORT"].includes(String(department?.code||"").toUpperCase()))return NextResponse.json({error:"Escolha um agente ativo do Apoio ao Cliente com conta ligada."},{status:400});
+        const updated=(await coreRest(current.key,`support_cases?id=eq.${caseId}`,{method:"PATCH",body:JSON.stringify({assigned_user_id:employee.auth_user_id,assigned_team:"SUPPORT",status:"assigned",updated_at:new Date().toISOString(),metadata:{...(coreCase.metadata||{}),last_hq_employee_id:current.actor.employee_id,assigned_hq_employee_id:employee.id,assignment_reason:body.reason||null}})}))?.[0];
+        await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,event_type:body.action==="escalate"?"hq_escalated":"hq_assigned",old_value:{status:coreCase.status,assigned_user_id:coreCase.assigned_user_id||null},new_value:{status:"assigned",assigned_user_id:employee.auth_user_id},metadata:{hq_employee_id:current.actor.employee_id,assigned_hq_employee_id:employee.id,reason:body.reason||null}})});
+        return NextResponse.json({ok:true,record:updated});
+      }
+      const statusMap:Record<string,string>={analysis:"assigned",waiting_customer:"waiting_customer",resolve:"resolved",close:"closed",reopen:"open"};
       const next=statusMap[body.action||""];if(!next)return NextResponse.json({error:"Ação inválida."},{status:400});
       if(body.action==="resolve"&&String(body.resolution||"").trim().length<3)return NextResponse.json({error:"Indique a resolução aplicada."},{status:400});
       const updated=(await coreRest(current.key,`support_cases?id=eq.${caseId}`,{method:"PATCH",body:JSON.stringify({status:next,updated_at:new Date().toISOString(),metadata:{...(coreCase.metadata||{}),last_hq_employee_id:current.actor.employee_id,resolution:body.resolution||null}})}))?.[0];
       await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,event_type:`hq_${body.action}`,old_value:{status:coreCase.status},new_value:{status:next},metadata:{hq_employee_id:current.actor.employee_id,reason:body.reason||null}})});
       return NextResponse.json({ok:true,record:updated});
     }
-    const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(body.ticketId)}&select=*`))?.[0];if(!ticket)return NextResponse.json({error:"Ticket não encontrado."},{status:404});if(!canReplyToTicket(current,ticket))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
+    const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(body.ticketId)}&select=*`))?.[0];if(!ticket)return NextResponse.json({error:"Ticket não encontrado."},{status:404});const assignmentAction=["assign","escalate"].includes(body.action);if(!assignmentAction&&!canReplyToTicket(current,ticket))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
     const changes:Record<string,unknown>={};
     if(body.action==="assign"){if(!escalationRoles.has(current.actor.role))return NextResponse.json({error:"Só Admin, Finance e Supervisor podem atribuir atendimentos."},{status:403});if(!body.employeeId)return NextResponse.json({error:"Selecione o agente responsável."},{status:400});const employee=(await rest(current.key,`employees?id=eq.${encodeURIComponent(body.employeeId)}&select=id,department_id,status`))?.[0],department=(await rest(current.key,`departments?id=eq.${encodeURIComponent(String(employee?.department_id||""))}&select=code`))?.[0];if(employee?.status!=="active"||!["SUPPORT","CUSTOMER_SUPPORT"].includes(String(department?.code||"").toUpperCase()))return NextResponse.json({error:"Escolha um agente ativo do Apoio ao Cliente."},{status:400});changes.assigned_to=body.employeeId;changes.assigned_by=current.actor.employee_id;changes.status=ticket.status==="open"?"in_analysis":ticket.status}
     else if(body.action==="analysis")changes.status="in_analysis";
