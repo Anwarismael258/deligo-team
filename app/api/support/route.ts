@@ -8,6 +8,7 @@ const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-0000
 const viewerRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","OPERATIONS_SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT","FINANCE","FINANCE_DIRECTOR"]);
 const replyRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","OPERATIONS_SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT","OPERATIONS"]);
 const financeReplyActions = new Set(["analysis","waiting_customer","resolve"]);
+const departmentRoles = new Set(["FINANCE","FINANCE_DIRECTOR","ACCOUNTING","TECHNOLOGY","HUMAN_RESOURCES","LEGAL","COMPLIANCE"]);
 const financialTerms = /finance|finan[cç]|pagamento|pagar|dep[oó]sito|levantamento|saldo|cobran[cç]a|reembolso|estorno|fatura|transa[cç][aã]o|transfer[eê]ncia|payment|refund|withdrawal|deposit|billing/i;
 function isFinanceRole(role:string){return role==="FINANCE"||role==="FINANCE_DIRECTOR";}
 const headers = (key:string) => ({ apikey:key, Authorization:`Bearer ${key}`, "Accept-Profile":"hq", "Content-Profile":"hq", "Content-Type":"application/json", Prefer:"return=representation" });
