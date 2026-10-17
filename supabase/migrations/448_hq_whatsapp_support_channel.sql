@@ -1,5 +1,22 @@
 begin;
 
+-- Dedicated non-login employee used only to attribute inbound WhatsApp events.
+insert into hq.employees (
+  id, employee_code, legal_entity_id, department_id, display_name, job_title, status
+) values (
+  '40000000-0000-0000-0000-000000000020',
+  'SYS-WHATSAPP',
+  '10000000-0000-0000-0000-000000000001',
+  '30000000-0000-0000-0000-000000000010',
+  'WhatsApp Integration',
+  'System Integration',
+  'active'
+)
+on conflict (employee_code) do update set
+  display_name = excluded.display_name,
+  job_title = excluded.job_title,
+  status = 'active';
+
 alter table hq.support_tickets
   add column if not exists source_channel text not null default 'central';
 
