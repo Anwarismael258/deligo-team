@@ -19,7 +19,7 @@ test("app support cases can be assigned to an active linked support employee", a
 
 test("support UI exposes a real reply composer and removes the hidden legacy form", async () => {
   const source = await read("app/page.tsx");
-  assert.match(source, /className="supportReplyForm" onSubmit=\{submitSupportReply\}/);
+  assert.match(source, /className="financeEntryForm supportReplyForm" onSubmit=\{submitSupportReply\}/);
   assert.match(source, /resource:"message",record:\{ticket_id:selectedSupportTicket,message:supportReplyDraft,is_internal:supportReplyInternal\}/);
   assert.doesNotMatch(source, /showSupportForm/);
   assert.doesNotMatch(source, /workflowBridge" hidden/);
