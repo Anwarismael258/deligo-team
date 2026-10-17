@@ -43,7 +43,7 @@ const navGroups: Array<[string,string[]]> = [
 const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : label;
 
 const moduleIcons: Record<string, LucideIcon> = {
-  "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
+  "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Utilizadores": Users, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
   "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Contabilidade": Coins,
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
   "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Operações de Campo": Route,
@@ -1363,6 +1363,15 @@ if(active==="Operações de Campo")void refreshField();
             </div>
           </section>
           </>}
+          {active === "Utilizadores" && <section className="peoplePanel">
+            <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
+            <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
+            <div className="peopleList">
+              {filteredOverviewPeople.slice(0, 100).map(person => { const app = person.apps[0]; return <button className="peopleRow" key={person.user_id} onClick={()=>app?.slug && setSelectedProfile({ platform: String(app.slug), id: person.user_id, name: String(person.full_name || person.display_name || person.user_id) })}><span className="personIdentity"><i>{String(person.full_name || person.display_name || "U").split(" ").slice(0,2).map(part=>part[0]).join("")}</i><strong>{person.full_name || person.display_name || "Utilizador"}</strong></span><span className="rolePill">{String(app?.name || app?.slug || "Plataforma não indicada")}</span><span>{String(app?.role || "—")}</span><span className="connectedPill">{person.profile_status || "Activo"}</span></button>; })}
+              {!filteredOverviewPeople.length && <div className="peopleEmpty">Nenhum utilizador autorizado encontrado.</div>}
+              {filteredOverviewPeople.length > 100 && <div className="peopleEmpty">A mostrar os primeiros 100 resultados. Use a pesquisa para localizar uma conta.</div>}
+            </div>
+          </section>}
           <footer><span>DeliGo Triunfal HQ</span><span>Central de Gestão e Operações · Preparada para hq.deligo.co.mz</span></footer>
         </div>
       </section>
