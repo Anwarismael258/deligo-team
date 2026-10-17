@@ -10,6 +10,15 @@ test("Finance cannot bypass the financial-ticket reply restriction", async () =>
   assert.match(source, /if\(!assignmentAction&&!canReplyToTicket\(current,ticket\)\)/);
 });
 
+test("financial classification does not trust customer-controlled free text", async () => {
+  const source = await read("app/api/support/route.ts");
+  const start = source.indexOf("function isFinancialTicket(");
+  const end = source.indexOf("\\n}", start);
+  const classifier = source.slice(start, end);
+  assert.match(classifier, /ticket\.category,ticket\.ticket_type,ticket\.assigned_team/);
+  assert.doesNotMatch(classifier, /ticket\.subject|ticket\.description|ticket\.resolution/);
+});
+
 test("app support cases can be assigned to an active linked support employee", async () => {
   const source = await read("app/api/support/route.ts");
   assert.match(source, /employees\?id=eq\.\$\{encodeURIComponent\(body\.employeeId\)\}&select=id,department_id,status,auth_user_id/);
