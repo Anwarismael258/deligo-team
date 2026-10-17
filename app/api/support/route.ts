@@ -32,6 +32,22 @@ function isFinancialTicket(ticket:Record<string,unknown>){
 function canReplyToTicket(current:{actor:{role:string}},ticket:Record<string,unknown>){
   return replyRoles.has(current.actor.role)||(isFinanceRole(current.actor.role)&&isFinancialTicket(ticket));
 }
+async function sendWhatsAppReply(channel:unknown, contact:unknown, message:string):Promise<string|null>{
+  if(String(channel||"").toLowerCase()!=="whatsapp")return null;
+  const token=process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId=process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const to=String(contact||"").replace(/[^0-9]/g,"");
+  if(!token||!phoneNumberId||!to)throw new Error("WHATSAPP_OUTBOUND_NOT_CONFIGURED");
+  const response=await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,{
+    method:"POST",
+    headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
+    body:JSON.stringify({messaging_product:"whatsapp",recipient_type:"individual",to,type:"text",text:{preview_url:false,body:message}}),
+    cache:"no-store",
+  });
+  const result=await response.json() as {messages?:Array<{id?:string}>;error?:{message?:string}};
+  if(!response.ok)throw new Error(`WHATSAPP_SEND_FAILED: ${result.error?.message||response.status}`);
+  return result.messages?.[0]?.id||null;
+}
 async function history(key:string,ticketId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"support_history",{method:"POST",body:JSON.stringify({ticket_id:ticketId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
 async function audit(key:string,actorId:string,action:string,ticketId:string,metadata:Record<string,unknown>={}){await rest(key,"audit_logs",{method:"POST",body:JSON.stringify({actor_employee_id:actorId,action,legal_entity_id:entity,module:"support",target_type:"support_ticket",target_id:ticketId,result:"success",metadata})})}
 function departmentFor(category:unknown,type:unknown){const value=`${String(category||"")} ${String(type||"")}`.toLowerCase();if(/t[eé]cnic|aplica[cç][aã]o|erro|sistema|api/.test(value))return"TECHNOLOGY";if(/pagamento|dep[oó]sito|levantamento|saldo|cobran[cç]a|reembolso/.test(value))return"FINANCE";if(/trabalhador|motorista|estafeta|agente|comportamento/.test(value))return"HR";if(/contrato|legal|jur[ií]dic|amea[cç]a/.test(value))return"LEGAL";if(/risco|fraude|seguran[cç]a|grave/.test(value))return"COMPLIANCE";return"SUPPORT"}
@@ -85,15 +101,26 @@ export async function POST(request:NextRequest){
       if(!coreCase)return NextResponse.json({error:"Atendimento não encontrado."},{status:404});
       const coreCategory={category:coreCase.category,subject:coreCase.subject,description:coreCase.description};
       if(!canReplyToTicket(current,coreCategory))return NextResponse.json({error:"O perfil Finance só pode responder a assuntos financeiros."},{status:403});
+      const isInternal=body.record.is_internal==="true"||body.record.is_internal===true;
       const signedBody=`${String(body.record.message||"").trim()}\n\n— ${current.actor.name}`;
-      const created=(await coreRest(current.key,"support_case_messages",{method:"POST",body:JSON.stringify({case_id:caseId,author_type:"staff",body:signedBody,is_internal:body.record.is_internal==="true"||body.record.is_internal===true,metadata:{hq_employee_id:current.actor.employee_id}})}))?.[0];
+      const outboundId=isInternal?null:await sendWhatsAppReply(coreCase.source_channel,coreCase.requester_phone,signedBody);
+      const created=(await coreRest(current.key,"support_case_messages",{method:"POST",body:JSON.stringify({case_id:caseId,author_type:"staff",body:signedBody,is_internal:isInternal,metadata:{hq_employee_id:current.actor.employee_id,source_channel:coreCase.source_channel||"app",whatsapp_message_id:outboundId}})}))?.[0];
       await coreRest(current.key,`support_cases?id=eq.${caseId}`,{method:"PATCH",body:JSON.stringify({status:"assigned",updated_at:new Date().toISOString()})});
       await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,event_type:"hq_reply_sent",metadata:{hq_employee_id:current.actor.employee_id,channel:coreCase.source_channel||"app"}})});
       return NextResponse.json({record:{...created,id:`core-msg:${created.id}`,ticket_id:`core:${caseId}`,sender_type:"agent",message:created.body}},{status:201});
     }
     const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(String(body.record.ticket_id||""))}&select=*`))?.[0];if(!ticket||!canReplyToTicket(current,ticket))return NextResponse.json({error:"Sem permissão para responder a este atendimento. O perfil Finance só pode responder a assuntos financeiros."},{status:403});
-    const record={...body.record} as Record<string,unknown>;if(table==="support_conversations"){record.sender_type="agent";record.sender_employee_id=current.actor.employee_id;record.message=`${String(record.message||"").trim()}\n\n— ${current.actor.name}`}if(table==="support_attachments")record.uploaded_by=current.actor.employee_id;
-    const created=(await rest(current.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];await history(current.key,ticket.id,body.resource==="message"?"response_sent":"attachment_added",body.resource==="message"?"Resposta adicionada à conversa":"Anexo associado ao ticket",current.actor.employee_id,{department_id:current.departmentId});await audit(current.key,current.actor.employee_id,`support_${body.resource}_created`,ticket.id,{record_id:created.id,department_id:current.departmentId});return NextResponse.json({record:created},{status:201});
+    const record={...body.record} as Record<string,unknown>;
+    if(table==="support_conversations"){
+      record.sender_type="agent";record.sender_employee_id=current.actor.employee_id;
+      record.message=`${String(record.message||"").trim()}\n\n— ${current.actor.name}`;
+      const isInternal=record.is_internal==="true"||record.is_internal===true;
+      const outboundId=isInternal?null:await sendWhatsAppReply(ticket.source_channel,ticket.customer_contact,String(record.message));
+      record.source_channel=String(ticket.source_channel||"central");
+      if(outboundId)record.external_message_id=outboundId;
+    }
+    if(table==="support_attachments")record.uploaded_by=current.actor.employee_id;
+    const created=(await rest(current.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];await history(current.key,ticket.id,body.resource==="message"?"response_sent":"attachment_added",body.resource==="message"?"Resposta adicionada à conversa":"Anexo associado ao ticket",current.actor.employee_id,{department_id:current.departmentId,source_channel:ticket.source_channel||"central"});await audit(current.key,current.actor.employee_id,`support_${body.resource}_created`,ticket.id,{record_id:created.id,department_id:current.departmentId});return NextResponse.json({record:created},{status:201});
   }catch{return NextResponse.json({error:"Não foi possível guardar o atendimento. Confirme cliente, plataforma e dados obrigatórios."},{status:409})}
 }
 
