@@ -26,6 +26,7 @@ const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market
 const nav = [
   ["⌂", "Visão geral"],
   ["◇", "Plataformas"],
+  ["♙", "Utilizadores"],
   ["♙", "Pessoas"],
   ["□", "Finanças"],
   ["↗", "Marketing"],
@@ -36,14 +37,14 @@ const nav = [
   ["♢", "Centro de Notificações"],
 ];
 const navGroups: Array<[string,string[]]> = [
-  ["PRINCIPAL", ["Visão geral","Plataformas","Pessoas","Finanças"]],
+  ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças"]],
   ["OPERAÇÕES", ["Marketing","Operações de Campo","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
 
 const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : label;
 
 const moduleIcons: Record<string, LucideIcon> = {
-  "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
+  "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Utilizadores": Users, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
   "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Contabilidade": Coins,
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
   "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Operações de Campo": Route,
@@ -63,6 +64,7 @@ const moduleDetails: Record<string, string[]> = {
   "Definições": ["Geral", "Aparência", "Dashboard", "Notificações"],
   "Segurança": ["Autenticação", "2FA", "Dispositivos e sessões", "Alertas de segurança"],
   "Plataformas": ["DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"],
+  "Utilizadores": ["Todos os utilizadores", "Pesquisa por nome, telefone, email ou plataforma", "Identidade e estado", "Plataformas associadas"],
   "Mapa operacional": ["Mapa ao vivo", "DeliGo", "SARCA", "DeliGo Market"],
   "Direcção Executiva": ["Perfil da empresa", "Sócios", "Deliberações", "Gestão corporativa"],
   "Pessoas": ["Trabalhadores", "Colaboradores externos", "Departamentos", "Roles e permissões"],
@@ -91,6 +93,7 @@ const moduleDetails: Record<string, string[]> = {
 };
 
 const modulePresentation: Record<string, { description: string; action: string; primary: string; secondary: string; visual: string; status: string; color: string }> = {
+  "Utilizadores": { description: "Consulta os utilizadores do ecossistema e abre os perfis autorizados das plataformas.", action: "Actualizar utilizadores", primary: "Utilizadores", secondary: "Perfis encontrados", visual: "Utilizadores por plataforma", status: "Directório do ecossistema", color: "#466bba" },
   "Plataformas": { description: "Gere o portefólio digital e o estado operacional de cada produto do grupo.", action: "Adicionar plataforma", primary: "Plataformas", secondary: "Integrações", visual: "Disponibilidade por plataforma", status: "Adapters das plataformas", color: "#e53935" },
   "Direcção Executiva": { description: "Centraliza decisões societárias, deliberações e acompanhamento estratégico.", action: "Nova deliberação", primary: "Deliberações", secondary: "Decisões pendentes", visual: "Execução estratégica", status: "Governação corporativa", color: "#a47722" },
   "Pessoas": { description: "Mantém a estrutura organizacional, identidades internas e âmbitos de acesso.", action: "Novo trabalhador", primary: "Pessoas", secondary: "Acessos pendentes", visual: "Distribuição organizacional", status: "Directório corporativo", color: "#466bba" },
@@ -124,6 +127,7 @@ const routeByModule: Record<string, string> = {
   "Definições": "/definicoes",
   "Segurança": "/seguranca",
   "Plataformas": "/plataformas",
+  "Utilizadores": "/utilizadores",
   "Mapa operacional": "/mapa-operacional",
   "Direcção Executiva": "/executivo",
   "Pessoas": "/pessoas",
@@ -200,7 +204,7 @@ const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sans
 const unpublishedModules = new Set(["Embaixadores"]);
 const universalModules = new Set<string>();
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
-const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
+const modulePermission:Record<string,string>={"Utilizadores":"users.view","Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
@@ -444,7 +448,7 @@ export function HQApp() {
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [active, sessionUser?.id]);
   useEffect(() => {
-    if (active !== "Visão geral" || !sessionUser) return;
+    if (active !== "Utilizadores" || !sessionUser) return;
     fetch("/api/global-search?list=all", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(result => setOverviewPeople(Array.isArray(result.data) ? result.data : [])).catch(() => setOverviewPeople([]));
   }, [active, sessionUser?.id]);
   const searchGlobal = async (value: string) => {
@@ -766,6 +770,7 @@ if(active==="Operações de Campo")void refreshField();
           <div><strong>DeliGo Triunfal</strong><span>Central Web</span></div>
         </div>
         <nav>
+          {visibleNav.some(([, label]) => label === "Visão geral") && <button className={active === "Visão geral" ? "navItem active" : "navItem"} onClick={() => navigate("Visão geral")}><span><LayoutDashboard aria-hidden="true" /></span>Visão Geral</button>}
           {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{displayModuleLabel(label)}</button>)}</div> })}
           <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span>Meu Perfil</button>
         </nav>
@@ -1363,6 +1368,15 @@ if(active==="Operações de Campo")void refreshField();
             </div>
           </section>
           </>}
+          {active === "Utilizadores" && <section className="peoplePanel">
+            <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
+            <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
+            <div className="peopleList">
+              {filteredOverviewPeople.slice(0, 100).map(person => { const app = person.apps[0]; return <button className="peopleRow" key={person.user_id} onClick={()=>app?.slug && setSelectedProfile({ platform: String(app.slug), id: person.user_id, name: String(person.full_name || person.display_name || person.user_id) })}><span className="personIdentity"><i>{String(person.full_name || person.display_name || "U").split(" ").slice(0,2).map(part=>part[0]).join("")}</i><strong>{person.full_name || person.display_name || "Utilizador"}</strong></span><span className="rolePill">{String(app?.name || app?.slug || "Plataforma não indicada")}</span><span>{String(app?.role || "—")}</span><span className="connectedPill">{person.profile_status || "Activo"}</span></button>; })}
+              {!filteredOverviewPeople.length && <div className="peopleEmpty">Nenhum utilizador autorizado encontrado.</div>}
+              {filteredOverviewPeople.length > 100 && <div className="peopleEmpty">A mostrar os primeiros 100 resultados. Use a pesquisa para localizar uma conta.</div>}
+            </div>
+          </section>}
           <footer><span>DeliGo Triunfal HQ</span><span>Central de Gestão e Operações · Preparada para hq.deligo.co.mz</span></footer>
         </div>
       </section>
