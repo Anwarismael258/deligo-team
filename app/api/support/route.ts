@@ -5,10 +5,11 @@ const entity = "10000000-0000-0000-0000-000000000001";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
 const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
 // Central support access is role-based and shared across all connected apps.
-const viewerRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT","FINANCE"]);
-const replyRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT"]);
+const viewerRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","OPERATIONS_SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT","FINANCE","FINANCE_DIRECTOR"]);
+const replyRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","OPERATIONS_SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT","OPERATIONS"]);
 const financeReplyActions = new Set(["analysis","waiting_customer","resolve"]);
 const financialTerms = /finance|finan[cç]|pagamento|pagar|dep[oó]sito|levantamento|saldo|cobran[cç]a|reembolso|estorno|fatura|transa[cç][aã]o|transfer[eê]ncia|payment|refund|withdrawal|deposit|billing/i;
+function isFinanceRole(role:string){return role==="FINANCE"||role==="FINANCE_DIRECTOR";}
 const headers = (key:string) => ({ apikey:key, Authorization:`Bearer ${key}`, "Accept-Profile":"hq", "Content-Profile":"hq", "Content-Type":"application/json", Prefer:"return=representation" });
 
 async function rest(key:string,path:string,init:RequestInit={}) { const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json() }
@@ -19,7 +20,7 @@ async function context(_permission="support.viewTickets",platform?:string){
   const authorization=await corporateAuthorization(),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;
   const role=String(actor?.role||"").toUpperCase();
   if(!actor||!authorization||!key||!viewerRoles.has(role))return null;
-  const hasPermission=authorization.isSuperAdmin||authorization.permissions.includes(_permission)||(role==="FINANCE"&&_permission==="support.close");
+  const hasPermission=authorization.isSuperAdmin||authorization.permissions.includes(_permission)||(isFinanceRole(role)&&_permission==="support.close");
   if(!hasPermission)return null;
   if(platform&&!Object.prototype.hasOwnProperty.call(platforms,platform))return null;
   return{actor:{...actor,role},authorization,key,departmentId:""};
@@ -28,7 +29,7 @@ function isFinancialTicket(ticket:Record<string,unknown>){
   return financialTerms.test([ticket.category,ticket.ticket_type,ticket.subject,ticket.description,ticket.resolution].map(v=>String(v||"")).join(" "));
 }
 function canReplyToTicket(current:{actor:{role:string}},ticket:Record<string,unknown>){
-  return replyRoles.has(current.actor.role)||(current.actor.role==="FINANCE"&&isFinancialTicket(ticket));
+  return replyRoles.has(current.actor.role)||(isFinanceRole(current.actor.role)&&isFinancialTicket(ticket));
 }
 async function history(key:string,ticketId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"support_history",{method:"POST",body:JSON.stringify({ticket_id:ticketId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
 async function audit(key:string,actorId:string,action:string,ticketId:string,metadata:Record<string,unknown>={}){await rest(key,"audit_logs",{method:"POST",body:JSON.stringify({actor_employee_id:actorId,action,legal_entity_id:entity,module:"support",target_type:"support_ticket",target_id:ticketId,result:"success",metadata})})}
@@ -98,7 +99,7 @@ export async function POST(request:NextRequest){
 export async function PATCH(request:NextRequest){
   const body=await request.json() as {ticketId?:string;action?:string;employeeId?:string;reason?:string;resolution?:string};if(!body.ticketId||!body.action)return NextResponse.json({error:"Ação inválida."},{status:400});
   const permission=["resolve","close"].includes(body.action)?"support.close":"support.reply",current=await context(permission);if(!current)return NextResponse.json({error:"Sem permissão para atualizar atendimento."},{status:403});
-  if(current.actor.role==="FINANCE"&&!financeReplyActions.has(body.action))return NextResponse.json({error:"Finance só pode atualizar o estado de atendimentos financeiros através das ações permitidas."},{status:403});
+  if(isFinanceRole(current.actor.role)&&!financeReplyActions.has(body.action))return NextResponse.json({error:"Finance só pode atualizar o estado de atendimentos financeiros através das ações permitidas."},{status:403});
   try{
     if(String(body.ticketId).startsWith("core:")){
       const caseId=String(body.ticketId).slice(5),coreCase=(await coreRest(current.key,`support_cases?id=eq.${caseId}&select=*`))?.[0];if(!coreCase)return NextResponse.json({error:"Caso do app não encontrado."},{status:404});
