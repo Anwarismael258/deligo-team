@@ -19,6 +19,8 @@ async function context(_permission="support.viewTickets",platform?:string){
   const authorization=await corporateAuthorization(),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;
   const role=String(actor?.role||"").toUpperCase();
   if(!actor||!authorization||!key||!viewerRoles.has(role))return null;
+  const hasPermission=authorization.isSuperAdmin||authorization.permissions.includes(_permission)||(role==="FINANCE"&&_permission==="support.close");
+  if(!hasPermission)return null;
   if(platform&&!Object.prototype.hasOwnProperty.call(platforms,platform))return null;
   return{actor:{...actor,role},authorization,key,departmentId:""};
 }
@@ -31,7 +33,7 @@ function canReplyToTicket(current:{actor:{role:string}},ticket:Record<string,unk
 async function history(key:string,ticketId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"support_history",{method:"POST",body:JSON.stringify({ticket_id:ticketId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
 async function audit(key:string,actorId:string,action:string,ticketId:string,metadata:Record<string,unknown>={}){await rest(key,"audit_logs",{method:"POST",body:JSON.stringify({actor_employee_id:actorId,action,legal_entity_id:entity,module:"support",target_type:"support_ticket",target_id:ticketId,result:"success",metadata})})}
 function departmentFor(category:unknown,type:unknown){const value=`${String(category||"")} ${String(type||"")}`.toLowerCase();if(/t[eé]cnic|aplica[cç][aã]o|erro|sistema|api/.test(value))return"TECHNOLOGY";if(/pagamento|dep[oó]sito|levantamento|saldo|cobran[cç]a|reembolso/.test(value))return"FINANCE";if(/trabalhador|motorista|estafeta|agente|comportamento/.test(value))return"HR";if(/contrato|legal|jur[ií]dic|amea[cç]a/.test(value))return"LEGAL";if(/risco|fraude|seguran[cç]a|grave/.test(value))return"COMPLIANCE";return"SUPPORT"}
-function ticketAllowed(current:{actor:{role:string}},ticket:Record<string,unknown>){return current.actor.role==="FINANCE"?isFinancialTicket(ticket):replyRoles.has(current.actor.role)}
+
 
 export async function GET(request:NextRequest){
   const requestedPlatform=request.nextUrl.searchParams.get("platform")||undefined,current=await context("support.viewTickets",requestedPlatform);if(!current)return NextResponse.json({error:"Acesso reservado ao atendimento e plataformas atribuídas."},{status:403});
