@@ -8,9 +8,11 @@ with grants(role_code, permission_code) as (
     ('ADMIN','support.viewTickets'), ('ADMIN','support.reply'), ('ADMIN','support.close'),
     ('ADMINISTRATOR','support.viewTickets'), ('ADMINISTRATOR','support.reply'), ('ADMINISTRATOR','support.close'),
     ('SUPERVISOR','support.viewTickets'), ('SUPERVISOR','support.reply'), ('SUPERVISOR','support.close'),
+    ('OPERATIONS_SUPERVISOR','support.viewTickets'), ('OPERATIONS_SUPERVISOR','support.reply'), ('OPERATIONS_SUPERVISOR','support.close'),
     ('CUSTOMER_SUPPORT','support.viewTickets'), ('CUSTOMER_SUPPORT','support.reply'), ('CUSTOMER_SUPPORT','support.close'),
     ('SUPPORT_AGENT','support.viewTickets'), ('SUPPORT_AGENT','support.reply'), ('SUPPORT_AGENT','support.close'),
-    ('FINANCE','support.viewTickets'), ('FINANCE','support.reply')
+    ('FINANCE','support.viewTickets'), ('FINANCE','support.reply'),
+    ('FINANCE_DIRECTOR','support.viewTickets'), ('FINANCE_DIRECTOR','support.reply')
 )
 insert into hq.role_permissions(role_id, permission_id, effect)
 select r.id, p.id, 'allow'
