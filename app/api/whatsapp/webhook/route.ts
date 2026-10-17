@@ -86,15 +86,20 @@ export async function POST(request: NextRequest) {
   if (!messageEvents.length) return NextResponse.json({ received: true });
 
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const systemEmployeeId = process.env.WHATSAPP_SYSTEM_EMPLOYEE_ID;
-  if (!key || !systemEmployeeId) {
-    console.error("WHATSAPP_SUPPORT_NOT_CONFIGURED", {
-      serviceKeyConfigured: Boolean(key), systemEmployeeConfigured: Boolean(systemEmployeeId),
-    });
+  if (!key) {
+    console.error("WHATSAPP_SUPPORT_NOT_CONFIGURED", { serviceKeyConfigured: false });
     return NextResponse.json({ error: "WhatsApp support integration is not fully configured" }, { status: 503 });
   }
-
+  let systemEmployeeId = process.env.WHATSAPP_SYSTEM_EMPLOYEE_ID;
   try {
+    if (!systemEmployeeId) {
+      const systemEmployees = await rest(key, "employees?employee_code=eq.SYS-WHATSAPP&status=eq.active&select=id&limit=1");
+      systemEmployeeId = Array.isArray(systemEmployees) ? systemEmployees[0]?.id : undefined;
+    }
+    if (!systemEmployeeId) {
+      console.error("WHATSAPP_SYSTEM_EMPLOYEE_MISSING");
+      return NextResponse.json({ error: "Apply the WhatsApp support migration or configure WHATSAPP_SYSTEM_EMPLOYEE_ID" }, { status: 503 });
+    }
     let processed = 0;
     for (const item of messageEvents) {
       const message = item.message as Record<string, any>;
