@@ -102,6 +102,7 @@ export async function PATCH(request:NextRequest){
   try{
     if(String(body.ticketId).startsWith("core:")){
       const caseId=String(body.ticketId).slice(5),coreCase=(await coreRest(current.key,`support_cases?id=eq.${caseId}&select=*`))?.[0];if(!coreCase)return NextResponse.json({error:"Caso do app não encontrado."},{status:404});
+      if(!canReplyToTicket(current,{category:coreCase.category,subject:coreCase.subject,description:coreCase.description}))return NextResponse.json({error:"O perfil Finance só pode atualizar atendimentos financeiros."},{status:403});
       const statusMap:Record<string,string>={assign:"assigned",analysis:"assigned",waiting_customer:"waiting_customer",resolve:"resolved",close:"closed",reopen:"open"};
       if(body.action==="escalate")return NextResponse.json({error:"Escalonamento de casos dos apps requer encaminhamento pelo departamento."},{status:409});
       const next=statusMap[body.action||""];if(!next)return NextResponse.json({error:"Ação inválida."},{status:400});
