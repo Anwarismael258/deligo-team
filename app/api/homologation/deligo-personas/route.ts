@@ -10,6 +10,9 @@ export const dynamic = "force-dynamic";
  * permission projection denying a valid corporate session.
  */
 export async function POST(request: NextRequest) {
+  if (process.env.ALLOW_HOMOLOGATION !== "true") {
+    return NextResponse.json({ error: "A homologação está desativada neste ambiente." }, { status: 404 });
+  }
   const testPassword = String((await request.json().catch(() => ({})) as { testPassword?: unknown }).testPassword ?? "");
   if (testPassword.length < 8) {
     return NextResponse.json({ error: "Defina uma palavra-passe de teste com pelo menos 8 caracteres." }, { status: 400 });
