@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { corporateAuthorization, hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 const entity = "10000000-0000-0000-0000-000000000001";
+const financeDepartment = "30000000-0000-0000-0000-000000000002";
+const accountingDepartment = "30000000-0000-0000-0000-000000000003";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
 const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
 // Central support access is role-based and shared across all connected apps.
@@ -28,7 +30,10 @@ async function context(_permission="support.viewTickets",platform?:string){
   return{actor:{...actor,role},authorization,key,departmentId:""};
 }
 function isFinancialTicket(ticket:Record<string,unknown>){
-  return financialTerms.test([ticket.category,ticket.ticket_type,ticket.subject,ticket.description,ticket.resolution].map(v=>String(v||"")).join(" "));
+  const routedDepartment=String(ticket.current_department_id||ticket.department_id||"");
+  if([financeDepartment,accountingDepartment].includes(routedDepartment))return true;
+  // Never classify a ticket as financial from customer-controlled subject or description text.
+  return financialTerms.test([ticket.category,ticket.ticket_type,ticket.assigned_team].map(v=>String(v||"")).join(" "));
 }
 function canReplyToTicket(current:{actor:{role:string}},ticket:Record<string,unknown>){
   // Finance may respond only to financial matters; do not let role membership bypass this check.
