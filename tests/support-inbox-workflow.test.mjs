@@ -13,7 +13,7 @@ test("Finance cannot bypass the financial-ticket reply restriction", async () =>
 test("financial classification does not trust customer-controlled free text", async () => {
   const source = await read("app/api/support/route.ts");
   const start = source.indexOf("function isFinancialTicket(");
-  const end = source.indexOf("\\n}", start);
+  const end = source.indexOf("\n}", start);
   const classifier = source.slice(start, end);
   assert.match(classifier, /ticket\.category,ticket\.ticket_type,ticket\.assigned_team/);
   assert.doesNotMatch(classifier, /ticket\.subject|ticket\.description|ticket\.resolution/);
