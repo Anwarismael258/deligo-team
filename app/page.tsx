@@ -735,6 +735,17 @@ if(active==="Operações de Campo")void refreshField();
     ...item,
     value: dashboard?.modules.platforms.find((module) => module.name === item.name)?.value || 0,
   }));
+  const platformRoles: Record<string, string[]> = {
+    "DeliGo": ["Restaurantes", "Estafetas", "Clientes"],
+    "Mestre24": ["Clientes", "Profissionais"],
+    "SARCA": ["Drivers", "Riders"],
+    "Comunhão": ["Igrejas", "Membros"],
+    "DeliGo Market": ["Clientes", "Vendedores", "Entregadores"],
+  };
+  const walletTotalFor = (item: Record<string, unknown>) => {
+    const value = item.wallet_total ?? item.total_wallet_balance ?? item.total_balance;
+    return typeof value === "number" ? money(value) : "Indisponível";
+  };
   const shownPeople = (selectedPlatformModule?.people || []).filter((person) => person.name.toLocaleLowerCase("pt").includes(peopleSearch.toLocaleLowerCase("pt")));
   const money = (value: number) => new Intl.NumberFormat("pt-MZ", { style: "currency", currency: "MZN", maximumFractionDigits: 2 }).format(value || 0);
   const selectedFinancialPlatforms = dashboard?.modules.platforms.filter((item) => platform === "Todas as plataformas" || item.name === platform) || [];
@@ -851,7 +862,7 @@ if(active==="Operações de Campo")void refreshField();
                   return <button className={`platformDirectoryCard ${platform === item.name ? "selected" : ""}`} key={item.slug} onClick={() => { setPlatform(item.name); setPlatformCollection(""); setSubArea("Resumo"); }}>
                     <div><i className="platformArtwork" style={{ background: platformCards.find((card) => card.name === item.name)?.color || "#555" }}><img src={platformArtwork[item.name]} alt={`Marca ${item.name}`} /><Icon aria-hidden="true" /></i><span className={item.connected ? "connectedPill" : "warningPill"}>{item.connected ? "Ligada" : "A verificar"}</span></div>
                     <h3>{item.name}</h3><p>{operationalLabel(item.name)} · painel independente.</p><small>Estado: {String((item as Record<string,unknown>).integration_status || "Não verificado")}{(item as Record<string,unknown>).last_sync_at ? ` · Actualizado ${new Date(String((item as Record<string,unknown>).last_sync_at)).toLocaleString("pt-MZ")}` : " · Actualização não disponível"}</small>
-                    <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>{operationalLabel(item.name)}</dt><dd>{operations}</dd></div><div><dt>Indicadores</dt><dd>{item.metrics.length}</dd></div></dl>
+                    <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>Valor total das carteiras</dt><dd>{walletTotalFor(item as Record<string, unknown>)}</dd></div><div><dt>Operações</dt><dd>{operations}</dd></div></dl><div className="platformRoleList">{(platformRoles[item.name] || []).map(role => <span key={role}>{role}</span>)}</div>
                     <strong>Abrir painel da plataforma <ChevronRight aria-hidden="true" /></strong>
                   </button>;
                 })}
@@ -862,11 +873,11 @@ if(active==="Operações de Campo")void refreshField();
             <section className="platformModule">
               <div className="platformModuleHero">
                 <div><span>MÓDULO DA PLATAFORMA</span><h2>{selectedPlatformModule.name}</h2><p>Painel administrativo adaptado ao HQ, com dados agregados do schema dedicado.</p></div>
-                <div className="platformValue"><span>Valor total processado</span><strong>{money(selectedPlatformModule.value)}</strong><small>Volume operacional · não representa lucro</small></div>
+                <div className="platformValue"><span>Valor total das carteiras</span><strong>{walletTotalFor(selectedPlatformModule as Record<string, unknown>)}</strong><small>Fonte financeira validada; indisponível quando não existe resumo oficial</small></div>
               </div>
               <div className="platformControlGrid">
                 <article><span>Estado</span><strong className={selectedPlatformStatus?.connected ? "connectedPill" : "warningPill"}>{selectedPlatformStatus?.connected ? "Operacional" : "A verificar"}</strong><small>Ligação ao backend específico</small></article>
-                <article><span>Utilizadores</span><strong>{metricFor(selectedPlatformStatus, ["utilizador", "membro", "comprador", "passageiro"])}</strong><small>Registos da plataforma</small></article>
+                <article><span>Perfis da plataforma</span><strong>{(platformRoles[selectedPlatformModule.name] || []).length}</strong><small>{(platformRoles[selectedPlatformModule.name] || []).join(" · ")}</small></article>
                 <article><span>{operationalLabel(selectedPlatformModule.name)}</span><strong>{metricFor(selectedPlatformStatus, ["pedido", "evento", "viagem", "serviço", "operaç"])}</strong><small>Operações realizadas</small></article>
                 <article><span>Incidentes</span><strong>{recordsFor(platformSnapshot, "support") + recordsFor(platformSnapshot, "disputes")}</strong><small>Suporte e disputas registadas</small></article>
                 <article><span>Integrações</span><strong>{Object.values(platformSnapshot?.data || {}).filter(Array.isArray).length}</strong><small>Fontes ligadas ao HQ</small></article>
