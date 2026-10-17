@@ -19,8 +19,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Telefone ou palavra-passe inválidos." }, { status: 401 });
   }
   const authUserId = (payload as { user?: { id?: string } }).user?.id;
-  const actor = authUserId ? await hqRpc("hq_actor_context_v1", { p_auth_user_id: authUserId }) : null;
-  if (!actor || actor.status !== "active") return NextResponse.json({ error: actor?.status === "suspended" ? "Esta conta está suspensa." : "A conta ainda não foi activada pelo Super Administrador." }, { status: 403 });
+  let actor: { status?: string } | null = null;
+  try {
+    actor = authUserId
+      ? await hqRpc("hq_actor_context_for_login_v1", { p_auth_user_id: authUserId, p_phone_e164: normalizedPhone })
+      : null;
+  } catch (error) {
+    console.error("HQ_LOGIN_ACTOR_LOOKUP_FAILED", error instanceof Error ? error.message : "unknown");
+    return NextResponse.json({ error: "Não foi possível validar o acesso corporativo. Contacte a Administração." }, { status: 503 });
+  }
+  if (!actor || actor.status !== "active") return NextResponse.json({ error: actor?.status === "suspended" ? "Esta conta está suspensa." : "A conta não está associada a um funcionário activo. Contacte o Super Administrador." }, { status: 403 });
   const response = NextResponse.json({ user: { email: payload.user?.email, ...payload.user?.user_metadata } });
   const secure = request.nextUrl.protocol === "https:";
   response.cookies.set("hq_access_token", payload.access_token, { httpOnly: true, secure, sameSite: "strict", path: "/", maxAge: payload.expires_in || 3600 });
