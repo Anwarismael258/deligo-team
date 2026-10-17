@@ -26,6 +26,7 @@ const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market
 const nav = [
   ["⌂", "Visão geral"],
   ["◇", "Plataformas"],
+  ["♙", "Utilizadores"],
   ["♙", "Pessoas"],
   ["□", "Finanças"],
   ["↗", "Marketing"],
@@ -36,7 +37,7 @@ const nav = [
   ["♢", "Centro de Notificações"],
 ];
 const navGroups: Array<[string,string[]]> = [
-  ["PRINCIPAL", ["Visão geral","Plataformas","Pessoas","Finanças"]],
+  ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças"]],
   ["OPERAÇÕES", ["Marketing","Operações de Campo","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
 
@@ -63,6 +64,7 @@ const moduleDetails: Record<string, string[]> = {
   "Definições": ["Geral", "Aparência", "Dashboard", "Notificações"],
   "Segurança": ["Autenticação", "2FA", "Dispositivos e sessões", "Alertas de segurança"],
   "Plataformas": ["DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"],
+  "Utilizadores": ["Todos os utilizadores", "Pesquisa por nome, telefone, email ou plataforma", "Identidade e estado", "Plataformas associadas"],
   "Mapa operacional": ["Mapa ao vivo", "DeliGo", "SARCA", "DeliGo Market"],
   "Direcção Executiva": ["Perfil da empresa", "Sócios", "Deliberações", "Gestão corporativa"],
   "Pessoas": ["Trabalhadores", "Colaboradores externos", "Departamentos", "Roles e permissões"],
@@ -91,6 +93,7 @@ const moduleDetails: Record<string, string[]> = {
 };
 
 const modulePresentation: Record<string, { description: string; action: string; primary: string; secondary: string; visual: string; status: string; color: string }> = {
+  "Utilizadores": { description: "Consulta os utilizadores do ecossistema e abre os perfis autorizados das plataformas.", action: "Actualizar utilizadores", primary: "Utilizadores", secondary: "Perfis encontrados", visual: "Utilizadores por plataforma", status: "Directório do ecossistema", color: "#466bba" },
   "Plataformas": { description: "Gere o portefólio digital e o estado operacional de cada produto do grupo.", action: "Adicionar plataforma", primary: "Plataformas", secondary: "Integrações", visual: "Disponibilidade por plataforma", status: "Adapters das plataformas", color: "#e53935" },
   "Direcção Executiva": { description: "Centraliza decisões societárias, deliberações e acompanhamento estratégico.", action: "Nova deliberação", primary: "Deliberações", secondary: "Decisões pendentes", visual: "Execução estratégica", status: "Governação corporativa", color: "#a47722" },
   "Pessoas": { description: "Mantém a estrutura organizacional, identidades internas e âmbitos de acesso.", action: "Novo trabalhador", primary: "Pessoas", secondary: "Acessos pendentes", visual: "Distribuição organizacional", status: "Directório corporativo", color: "#466bba" },
@@ -124,6 +127,7 @@ const routeByModule: Record<string, string> = {
   "Definições": "/definicoes",
   "Segurança": "/seguranca",
   "Plataformas": "/plataformas",
+  "Utilizadores": "/utilizadores",
   "Mapa operacional": "/mapa-operacional",
   "Direcção Executiva": "/executivo",
   "Pessoas": "/pessoas",
@@ -200,7 +204,7 @@ const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sans
 const unpublishedModules = new Set(["Embaixadores"]);
 const universalModules = new Set<string>();
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
-const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
+const modulePermission:Record<string,string>={"Utilizadores":"users.view","Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
@@ -444,7 +448,7 @@ export function HQApp() {
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [active, sessionUser?.id]);
   useEffect(() => {
-    if (active !== "Visão geral" || !sessionUser) return;
+    if (active !== "Utilizadores" || !sessionUser) return;
     fetch("/api/global-search?list=all", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(result => setOverviewPeople(Array.isArray(result.data) ? result.data : [])).catch(() => setOverviewPeople([]));
   }, [active, sessionUser?.id]);
   const searchGlobal = async (value: string) => {
