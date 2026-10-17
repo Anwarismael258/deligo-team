@@ -1157,214 +1157,31 @@ if(active==="Operações de Campo")void refreshField();
             <article className="permissionCard"><h2>Âmbito de acesso</h2><p>Módulos autorizados pelo cargo validado no backend.</p><div>{visibleNav.map(([,item]) => <span key={item}>✓ {item}</span>)}</div></article>
           </section>}
           {active === "Visão geral" && <>
-          <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
               ["Total de utilizadores", String(overviewPeople.length || totalUsers), "Contas autorizadas no ecossistema"],
-              ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Taxas, comissões e ganhos confirmados"],
-              ["Receita total levantável", dashboard?.deligoFinance?.summary?.deligo_revenue == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue)), "Receita total confirmada no Admin"],
-              ["Estado das plataformas", `${connectedPlatforms}/${dashboard?.platforms.length || 0}`, "Ligações operacionais confirmadas"],
+              ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Apenas consulta"],
+              ["Receita total disponível", dashboard?.deligoFinance?.summary?.deligo_revenue == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue)), "Levantamento com aprovação Admin + Finance"],
+              ["Estado das plataformas", `${connectedPlatforms}/${dashboard?.platforms.length || 0}`, "Ligações confirmadas"],
             ].map(([label, value, note], index) => (
               <article className={`metric metric-${index}`} key={label}>
-                <div className="metricTopline"><span>INDICADOR CENTRAL</span><div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity, PackageCheck].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div></div>
+                <div className="metricTopline"><span>INDICADOR CENTRAL</span></div>
                 <p>{label}</p><strong>{value}</strong><span className="metricNote">{note}</span>
-                <div className="metricUpdated"><i />Dados sincronizados</div>
               </article>
             ))}
           </section>
-
           <section className="peoplePanel">
-            <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>navigate("Pessoas")}>Gerir pessoas →</button></div>
+            <div className="sectionHeading"><div><h2>Total de utilizadores</h2><p>Pesquise e abra apenas o detalhe autorizado do utilizador.</p></div><button onClick={()=>navigate("Utilizadores")}>Ver todos →</button></div>
             <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
             <div className="peopleList">
               {filteredOverviewPeople.slice(0, 100).map(person => { const app = person.apps[0]; return <button className="peopleRow" key={person.user_id} onClick={()=>app?.slug && setSelectedProfile({ platform: String(app.slug), id: person.user_id, name: String(person.full_name || person.display_name || person.user_id) })}><span className="personIdentity"><i>{String(person.full_name || person.display_name || "U").split(" ").slice(0,2).map(part=>part[0]).join("")}</i><strong>{person.full_name || person.display_name || "Utilizador"}</strong></span><span className="rolePill">{String(app?.name || app?.slug || "Plataforma não indicada")}</span><span>{String(app?.role || "—")}</span><span className="connectedPill">{person.profile_status || "Activo"}</span></button>; })}
               {!filteredOverviewPeople.length && <div className="peopleEmpty">Nenhum utilizador autorizado encontrado.</div>}
-              {filteredOverviewPeople.length > 100 && <div className="peopleEmpty">A mostrar os primeiros 100 resultados. Use a pesquisa para localizar uma conta.</div>}
             </div>
           </section>
-
-          <section className="missionControl" hidden>
-            <div className="missionControlHead">
-              <div><span>CENTRAL DE OPERAÇÕES</span><h2>O que precisa de atenção agora</h2><p>Leitura consolidada do backend central, sem simular estados que ainda não foram integrados.</p></div>
-              <button onClick={() => navigate("Tecnologia / IT")}>Ver saúde técnica <ChevronRight aria-hidden="true" /></button>
-            </div>
-            <div className="missionControlGrid">
-              <article className="connectionCard">
-                <div className="connectionPulse"><Activity aria-hidden="true" /></div>
-                <div><span>PLATAFORMAS LIGADAS</span><strong>{connectedPlatforms}/{dashboard?.platforms.length || 4}</strong><p>{connectedPlatforms === (dashboard?.platforms.length || 4) ? "Todas as fontes disponíveis estão a responder." : "Há uma ou mais fontes que precisam de verificação."}</p></div>
-                <button onClick={() => navigate("Plataformas")}>Abrir plataformas</button>
-              </article>
-              <div className="operationalQueue">
-                {operationalItems.map((item) => <button key={item.label} onClick={() => navigate(item.action)}><div><span>{item.label}</span><small>{item.note}</small></div><strong>{item.value}</strong><ChevronRight aria-hidden="true" /></button>)}
-              </div>
-              <article className="liveMapCard" hidden>
-                <LiveOperationsMap markers={mapMarkers} />
-                <div className="liveMapCopy"><span>MAPA OPERACIONAL · {mapMarkers.length} AO VIVO</span><strong>Tracking em tempo real</strong><p>{mapMarkers.length ? "Posições recentes de estafetas, motoristas e couriers. Actualiza a cada 10 segundos." : "Sem posições recentes para o filtro actual."}</p><button onClick={() => navigate("Mapa operacional")}>Abrir mapa completo</button></div>
-              </article>
-            </div>
-          </section>
-
-          <section className="financePanel" aria-label="Resumo financeiro oficial por plataforma">
-            <div className="panelTitle"><div><span>FONTE FINANCEIRA OFICIAL</span><h2>Valores reais por plataforma</h2><p>Sem somar carteiras de utilizadores com lucro corporativo. Só mostramos valores quando a fonte financeira foi validada.</p></div><button onClick={()=>navigate("Finanças")}>Abrir Finanças →</button></div>
-            <div className="financeKpis">
-              {[["Receita DeliGo", "deligo_revenue"], ["Vendas brutas DeliGo", "gross_sales"], ["A pagar a estafetas", "courier_due"], ["A pagar a restaurantes", "restaurant_due"]].map(([label,key])=>{
-                const summary = dashboard?.deligoFinance?.summary as Record<string, unknown> | undefined;
-                const available = Boolean(summary);
-                return <article key={label}><span>{label}</span><strong>{available ? money(Number(summary?.[key] || 0)) : "Indisponível"}</strong><small>{available ? "RPC oficial do DeliGo Admin" : "Sem permissão ou fonte validada"}</small></article>;
-              })}
-            </div>
-            <div className="platformFinanceRows">
-              {(dashboard?.platforms || []).map(item => <div className="biRow" key={`finance-platform-${item.slug}`}><strong>{item.name}</strong><span>{item.slug === "deligo" && dashboard?.deligoFinance ? "Resumo financeiro oficial disponível" : "Sem resumo financeiro validado"}</span><span>{String(item.platform_status || "Estado não confirmado")}</span><button onClick={()=>{setPlatform(item.name);navigate("Plataformas")}}>Abrir painel</button></div>)}
-            </div>
-            <div className="safeNotice"><b>Separação preservada</b><span>O envio de valores para trabalhadores deve continuar a usar a RPC oficial do Admin, com autorização, saldo disponível e registo de auditoria.</span></div>
-          </section>
-
-          <section className="deligoSyncPanel" hidden>
-            <div className="sectionHeading"><div><h2>DeliGo em sintonia com a Central</h2><p>Cliente, restaurante e estafeta · filas operacionais reais</p></div><button onClick={()=>{setPlatform("DeliGo");navigate("Plataformas")}}>Abrir DeliGo →</button></div>
-            <div className="deligoSyncMetrics">
-              {[
-                ["Pedidos activos",dashboard?.deligoOperations?.summary.activeOrders||0,"Operação"],
-                ["Precisam de atenção",dashboard?.deligoOperations?.summary.attentionOrders||0,"Mais de 45 minutos"],
-                ["KYC pendente",dashboard?.deligoOperations?.summary.pendingKyc||0,"Restaurantes e estafetas"],
-                ["Apoio aberto",dashboard?.deligoOperations?.summary.openSupport||0,"Mensagens dos utilizadores"],
-                ["Bilhetes vendidos",dashboard?.deligoOperations?.summary.ticketsSold||0,money(dashboard?.deligoOperations?.summary.ticketRevenue||0)],
-              ].map(([label,value,note])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>)}
-            </div>
-            <div className="deligoSyncQueues">
-              <article><header><strong>Pedidos em curso</strong><button onClick={()=>navigate("Plataformas")}>Ver operação</button></header>{(dashboard?.deligoOperations?.activeOrders||[]).slice(0,4).map(order=><div key={order.id}><span><b>#{order.id.slice(0,8)}</b>{String(order.status).replaceAll("_"," ")}</span><strong>{money(order.total_amount)}</strong><DeligoCommandButton action="cancel_order" entityId={order.id} label="Cancelar" danger/></div>)}{!dashboard?.deligoOperations?.activeOrders.length&&<p>Sem pedidos activos.</p>}</article>
-              <article><header><strong>KYC por rever</strong><button onClick={()=>navigate("Operações de Campo")}>Abrir KYC</button></header>{(dashboard?.deligoOperations?.pendingKyc||[]).slice(0,4).map(item=><div key={item.id}><span><b>{item.full_name||"Utilizador"}</b>{item.role==="courier"?"Estafeta":"Restaurante"}</span><strong>Pendente</strong><span className="deligo-inline-actions"><DeligoCommandButton action="approve_kyc" entityId={item.id} label="Aprovar"/><DeligoCommandButton action="reject_kyc" entityId={item.id} label="Rejeitar" danger/></span></div>)}{!dashboard?.deligoOperations?.pendingKyc.length&&<p>Sem KYC pendente.</p>}</article>
-              <article><header><strong>Apoio ao cliente</strong><button onClick={()=>navigate("Apoio ao Cliente")}>Abrir apoio</button></header>{(dashboard?.deligoOperations?.openSupport||[]).slice(0,4).map(item=><div key={item.id}><span><b>{item.reason||"Pedido de apoio"}</b>{item.customer_name||"Cliente"}</span><strong>{String(item.status).replaceAll("_"," ")}</strong></div>)}{!dashboard?.deligoOperations?.openSupport.length&&<p>Sem tickets abertos.</p>}</article>
-              <article><header><strong>Controlo de contas</strong><button onClick={()=>navigate("Plataformas")}>Todos os perfis</button></header>{(dashboard?.deligoOperations?.accountControls||[]).slice(0,4).map(item=>{const inactive=["blocked","suspended","disabled"].includes(item.administrative_status);const action=item.role==="restaurant"?(inactive?"reactivate_restaurant":"suspend_restaurant"):item.role==="courier"?(inactive?"reactivate_courier":"disable_courier"):(inactive?"unblock_client":"block_client");return <div key={item.id}><span><b>{item.full_name||"Utilizador"}</b>{item.role} · {item.administrative_status||"active"}</span><DeligoCommandButton action={action} entityId={item.id} label={inactive?"Reativar":"Restringir"} danger={!inactive}/></div>})}{!dashboard?.deligoOperations?.accountControls?.length&&<p>Sem perfis disponíveis.</p>}</article>
-              <article><header><strong>Ocorrências abertas</strong><button onClick={()=>navigate("Apoio ao Cliente")}>Ver ocorrências</button></header>{(dashboard?.deligoOperations?.openIncidents||[]).slice(0,4).map(item=><div key={item.id}><span><b>{item.reason||"Ocorrência de pedido"}</b>{String(item.status).replaceAll("_"," ")}</span><DeligoCommandButton action="resolve_incident" entityId={item.id} label="Resolver"/></div>)}{!dashboard?.deligoOperations?.openIncidents?.length&&<p>Sem ocorrências abertas.</p>}</article>
-            </div>
-          </section>
-
-          <section className="insightGrid" hidden>
-            <article className="chartPanel">
-              <div className="panelTitle"><div><h2>Desempenho do grupo</h2><p>Receita, operações e crescimento consolidados</p></div><div className="chartLegend"><span><i /> Receita</span><span><i /> Operações</span></div></div>
-              <div className="groupRealChart">{(dashboard?.modules.platforms || []).map(item => { const maximum = Math.max(...(dashboard?.modules.platforms || []).map(platform => platform.value), 1); return <div className="groupBar" key={item.slug}><div><strong>{item.name}</strong><span>{money(item.value)}</span></div><i><b style={{width:`${Math.max((item.value/maximum)*100,item.value>0?3:0)}%`}} /></i><small>Volume operacional observado</small></div>; })}{!dashboard?.modules.platforms.length && <div className="peopleEmpty">A aguardar indicadores do backend.</div>}</div>
-            </article>
-            <article className="readinessPanel">
-              <div className="panelTitle"><div><h2>Preparação das integrações</h2><p>Estado da camada de ligação</p></div><span className="readinessScore">{connectedPlatforms}/{dashboard?.platforms.length||0}</span></div>
-              {(dashboard?.platforms || []).map((item) => { const color = platformCards.find((card) => card.name === item.name)?.color || "#667085"; const Icon = platformIcons[item.name] || Sparkles; return <div className="readinessRow" key={item.slug}><i style={{background: color}}><Icon aria-hidden="true" /></i><div><strong>{item.name}</strong><span>{item.metrics.length} indicadores reais</span></div><b>Ligado</b></div>; })}
-              <div className="readinessNote"><i /> Leitura segura e agregada do ambiente de staging.</div>
-            </article>
-          </section>
-
-          <div className="sectionHeading">
-            <div><h2>Estado das plataformas</h2><p>Visão operacional por plataforma</p></div>
-            <button onClick={()=>navigate("Plataformas")}>Ver estado do sistema →</button>
-          </div>
-          <section className="platformGrid">
-            {visibleCards.map((card) => (
-              <article className="platformCard" key={card.name}>
-                <div className="platformAccent" style={{ background: card.color }} />
-                <div className="platformTop">
-                  <div className="platformIdentity"><i style={{ background: card.color }}>{(() => { const Icon = platformIcons[card.name] || Sparkles; return <Icon aria-hidden="true" />; })()}</i><div><strong>{card.name}</strong><span>{String(card.platform_status || "Ambiente não confirmado")}</span></div></div>
-                  <span className="status"><i /> {card.connected ? "Ligada" : "Indisponível"}</span>
-                </div>
-                <div className="platformMetrics">
-                  {card.metrics.map((metric) => <div key={metric.key}><span>{metric.label}</span><strong>{Number(metric.value).toLocaleString("pt-MZ")}</strong></div>)}
-                </div>
-                <button onClick={() => { setPlatform(card.name); navigate("Plataformas"); window.history.replaceState({}, "", `/plataformas/${card.slug}`); }}>Abrir {card.name}<span><ChevronRight aria-hidden="true" /></span></button>
-              </article>
-            ))}
-          </section>
-
-          <section className="governance" hidden>
-            <div className="sectionHeading">
-              <div><h2>Controlos corporativos</h2><p>Separação financeira e salvaguardas de governação</p></div>
-              <span className="protected">● Área protegida</span>
-            </div>
-            <div className="controlGrid">
-              {[
-                ["Tesouraria corporativa", "—", "Apenas dinheiro da empresa", "Banco, caixa e obrigações"],
-                ["Carteiras de utilizadores", "—", "Dinheiro de terceiros", "Excluído da receita e do lucro"],
-                ["Contas a pagar", "—", "Obrigações pendentes", "Fornecedores, salários e impostos"],
-                ["Lucro distribuível", "—", "Exige validação contabilística", "Sem levantamento automático"],
-              ].map(([title, value, badge, note], index) => (
-                <article className="controlCard" key={title}>
-                  <div className={`controlGlyph c${index}`}>{["▣", "◫", "↘", "◈"][index]}</div>
-                  <span>{title}</span><strong>{value}</strong><em>{badge}</em><small>{note}</small>
-                </article>
-              ))}
-            </div>
-          </section>
-
-          <section className="workflowPanel" hidden>
-            <div className="panelTitle">
-              <div><h2>Controlo da distribuição de lucros</h2><p>Separação de funções — nenhuma pessoa controla todo o ciclo</p></div>
-              <span className="draftStatus">Sem proposta activa</span>
-            </div>
-            <div className="workflow">
-              {[
-                ["1", "Contabilidade", "Preparar resultado"],
-                ["2", "Finanças", "Rever"],
-                ["3", "Sócios", "Aprovar"],
-                ["4", "Pagamento", "Instrução bancária"],
-                ["5", "Reconciliação", "Concluir"],
-              ].map(([number, title, text], index) => (
-                <div className="workflowStep" key={title}>
-                  <i>{number}</i><div><strong>{title}</strong><span>{text}</span></div>{index < 4 && <b>→</b>}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="lowerGrid">
-            <article className="panel" hidden>
-              <div className="panelTitle"><div><h2>Estrutura societária</h2><p>Dados autorizados de governação</p></div>{visibleNav.some(([,label])=>label==="Pessoas")&&<button onClick={()=>navigate("Pessoas")}>Gerir pessoas</button>}</div>
-              {(dashboard?.governance?.shareholders||[]).map((person,index)=><div className="person" key={person.employeeId||person.displayName}><div className={`personAvatar p${index}`}>{person.displayName.split(/\s+/).slice(0,2).map(part=>part[0]).join("")}</div><div className="personName"><strong>{person.displayName}</strong><span>{person.corporateTitle}</span></div><span className="role">{person.isSuperAdministrator?"SUPER ADMIN":"SÓCIO"}</span><span className="ownership">{person.quotaPercent}% participação</span></div>)}
-              {!dashboard?.governance?.shareholders?.length&&<div className="peopleEmpty">Informação societária restrita ao cargo autorizado.</div>}
-            </article>
-            <article className="panel activity">
-              <div className="panelTitle"><div><h2>Actividade auditada</h2><p>Eventos reais registados no backend</p></div>{visibleNav.some(([,label])=>label==="Registo de Auditoria")&&<button onClick={()=>navigate("Registo de Auditoria")}>Ver auditoria</button>}</div>
-              <div className="profileHistory">{(commandCenter?.liveFeed || []).slice(0, 6).map(event => <div key={event.id}><strong>{event.platforms?.name || "Plataforma"} · {event.event_type.replaceAll("_", " ")}</strong><span>{new Date(event.occurred_at).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</span></div>)}{!commandCenter?.liveFeed.length && <div className="empty"><div>⌁</div><strong>Sem eventos operacionais recentes</strong><p>A Central mostrará eventos assim que as plataformas os registarem.</p></div>}</div>
-            </article>
-          </section>
-          <section className="departmentStrip" hidden>
-            {[
-              ["Contabilidade", "Plano de contas · Reconciliação · Impostos"],
-              ["Recursos Humanos", "Contratos · Férias · Payroll · Ciclo de vida"],
-              ["Jurídico", "Documentos societários · Conformidade · Contratos"],
-              ["Colaboradores externos", "Acesso temporário · Revogação · Auditoria"],
-            ].map(([title, text]) => <button key={title} onClick={() => navigate(title)}><strong>{title}</strong><span>{text}</span><b>→</b></button>)}
-          </section>
-          <section className="operationsSuite" hidden>
-            <div className="sectionHeading">
-              <div><h2>Operações corporativas</h2><p>Fluxos controlados entre departamentos</p></div>
-              <button onClick={() => navigate("Aprovações")}>Abrir aprovações →</button>
-            </div>
-            <div className="suiteGrid">
-              {[
-                ["⌘", "Tecnologia / IT", "Sistemas, APIs, bases de dados, backups e incidentes técnicos", "Apenas acesso técnico"],
-                ["▧", "Compras", "Pedido → aprovação → fornecedor → factura → pagamento", "Aprovação obrigatória"],
-                ["▣", "Património", "Equipamentos, veículos, cartões SIM e histórico de atribuição", "0 activos ligados"],
-                ["⚑", "Conformidade e Risco", "Políticas, riscos, auditorias, incidentes e revisões", "Sem incidentes abertos"],
-                ["?", "Apoio Interno", "Pedidos para IT, RH, Finanças, Jurídico e Operações", "0 pedidos abertos"],
-                ["✓", "Projectos e Tarefas", "Objectivos, prazos, atribuições e progresso", "0 projectos activos"],
-              ].map(([icon, title, text, status]) => (
-                <button className="suiteCard" key={title} onClick={() => navigate(title)}>
-                  <i>{icon}</i><div><strong>{title}</strong><p>{text}</p><span>{status}</span></div><b>→</b>
-                </button>
-              ))}
-            </div>
-          </section>
-          <section className="accessModel" hidden>
-            <div>
-              <span className="accessEyebrow">ACESSO BASEADO EM PERMISSÕES</span>
-              <h2>A autoridade segue o âmbito, nunca apenas o cargo.</h2>
-              <p>Administradores departamentais gerem apenas a sua área autorizada. Os acessos técnico, financeiro, jurídico e de segurança são atribuídos e auditados separadamente.</p>
-            </div>
-            <div className="accessLadder">
-              {[
-                ["01", "Super Administrador", "Excepção global"],
-                ["02", "Administradores", "Limitados por módulo"],
-                ["03", "Gestores de Departamento", "Âmbito departamental"],
-                ["04", "Supervisores", "Âmbito operacional"],
-                ["05", "Trabalhadores / Colaboradores", "Permissões atribuídas"],
-                ["06", "Colaboradores Externos", "Acesso temporário"],
-              ].map(([n, role, scope]) => <div key={role}><i>{n}</i><strong>{role}</strong><span>{scope}</span></div>)}
+          <section className="platformPanel">
+            <div className="sectionHeading"><div><h2>Estado das plataformas</h2><p>Resumo operacional sem métricas fictícias.</p></div><button onClick={()=>navigate("Plataformas")}>Abrir plataformas →</button></div>
+            <div className="platformGrid">
+              {(dashboard?.platforms || []).map(item => <article className="platformCard" key={item.slug}><strong>{item.name}</strong><span>{String(item.platform_status || "Estado não confirmado")}</span><small>Dados: {item.data_freshness || "não indicado"}</small><button onClick={()=>navigate("Plataformas")}>Abrir</button></article>)}
             </div>
           </section>
           </>}
