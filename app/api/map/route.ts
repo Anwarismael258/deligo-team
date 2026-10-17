@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { corporateActor } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
-const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
 
 export async function GET() {
   if (!(await cookies()).get("hq_access_token")?.value || !(await corporateActor())) {
@@ -17,7 +16,9 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch(`${process.env.SUPABASE_URL || STAGING_URL}/rest/v1/rpc/hq_live_map_v1`, {
+    const centralUrl = process.env.SUPABASE_URL?.trim();
+    if (!centralUrl) return NextResponse.json({ error: "Mapa operacional não configurado para produção." }, { status: 503 });
+    const response = await fetch(`${centralUrl.replace(/\/$/, "")}/rest/v1/rpc/hq_live_map_v1`, {
       method: "POST",
       headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json", "x-hq-integration-secret": integrationSecret },
       body: "{}",

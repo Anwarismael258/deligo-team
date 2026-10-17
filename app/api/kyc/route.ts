@@ -4,7 +4,7 @@ import { signPlatformPath, type PlatformBackend } from "@/lib/platform-backends"
 
 export const dynamic = "force-dynamic";
 
-const roles = new Set(["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "COMPLIANCE", "LEGAL"]);
+const roles = new Set(["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "FIELD", "COMPLIANCE", "LEGAL"]);
 const platforms = new Set<PlatformBackend>(["deligo", "sarca", "taomoz", "comunhao", "mestre24"]);
 
 const permitted = (authorization: NonNullable<Awaited<ReturnType<typeof corporateAuthorization>>>) =>

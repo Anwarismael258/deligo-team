@@ -26,42 +26,21 @@ const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market
 const nav = [
   ["⌂", "Visão geral"],
   ["◇", "Plataformas"],
-  ["⌖", "Mapa operacional"],
-  ["♛", "Direcção Executiva"],
   ["♙", "Pessoas"],
-  ["♧", "Recursos Humanos"],
   ["□", "Finanças"],
-  ["▦", "Contabilidade"],
-  ["§", "Jurídico"],
-  ["⚑", "Conformidade e Risco"],
-  ["⌘", "Tecnologia / IT"],
-  ["▧", "Compras"],
-  ["▣", "Património"],
   ["↗", "Marketing"],
   ["⌖", "Operações de Campo"],
   ["◌", "Apoio ao Cliente"],
-  ["★", "Avaliações & Reputação"],
-  ["＋", "Aquisição de Parceiros"],
-  ["☆", "Embaixadores"],
-  ["✓", "Projectos e Tarefas"],
-  ["?", "Apoio Interno"],
-  ["!", "Centro de Notificações"],
-  ["✓", "Minhas Tarefas"],
-  ["●", "Aprovações"],
-  ["⌁", "BI / Análises"],
   ["▤", "Relatórios"],
-  ["◎", "Registo de Auditoria"],
-  ["◈", "Homologação"],
+  ["☷", "Projectos e Tarefas"],
+  ["♢", "Centro de Notificações"],
 ];
 const navGroups: Array<[string,string[]]> = [
-  ["GESTÃO", ["Visão geral","Plataformas","Mapa operacional","Direcção Executiva","Pessoas"]],
-  ["CORPORATIVO", ["Recursos Humanos","Finanças","Contabilidade","Jurídico","Conformidade e Risco","Tecnologia / IT","Compras","Património"]],
-  ["OPERAÇÕES & CRESCIMENTO", ["Marketing","Operações de Campo","Apoio ao Cliente","Avaliações & Reputação","Aquisição de Parceiros","Embaixadores"]],
-  ["EXECUÇÃO", ["Projectos e Tarefas","Apoio Interno"]],
-  ["MEU TRABALHO", ["Centro de Notificações","Minhas Tarefas","Aprovações"]],
-  ["INTELIGÊNCIA & CONTROLO", ["BI / Análises","Relatórios","Registo de Auditoria"]],
-  ["SISTEMA", ["Homologação"]],
+  ["PRINCIPAL", ["Visão geral","Plataformas","Pessoas","Finanças"]],
+  ["OPERAÇÕES", ["Marketing","Operações de Campo","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
+
+const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : label;
 
 const moduleIcons: Record<string, LucideIcon> = {
   "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
@@ -71,7 +50,6 @@ const moduleIcons: Record<string, LucideIcon> = {
   "Apoio ao Cliente": Headphones, "Avaliações & Reputação": Star, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
   "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Centro de Notificações": Bell, "Minhas Tarefas": ListTodo, "Aprovações": CheckCircle2,
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
-  "Homologação": Settings,
 };
 
 const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Church, "DeliGo Market": ShoppingBag, SARCA: Car, Mestre24: Hammer };
@@ -110,7 +88,6 @@ const moduleDetails: Record<string, string[]> = {
   "BI / Análises": ["Crescimento", "Receita", "Despesas", "Performance", "KPIs"],
   "Relatórios": ["Corporativos", "Financeiros", "RH", "Operações", "Auditoria"],
   "Registo de Auditoria": ["Actividade", "Logins", "Segurança", "Alterações", "Exportações"],
-  "Homologação": ["Contas de teste", "DeliGo", "Carteiras zero", "Auditoria"],
 };
 
 const modulePresentation: Record<string, { description: string; action: string; primary: string; secondary: string; visual: string; status: string; color: string }> = {
@@ -139,7 +116,6 @@ const modulePresentation: Record<string, { description: string; action: string; 
   "BI / Análises": { description: "Consolida KPIs, crescimento e desempenho autorizado de todo o grupo.", action: "Criar análise", primary: "Indicadores", secondary: "Relatórios agendados", visual: "Evolução dos KPIs", status: "Camada analítica", color: "#6c5bb5" },
   "Relatórios": { description: "Produz relatórios corporativos, financeiros, operacionais e de auditoria.", action: "Gerar relatório", primary: "Relatórios", secondary: "Agendados", visual: "Produção de relatórios", status: "Serviço documental", color: "#537493" },
   "Registo de Auditoria": { description: "Consulta eventos imutáveis de acesso, segurança e alterações críticas.", action: "Exportar auditoria", primary: "Eventos", secondary: "Alertas críticos", visual: "Actividade auditada", status: "Trilho de auditoria", color: "#555b66" },
-  "Homologação": { description: "Cria contas de teste controladas, sem alterar utilizadores reais nem movimentar pagamentos.", action: "Preparar DeliGo", primary: "Contas de teste", secondary: "Ambiente staging", visual: "Cobertura de QA", status: "Acesso Super Admin", color: "#51607a" },
 };
 
 const routeByModule: Record<string, string> = {
@@ -173,7 +149,6 @@ const routeByModule: Record<string, string> = {
   "BI / Análises": "/analises",
   "Relatórios": "/relatorios",
   "Registo de Auditoria": "/auditoria",
-  "Homologação": "/homologacao",
 };
 
 const moduleByRoute = Object.fromEntries(Object.entries(routeByModule).map(([module, route]) => [route, module]));
@@ -183,19 +158,19 @@ const personas = {
     name: "Anwar Ismael",
     role: "Super Administrador",
     initials: "AA",
-    modules: nav.map(([, label]) => label),
+    modules: Object.keys(modulePresentation),
   },
   sara: {
     name: "Sara Ismael",
     role: "Sócia · Diretora Financeira",
     initials: "SI",
-    modules: ["Visão geral", "Direcção Executiva", "Finanças", "Contabilidade", "Aprovações", "BI / Análises", "Relatórios"],
+    modules: Object.keys(modulePresentation),
   },
   sansao: {
     name: "Sansão Chume",
     role: "Supervisor de Operações",
     initials: "SC",
-    modules: ["Visão geral", "Pessoas", "Marketing", "Operações de Campo", "Apoio ao Cliente", "Aquisição de Parceiros", "Embaixadores", "Projectos e Tarefas", "BI / Análises", "Relatórios"],
+    modules: ["Visão geral", "Plataformas", "Marketing", "Operações de Campo", "Apoio ao Cliente", "Projectos e Tarefas", "Centro de Notificações", "Relatórios"],
   },
   contabilista: {
     name: "Contabilista",
@@ -209,9 +184,9 @@ const personas = {
     initials: "IT",
     modules: ["Visão geral", "Plataformas", "Tecnologia / IT", "Património", "Projectos e Tarefas", "Apoio Interno", "Relatórios", "Registo de Auditoria"],
   },
-  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Marketing", "Projectos e Tarefas", "BI / Análises", "Relatórios"] },
-  field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Operações de Campo", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
-  support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Apoio ao Cliente", "Projectos e Tarefas", "Relatórios"] },
+  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Plataformas", "Marketing", "Projectos e Tarefas"] },
+  field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Plataformas", "Operações de Campo", "Projectos e Tarefas"] },
+  support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Plataformas", "Apoio ao Cliente", "Projectos e Tarefas"] },
   hr: { name: "Recursos Humanos", role: "Recursos Humanos", initials: "RH", modules: ["Visão geral", "Pessoas", "Recursos Humanos", "Projectos e Tarefas", "Relatórios"] },
   legal: { name: "Jurídico", role: "Jurídico", initials: "JL", modules: ["Visão geral", "Jurídico", "Conformidade e Risco", "Relatórios"] },
   operations: { name: "Operações", role: "Operações", initials: "OP", modules: ["Visão geral", "Pessoas", "Operações de Campo", "Apoio ao Cliente", "Aquisição de Parceiros", "Projectos e Tarefas", "Relatórios"] },
@@ -223,7 +198,7 @@ const personas = {
 
 const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
 const unpublishedModules = new Set(["Embaixadores"]);
-const universalModules = new Set(["Centro de Notificações","Minhas Tarefas"]);
+const universalModules = new Set<string>();
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
 const modulePermission:Record<string,string>={"Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
 
@@ -247,6 +222,7 @@ type DashboardData = {
   checkedAt: string;
   platforms: DashboardPlatform[];
   operations: { supportCases: number; campaigns: number; fieldVisits: number; auditEvents: number };
+  deligoFinance?: { summary?: { gross_sales?: number; deligo_revenue?: number; restaurant_due?: number; courier_due?: number; settlements_pending?: number; withdrawals_pending?: number; reconciliation_mismatches?: number } } | null;
   deligoOperations?: {
     summary: { activeOrders:number; attentionOrders:number; pendingKyc:number; openSupport:number; ticketsSold:number; ticketRevenue:number; ticketProfit:number };
     activeOrders: Array<{id:string;status:string;total_amount:number;created_at:string}>;
@@ -261,7 +237,6 @@ type DashboardData = {
     platforms: Array<{ slug: string; name: string; value: number; people: Array<{ id: string; name: string; role: string; created_at: string }> }>;
     departments: Record<string, { total: number; active?: number; open?: number }>;
   };
-  test_mode?: { unique_users: number; wallet_count: number; wallet_total: number; currency: string; source: string; updated_at: string } | null;
   governance: {
     legalName: string;
     legalForm: string;
@@ -306,6 +281,8 @@ export function HQApp() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [commandResults, setCommandResults] = useState<GlobalPerson[]>([]);
+  const [overviewPeople, setOverviewPeople] = useState<GlobalPerson[]>([]);
+  const [overviewPeopleSearch, setOverviewPeopleSearch] = useState("");
   const [commandLoading, setCommandLoading] = useState(false);
   const [commandCenter, setCommandCenter] = useState<CommandCenterData | null>(null);
   const [persona, setPersona] = useState<keyof typeof personas>("anwar");
@@ -325,6 +302,8 @@ export function HQApp() {
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState("all");
+  const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState("all");
   const [selectedEmployee, setSelectedEmployee] = useState<ManagedEmployee | null>(null);
   const [employeeHistory, setEmployeeHistory] = useState<EmployeeHistory[]>([]);
   const [employeeAccess, setEmployeeAccess] = useState<EmployeeAccess[]>([]);
@@ -439,6 +418,7 @@ export function HQApp() {
   const [homologationResult, setHomologationResult] = useState<Array<{ code?: string; created?: boolean }>>([]);
   const personaBase=personas[persona];
   const currentPersona={...personaBase,name:sessionUser?.name||personaBase.name,role:sessionUser?.job_title||personaBase.role,initials:(sessionUser?.name||personaBase.name).split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()};
+  const canCreateEmployee = ["SUPER_ADMIN", "SUPERVISOR", "FINANCE"].includes(sessionRole);
   const isAccountScreen = active==="Meu Perfil";
   const activePresentation = modulePresentation[active];
   const hasPermission=(code:string)=>Boolean(sessionUser?.is_super_admin||sessionUser?.permissions?.includes(code));
@@ -462,6 +442,10 @@ export function HQApp() {
     void refresh();
     const interval = window.setInterval(() => void refresh(), 15_000);
     return () => { cancelled = true; window.clearInterval(interval); };
+  }, [active, sessionUser?.id]);
+  useEffect(() => {
+    if (active !== "Visão geral" || !sessionUser) return;
+    fetch("/api/global-search?list=all", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(result => setOverviewPeople(Array.isArray(result.data) ? result.data : [])).catch(() => setOverviewPeople([]));
   }, [active, sessionUser?.id]);
   const searchGlobal = async (value: string) => {
     setCommandQuery(value);
@@ -490,7 +474,7 @@ export function HQApp() {
 
   useEffect(() => {
     if (!sessionRole || sessionRole === "SUPER_ADMIN") return;
-    const universallyAllowed = ["Meu Perfil", "DefiniÃ§Ãµes", "SeguranÃ§a", "Centro de Notificações", "Minhas Tarefas"];
+    const universallyAllowed = ["Meu Perfil", "DefiniÃ§ões", "SeguranÃ§a"];
     if (!visibleNav.some(([,label])=>label===active) && !universallyAllowed.includes(active)) {
       setActive("VisÃ£o geral");
       setSubArea("");
@@ -739,7 +723,8 @@ if(active==="Operações de Campo")void refreshField();
       .filter((metric) => ["users", "members", "buyers", "passengers", "clients", "professionals"].includes(metric.key))
       .reduce((platformTotal, metric) => platformTotal + Number(metric.value || 0), 0);
   }, 0) || 0;
-  const totalUsers = dashboard?.test_mode?.unique_users ?? historicalTotalUsers;
+  const totalUsers = historicalTotalUsers;
+  const filteredOverviewPeople = overviewPeople.filter(person => `${person.full_name || ""} ${person.display_name || ""} ${person.primary_email || ""} ${person.primary_phone || ""} ${person.apps.map(app => `${app.name || ""} ${app.slug || ""}`).join(" ")}`.toLocaleLowerCase("pt").includes(overviewPeopleSearch.toLocaleLowerCase("pt")));
   const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
   const selectedPlatformStatus = dashboard?.platforms.find((item) => item.name === platform);
   const platformDirectory = (dashboard?.platforms || []).map((item) => ({
@@ -759,10 +744,18 @@ if(active==="Operações de Campo")void refreshField();
   ];
   const mapMarkers = (liveMap?.markers || []).filter((marker) => platform === "Todas as plataformas" || platformDisplayName(marker.platform) === platform);
   const filteredMapMarkers = mapMarkers.filter((marker) => (mapStatus === "todos" || marker.status === mapStatus) && `${marker.workerName || ""} ${marker.workerId || marker.id}`.toLocaleLowerCase("pt").includes(mapSearch.toLocaleLowerCase("pt")));
-  const shownEmployees = managedEmployees.filter((employee) => `${employee.name} ${employee.employee_code} ${employee.department} ${employee.job_title}`.toLocaleLowerCase("pt").includes(employeeSearch.toLocaleLowerCase("pt")));
+  const employeeDepartments = [...new Set(managedEmployees.map((employee) => String(employee.department || "")).filter(Boolean))].sort();
+  const shownEmployees = managedEmployees.filter((employee) => {
+    const matchesSearch = `${employee.name} ${employee.employee_code} ${employee.department} ${employee.job_title}`.toLocaleLowerCase("pt").includes(employeeSearch.toLocaleLowerCase("pt"));
+    const matchesStatus = employeeStatusFilter === "all" || employee.status === employeeStatusFilter;
+    const matchesDepartment = employeeDepartmentFilter === "all" || employee.department === employeeDepartmentFilter;
+    return matchesSearch && matchesStatus && matchesDepartment;
+  });
   const financePlatformIds:Record<string,string>={DeliGo:"20000000-0000-0000-0000-000000000001",Comunhão:"20000000-0000-0000-0000-000000000002",TaoMoz:"20000000-0000-0000-0000-000000000003","DeliGo Market":"20000000-0000-0000-0000-000000000003",SARCA:"20000000-0000-0000-0000-000000000004"};
   const financeFilter=(rows:FinanceRecord[])=>platform==="Todas as plataformas"?rows:rows.filter(row=>row.platform_id===financePlatformIds[platform]);
   const financeAccounts=financeFilter(financeData.financial_accounts); const financeTransactions=financeFilter(financeData.financial_transactions); const financePayments=financeFilter(financeData.payment_requests); const financeBudgets=financeFilter(financeData.budgets); const financeForecasts=financeFilter(financeData.cashflow_forecasts);
+  const supportEmployeeId=String(supportData.current_employee_id||"");
+  const supportInbox=(supportData.support_tickets||[]).filter(ticket=>String(ticket.assigned_to||"")===supportEmployeeId);
   const treasuryBalance=financeAccounts.reduce((sum,row)=>sum+Number(row.current_balance||0),0); const recognizedIncome=financeTransactions.filter(row=>row.transaction_type==="income"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const recognizedExpense=financeTransactions.filter(row=>row.transaction_type==="expense"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const pendingPayments=financePayments.filter(row=>["pending","approved"].includes(row.status||"")); const pendingPaymentTotal=pendingPayments.reduce((sum,row)=>sum+Number(row.amount||0),0); const paidTotal=financePayments.filter(row=>row.status==="paid").reduce((sum,row)=>sum+Number(row.amount||0),0); const budgetTotal=financeBudgets.reduce((sum,row)=>sum+Number(row.amount||0),0); const forecastNet=financeForecasts.reduce((sum,row)=>sum+Number(row.expected_income||0)-Number(row.expected_expense||0),0);
 
   return (
@@ -773,7 +766,7 @@ if(active==="Operações de Campo")void refreshField();
           <div><strong>DeliGo Triunfal</strong><span>Central Web</span></div>
         </div>
         <nav>
-          {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{label}</button>)}</div> })}
+          {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{displayModuleLabel(label)}</button>)}</div> })}
           <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span>Meu Perfil</button>
         </nav>
         <div className="user">
@@ -816,24 +809,24 @@ if(active==="Operações de Campo")void refreshField();
         </header>
 
         <div className="content">
-          <div className="eyebrow"><span>HQ</span> / {active}</div>
-          <div className="frozenBanner"><i /> {dashboard ? `Dados reais ligados a ${dashboard.environment} · actualizados ${new Date(dashboard.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}` : connectionError || "A ligar ao backend Deligo Staging…"}</div>
+          <div className="eyebrow"><span>HQ</span> / {displayModuleLabel(active)}</div>
+          <div className="frozenBanner"><i /> {dashboard ? `Dados reais ligados a ${dashboard.environment} · actualizados ${new Date(dashboard.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}` : connectionError || "A ligar ao backend configurado…"}</div>
           <div className="titleRow">
             <div>
-              <h1>{active === "Visão geral" ? "Visão geral do grupo" : active}</h1>
+              <h1>{active === "Visão geral" ? "Visão geral do grupo" : displayModuleLabel(active)}</h1>
               <p>{active === "Visão geral" ? "Gestão consolidada da DeliGo Triunfal, Lda." : `Área dedicada a ${active}, sem conteúdos de outros departamentos.`}</p>
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
           {active !== "Visão geral" && !isAccountScreen && (
             <section className="moduleContext">
-              <div><span>MÓDULO</span><h2>{active}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
+              <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
                 {(moduleDetails[active] || []).map((item) => <span key={item}>{item}</span>)}
               </div>
             </section>
           )}
-          {active === "Homologação" && <section className="homologationWorkspace">
+          {false && active === "Homologação" && <section className="homologationWorkspace">
             <div className="technologyHero"><div><span>AMBIENTE CONTROLADO</span><h2>Homologação DeliGo</h2><p>Cria três contas de teste no staging: Cliente, Restaurante e Estafeta. Os registos recebem marca de teste, carteiras a zero e nunca chamam gateways de pagamento.</p></div><div className="live"><i /> Somente Super Admin</div></div>
             <div className="financeKpis"><article><span>Personas</span><strong>3</strong><small>Cliente, Restaurante, Estafeta</small></article><article><span>Carteiras</span><strong>0 MT</strong><small>Saldo inicial obrigatório</small></article><article><span>Pedidos</span><strong>0</strong><small>Nenhuma operação criada</small></article><article><span>Destino</span><strong>Staging</strong><small>Nunca produção financeira</small></article></div>
             <div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Preparar cenário de teste</h3><p>A palavra-passe é transmitida somente para criar estas contas de teste e não é apresentada ou guardada no HQ.</p></div></div><div className="financeEntryForm"><label><span>Palavra-passe das contas de teste</span><input type="password" value={homologationPassword} onChange={event=>setHomologationPassword(event.target.value)} minLength={8} autoComplete="new-password" placeholder="Mínimo 8 caracteres" /></label><button className="primaryAction" onClick={()=>void provisionDeligoTestPersonas()}>Criar / atualizar contas DeliGo</button></div></div>
@@ -842,9 +835,9 @@ if(active==="Operações de Campo")void refreshField();
             <div className="safeNotice"><b>Limites de segurança</b><span>Esta área não cria utilizadores reais, não envia SMS, não cria pedidos, não credita carteiras e não executa pagamentos. Toda ação permanece rastreável no ambiente de homologação.</span></div>
           </section>}
           {active === "Meu Perfil" && <ProfileSettings/>}
-          {active === "Plataformas" && (
+          {active === "Plataformas" && platform === "Todas as plataformas" && (
             <section className="platformDirectory" aria-label="Plataformas do grupo">
-              <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do ecossistema, operações separadas</h2><p>Abra uma plataforma para ver apenas os seus utilizadores, operações, integrações, equipa e incidentes.</p></div><b>{connectedPlatforms}/{dashboard?.platforms.length || 0} ligadas</b></div>
+              <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do grupo</h2><p>Estado verificado e acesso directo aos painéis autorizados.</p></div><b>{connectedPlatforms}/{dashboard?.platforms.length || 0} operacionais</b></div>
               <div className="platformDirectoryGrid">
                 {platformDirectory.map((item) => {
                   const users = metricFor(item, ["utilizador", "membro", "comprador", "passageiro"]);
@@ -852,8 +845,8 @@ if(active==="Operações de Campo")void refreshField();
                   const Icon = platformIcons[item.name] || Sparkles;
                   return <button className={`platformDirectoryCard ${platform === item.name ? "selected" : ""}`} key={item.slug} onClick={() => { setPlatform(item.name); setPlatformCollection(""); setSubArea("Resumo"); }}>
                     <div><i className="platformArtwork" style={{ background: platformCards.find((card) => card.name === item.name)?.color || "#555" }}><img src={platformArtwork[item.name]} alt={`Marca ${item.name}`} /><Icon aria-hidden="true" /></i><span className={item.connected ? "connectedPill" : "warningPill"}>{item.connected ? "Ligada" : "A verificar"}</span></div>
-                    <h3>{item.name}</h3><p>{operationalLabel(item.name)} e dados próprios no backend central.</p><small>Plataforma: {String((item as Record<string,unknown>).platform_status||"Em desenvolvimento")} · HQ: {String((item as Record<string,unknown>).integration_status||"A verificar")}{(item as Record<string,unknown>).last_sync_at?` · Sync ${new Date(String((item as Record<string,unknown>).last_sync_at)).toLocaleString("pt-MZ")}`:""}</small>
-                    <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>{operationalLabel(item.name)}</dt><dd>{operations}</dd></div><div><dt>Volume observado</dt><dd>{money(item.value)}</dd></div></dl>
+                    <h3>{item.name}</h3><p>{operationalLabel(item.name)} · painel independente.</p><small>Estado: {String((item as Record<string,unknown>).integration_status || "Não verificado")}{(item as Record<string,unknown>).last_sync_at ? ` · Actualizado ${new Date(String((item as Record<string,unknown>).last_sync_at)).toLocaleString("pt-MZ")}` : " · Actualização não disponível"}</small>
+                    <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>{operationalLabel(item.name)}</dt><dd>{operations}</dd></div><div><dt>Indicadores</dt><dd>{item.metrics.length}</dd></div></dl>
                     <strong>Abrir painel da plataforma <ChevronRight aria-hidden="true" /></strong>
                   </button>;
                 })}
@@ -893,7 +886,8 @@ if(active==="Operações de Campo")void refreshField();
           )}
           {active === "Finanças" && (
             <section className="financeWorkspace">
-              <DeligoFinance/>
+              <div className="financeKpis"><article><span>Valor total confirmado</span><strong>{dashboard?.deligoFinance?.summary?.gross_sales == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.gross_sales))}</strong><small>Fonte oficial do Admin</small></article><article><span>Total levantável</span><strong>{dashboard?.deligoFinance?.summary?.deligo_revenue == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue))}</strong><small>Receita total confirmada</small></article><article><span>Levantamento</span><strong>Protegido</strong><small>Exige aprovação OTP</small></article></div><button className="primaryAction" disabled title="Fluxo OTP financeiro ainda não publicado no backend">Levantar ganhos</button><div className="safeNotice"><b>Dupla aprovação obrigatória</b><span>O levantamento só poderá ser executado depois de existir no backend um fluxo OTP entre o CEO e a Diretora Financeira, com auditoria e confirmação PaySuite.</span></div>
+              {false && <>
               <div className="financeHero">
                 <div><span>SALDO DE TESOURARIA CORPORATIVA</span><strong>{money(treasuryBalance)}</strong><small>{platform} · soma das contas corporativas registadas no HQ.</small></div>
                 <div className="financeGuard"><ShieldCheck aria-hidden="true" /><div><b>Separação financeira activa</b><span>Carteiras de utilizadores não são tratadas como dinheiro da empresa.</span></div></div>
@@ -901,10 +895,10 @@ if(active==="Operações de Campo")void refreshField();
               <div className="financeKpis">
                 {[ ["Receitas reconhecidas",recognizedIncome,"lançamentos publicados"], ["Despesas reconhecidas",recognizedExpense,"lançamentos publicados"], ["Pagamentos pendentes",pendingPaymentTotal,`${pendingPayments.length} pedidos`], ["Pagamentos realizados",paidTotal,"registos pagos"], ["Orçamento",budgetTotal,"período seleccionado"], ["Previsão líquida",forecastNet,"entradas menos saídas"] ].map(([label,value,note])=><article key={String(label)}><span>{label}</span><strong>{money(Number(value))}</strong><small>{note}</small></article>)}
               </div>
-              <div className="financeColumns">
-                <article className="financePanel"><div className="panelTitle"><div><h2>Centro de Tesouraria</h2><p>Finalidade reservada do dinheiro corporativo</p></div></div><div className="financeLine"><div><strong>Treasury / Operating</strong><span>Operação diária</span></div><b>—</b></div><div className="financeLine"><div><strong>Payroll</strong><span>Salários reservados</span></div><b>—</b></div><div className="financeLine"><div><strong>Expenses</strong><span>Despesas aprovadas</span></div><b>—</b></div><div className="financeLine"><div><strong>Tax &amp; Obligations</strong><span>Impostos e obrigações</span></div><b>—</b></div><div className="financeLine"><div><strong>Profit Reserve</strong><span>Lucro sujeito a decisão</span></div><b>—</b></div><div className="safeNotice"><b>Natureza obrigatória</b><span>Nenhuma saída pode ser feita apenas por cargo; deve indicar salário, reembolso, adiantamento, despesa ou distribuição societária.</span></div></article>
-                <article className="financePanel"><div className="panelTitle"><div><h2>Governação executiva</h2><p>CEO/Super Admin + Directora Financeira</p></div></div><div className="financeLine"><div><strong>Visibilidade</strong><span>Financeira integral para os dois perfis</span></div><b>ACTIVA</b></div><div className="financeLine"><div><strong>Lucros e Profit Reserve</strong><span>Dupla aprovação</span></div><b>2/2</b></div><div className="financeLine"><div><strong>Corporate / Treasury extraordinária</strong><span>CEO + Financeiro</span></div><b>2/2</b></div><div className="financeLine"><div><strong>Wallet de trabalhador</strong><span>Separada da Shareholder Wallet</span></div><b>SEPARADA</b></div></article>
-              </div>
+
+
+
+
               <div className="financeToolbar"><div><h2>Controlo financeiro</h2><p>Contas, movimentos, pagamentos, orçamentos e previsões consolidados ou por plataforma.</p></div><button className="primaryAction" onClick={()=>setShowFinanceForm(!showFinanceForm)}>{showFinanceForm?"Fechar":"Novo registo"}</button></div>
               {showFinanceForm&&<form className="financeEntryForm" onSubmit={createFinanceRecord}>
                 <label><span>Tipo de registo</span><select value={financeEntryKind} onChange={event=>setFinanceEntryKind(event.target.value)}>{[["transaction","Entrada ou saída"],["payment","Pagamento pendente"],["account","Conta bancária"],["budget","Orçamento"],["forecast","Previsão financeira"]].map(([value,label])=><option value={value} key={value}>{label}</option>)}</select></label>
@@ -918,12 +912,13 @@ if(active==="Operações de Campo")void refreshField();
               </form>}
               <div className="financeColumns">
                 <article className="financePanel"><div className="panelTitle"><div><h2>Contas e saldos</h2><p>{financeAccounts.length} contas no contexto actual</p></div></div>{financeAccounts.slice(0,8).map(account=><div className="financeLine" key={account.id}><div><strong>{String(account.name||"Conta corporativa")}</strong><span>{String(account.bank_name||"Caixa")} · {String(account.masked_account_number||"sem número exposto")}</span></div><b>{money(Number(account.current_balance||0))}</b></div>)}{!financeAccounts.length&&<div className="peopleEmpty">Sem contas corporativas registadas.</div>}</article>
-                <article className="financePanel"><div className="panelTitle"><div><h2>Destino corporativo de lucros</h2><p>Super Admin · wallet de reconciliação</p></div></div>{financeData.profit_destination.slice(0,1).map(destination=><div className="financeLine" key={String(destination.destination_number)}><div><strong>{String(destination.destination_type||"Wallet móvel")}</strong><span>{String(destination.destination_number)} · {String(destination.currency||"MZN")}</span></div><b>{money(Number(destination.confirmed_hq_profit||0))}</b></div>)}{!financeData.profit_destination.length&&<div className="peopleEmpty">Destino corporativo não disponível.</div>}<div className="safeNotice"><b>Reconciliação protegida</b><span>Os lucros confirmados são associados à wallet do Super Admin; nenhuma transferência é executada automaticamente.</span></div></article>
+
                 <article className="financePanel"><div className="panelTitle"><div><h2>Aprovação de despesas</h2><p>Solicitante e aprovador devem ser pessoas distintas</p></div></div>{pendingPayments.slice(0,8).map(payment=><div className="financePayment" key={payment.id}><div><strong>{payment.payee||"Beneficiário"}</strong><span>{payment.description||"Pagamento"} · {money(Number(payment.amount||0))}</span></div><b>{payment.status}</b><div><button onClick={()=>void paymentAction(payment.id,"approve")} disabled={payment.status!=="pending"}>Aprovar</button><button onClick={()=>void paymentAction(payment.id,"reject")}>Rejeitar</button><button onClick={()=>void paymentAction(payment.id,"mark_paid")} disabled={payment.status!=="approved"}>Marcar pago</button></div></div>)}{!pendingPayments.length&&<div className="peopleEmpty">Sem pagamentos pendentes.</div>}</article>
               </div>
-              <div className="financialBreakdown"><article><span>Volume operacional observado</span><strong>{money(selectedOperationalValue)}</strong><small>Não é receita contabilística</small></article>{selectedFinancialPlatforms.map(item=><article key={item.slug}><span>{item.name}</span><strong>{money(item.value)}</strong><small>Volume bruto observado</small></article>)}</div>
+
               {financeNotice&&<div className="operationalNotice">{financeNotice}</div>}
               <div className="safeNotice"><b>Controlo protegido</b><span>O HQ regista e aprova; “marcar pago” não movimenta dinheiro no banco nem executa Vodacom/Movitel. Distribuição de lucros continua sujeita à governação societária.</span></div>
+              </>}
             </section>
           )}
           {active === "Contabilidade"&&<section className="accountingWorkspace">
@@ -951,7 +946,7 @@ if(active==="Operações de Campo")void refreshField();
               <div className="reservedPanel"><div className="panelTitle"><div><h2>Matérias reservadas</h2><p>Exigem aprovação distinta dos dois sócios</p></div><span className="protected">{dashboard.governance.reservedMatterApprovalsRequired} aprovações</span></div><div className="reservedGrid">{dashboard.governance.reservedMatters.map((matter) => <div key={matter}><CheckCircle2 aria-hidden="true" /><span>{matter.replaceAll("_", " ")}</span><b>Ambos</b></div>)}</div></div>
             </section>
           )}
-          {["Pessoas","Recursos Humanos"].includes(active) && (
+          {active === "Recursos Humanos" && (
             <section className="employeeAdmin">
               <div className="employeeAdminHead"><div><span>GESTÃO DE TRABALHADORES</span><h2>{managedEmployees.length} cadastros</h2><p>RH prepara o cadastro; o Super Admin aprova acessos e gere contas protegidas.</p></div><button className="primaryAction" onClick={()=>setShowEmployeeForm(!showEmployeeForm)}>Novo trabalhador</button></div>
               <div className="employeeSummary">{[
@@ -973,7 +968,7 @@ if(active==="Operações de Campo")void refreshField();
               <div className="employeeTable"><div className="employeeAdminRow employeeAdminHeader"><span>Trabalhador</span><span>Role</span><span>Estado</span><span>Acções</span></div>{managedEmployees.map(employee=><div className="employeeAdminRow" key={employee.id}><div className="employeeIdentityCell">{employee.avatar_url?<img className="employeeAvatar" src={employee.avatar_url} alt={`Foto de ${employee.name}`}/>:<span className="employeeAvatar employeeAvatarFallback">{employee.name.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()}</span>}<div><strong>{employee.name}</strong><small>{employee.employee_code} · {employee.phone} · {employee.department}</small></div></div><span>{employee.role||employee.requested_role||"Pendente"}</span><b className={`employeeStatus ${employee.status}`}>{employee.status}</b><div className="employeeActions"><button onClick={()=>{setEditingEmployee(employee);setShowEmployeeForm(false)}}>Editar</button>{sessionRole==="SUPER_ADMIN"&&employee.employee_code!=="DG-0001"&&<>{employee.status==="invited"&&<button onClick={()=>employeeAction(employee.id,"activate")}>Activar</button>}{employee.status==="active"&&<button onClick={()=>employeeAction(employee.id,"suspend")}>Suspender</button>}{employee.status==="suspended"&&<button onClick={()=>employeeAction(employee.id,"reactivate")}>Reactivar</button>}{employee.status!=="offboarded"&&<button onClick={()=>{if(window.confirm(`Arquivar ${employee.name}? O acesso será revogado.`))void employeeAction(employee.id,"archive")}}>Arquivar</button>}</>}</div></div>)}</div>
             </section>
           )}
-          {active === "Pessoas" && <section className="peopleInspector"><div className="peopleSearchBar"><input value={employeeSearch} onChange={event=>setEmployeeSearch(event.target.value)} placeholder="Pesquisar por nome, identificação, cargo ou departamento"/><b>{shownEmployees.length} resultados</b></div><div className="peopleInspectorGrid">{shownEmployees.map(employee=><button key={employee.id} onClick={()=>setSelectedEmployee(employee)}><strong>{employee.name}</strong><span>{employee.employee_code} · {employee.job_title}</span><small>{employee.department} · {employee.status}</small></button>)}</div>{selectedEmployee&&<div className="employeeDetail"><div className="employeeDetailHead"><div><span>PERFIL PROFISSIONAL</span><h3>{selectedEmployee.name}</h3><p>{selectedEmployee.employee_code} · {selectedEmployee.job_title} · {selectedEmployee.department}</p></div><button onClick={()=>setSelectedEmployee(null)}>Fechar</button></div><div className="employeeDetailGrid"><article><span>Estado</span><strong>{selectedEmployee.status}</strong></article><article><span>Função</span><strong>{selectedEmployee.role||selectedEmployee.requested_role||"Pendente"}</strong></article><article><span>Último acesso</span><strong>{selectedEmployee.last_login_at?new Date(selectedEmployee.last_login_at).toLocaleString("pt-MZ"):"Sem acesso"}</strong></article><article><span>Permissões específicas</span><strong>{employeePermissions.filter(item=>item.employee_id===selectedEmployee.id).length}</strong></article></div><div className="employeeTimeline"><h4>Histórico e acessos</h4>{employeeHistory.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.action.replaceAll("_"," ")}</b><span>{new Date(item.created_at).toLocaleString("pt-MZ")}</span></p>)}{employeeAccess.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.event_type.replaceAll("_"," ")}</b><span>{new Date(item.occurred_at).toLocaleString("pt-MZ")}</span></p>)}{!employeeHistory.some(item=>item.employee_id===selectedEmployee.id)&&!employeeAccess.some(item=>item.employee_id===selectedEmployee.id)&&<div className="peopleEmpty">Sem alterações ou acessos registados.</div>}</div></div>}</section>}
+          {active === "Pessoas" && <section className="peopleInspector"><div className="peopleSearchBar"><input value={employeeSearch} onChange={event=>setEmployeeSearch(event.target.value)} placeholder="Pesquisar por nome, código interno ou função"/><select value={employeeDepartmentFilter} onChange={event=>setEmployeeDepartmentFilter(event.target.value)} aria-label="Filtrar por departamento"><option value="all">Todos os departamentos</option>{employeeDepartments.map(department=><option value={department} key={department}>{department}</option>)}</select><select value={employeeStatusFilter} onChange={event=>setEmployeeStatusFilter(event.target.value)} aria-label="Filtrar por estado"><option value="all">Todos os estados</option><option value="active">Activos</option><option value="invited">Convidados</option><option value="suspended">Suspensos</option><option value="offboarded">Arquivados</option></select><b>{shownEmployees.length} resultados</b></div><div className="peopleInspectorGrid">{shownEmployees.map(employee=><button key={employee.id} onClick={()=>setSelectedEmployee(employee)}><strong>{employee.name}</strong><span>{employee.employee_code} · {employee.department}</span><small>{employee.job_title} · {employee.role||employee.requested_role||"Pendente"} · {employee.status}</small></button>)}</div>{selectedEmployee&&<div className="employeeDetail"><div className="employeeDetailHead"><div><span>PERFIL PROFISSIONAL</span><h3>{selectedEmployee.name}</h3><p>{selectedEmployee.employee_code} · {selectedEmployee.job_title} · {selectedEmployee.department}</p></div><button onClick={()=>setSelectedEmployee(null)}>Fechar</button></div><div className="employeeDetailGrid"><article><span>Estado</span><strong>{selectedEmployee.status}</strong></article><article><span>Função</span><strong>{selectedEmployee.role||selectedEmployee.requested_role||"Pendente"}</strong></article><article><span>Último acesso</span><strong>{selectedEmployee.last_login_at?new Date(selectedEmployee.last_login_at).toLocaleString("pt-MZ"):"Sem acesso"}</strong></article><article><span>Permissões específicas</span><strong>{employeePermissions.filter(item=>item.employee_id===selectedEmployee.id).length}</strong></article></div><div className="employeeTimeline"><h4>Histórico e acessos</h4>{employeeHistory.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.action.replaceAll("_"," ")}</b><span>{new Date(item.created_at).toLocaleString("pt-MZ")}</span></p>)}{employeeAccess.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.event_type.replaceAll("_"," ")}</b><span>{new Date(item.occurred_at).toLocaleString("pt-MZ")}</span></p>)}{!employeeHistory.some(item=>item.employee_id===selectedEmployee.id)&&!employeeAccess.some(item=>item.employee_id===selectedEmployee.id)&&<div className="peopleEmpty">Sem alterações ou acessos registados.</div>}</div></div>}</section>}
           {active === "Pessoas"&&selectedEmployee&&sessionRole==="SUPER_ADMIN"&&<section className="peopleAccessControls"><h3>Supervisor e permissões individuais</h3><label><span>Supervisor directo</span><select defaultValue="" onChange={event=>void employeeGovernanceAction({employeeId:selectedEmployee.id,action:"set_supervisor",supervisorId:event.target.value||null})}><option value="">Sem supervisor</option>{managedEmployees.filter(item=>item.id!==selectedEmployee.id&&item.status==="active").map(item=><option value={item.id} key={item.id}>{item.name} · {item.job_title}</option>)}</select></label><div>{["people.view","people.manage","operations.view","reports.view"].map(code=>{const current=employeePermissions.find(item=>item.employee_id===selectedEmployee.id&&item.permission_code===code)?.allowed;return <button className={current?"active":""} key={code} onClick={()=>void employeeGovernanceAction({employeeId:selectedEmployee.id,action:"set_permission",permissionCode:code,allowed:!current})}>{current?"✓ ":""}{code.replaceAll("."," · ")}</button>})}</div><small>Cada alteração é guardada no histórico do colaborador.</small></section>}
           {active === "Recursos Humanos"&&<section className="hrLifecycle"><div className="hrLifecycleHead"><div><span>CICLO DE VIDA DO COLABORADOR</span><h2>Operações de Recursos Humanos</h2><p>Dados pessoais e salariais visíveis apenas para RH e Super Admin.</p></div><b>Área restrita</b></div><div className="hrLifecycleGrid">{[["Admissões e contratos","hr_contracts","admission"],["Documentos pessoais","hr_documents","admission"],["Presenças, faltas e atrasos","hr_attendance","schedule"],["Férias e licenças","hr_leave_requests","leave"],["Processamento salarial","hr_payroll_records","payroll_benefit"],["Benefícios, avaliações e formação","hr_employee_events","benefit"]].map(([label,key,eventType])=><button className="hrMetricCard" key={key} onClick={()=>{setHrEventType(String(eventType));setShowHrEventForm(true)}}><span>{label}</span><strong>{(hrData[key]||[]).length}</strong><small>registos protegidos · abrir registo</small></button>)}</div><div className="hrProcessGrid">{[["Admissão e onboarding","admission"],["Horários e turnos","schedule"],["Férias e licenças","leave"],["Payroll e benefícios","payroll_benefit"],["Avaliação de desempenho","performance_review"],["Formação","training"],["Processos disciplinares","disciplinary"],["Promoções e transferências","promotion"],["Saída e desligamento","separation"]].map(([item,eventType])=><button key={item} onClick={()=>{setHrEventType(String(eventType));setShowHrEventForm(true)}}>{item}</button>)}</div><div className="safeNotice"><b>Proteção activa</b><span>Documentos pessoais, contratos e valores salariais nunca são enviados a perfis operacionais.</span></div></section>}
           {active === "Recursos Humanos"&&<section className="hrEventActions"><div className="hrLifecycleHead"><div><span>PAYROLL</span><h2>Folha salarial</h2><p>Salários oficiais, descontos e líquido calculado pelo backend.</p></div><button className="hrCreateButton" onClick={()=>setShowPayrollForm(!showPayrollForm)}>{showPayrollForm?"Fechar":"Novo registo salarial"}</button></div>{showPayrollForm&&<form className="hrEventForm" onSubmit={createPayrollRecord}><label><span>Colaborador</span><select name="employeeId" required><option value="">Seleccionar</option>{managedEmployees.filter(item=>item.status==="active").map(item=><option value={item.id} key={item.id}>{item.name} · {item.employee_code}</option>)}</select></label><label><span>Início do período</span><input name="periodStart" type="date" required/></label><label><span>Fim do período</span><input name="periodEnd" type="date" required/></label><label><span>Salário bruto (MZN)</span><input name="grossAmount" type="number" min="0" step="0.01" required/></label><label><span>Descontos (MZN)</span><input name="deductions" type="number" min="0" step="0.01" defaultValue="0" required/></label><button type="submit">Criar folha em rascunho</button></form>}<div className="financeKpis">{[["Rascunhos",(hrData.hr_payroll_records||[]).filter(item=>item.status==="draft").length],["Aprovados",(hrData.hr_payroll_records||[]).filter(item=>item.status==="approved").length],["Pagos",(hrData.hr_payroll_records||[]).filter(item=>item.status==="paid").length]].map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong><small>folha protegida</small></article>)}</div></section>}
@@ -1054,6 +1049,7 @@ if(active==="Operações de Campo")void refreshField();
             <div className="marketingHero"><div><span>CENTRO DE CAMPANHAS</span><h2>Marketing, comunicação e crescimento</h2><p>Planeamento, aprovação, publicação e resultados reais por plataforma.</p></div><button onClick={()=>setShowMarketingForm(!showMarketingForm)}>Novo registo</button></div>
             <div className="operationalNotice"><strong>Conteúdo global da DeliGo</strong> · Banners, notícias, eventos e campanhas para todas as plataformas são publicados apenas pela Central. Restaurantes gerem exclusivamente os seus pratos, estabelecimento e promoções próprias.</div>
             <div className="financeKpis">{[
+              ["Pedidos recebidos",marketingData.marketing_requests?.length||0],
               ["Campanhas",marketingData.marketing_campaigns?.length||0],
               ["Em aprovação",(marketingData.marketing_campaigns||[]).filter(c=>c.status==="pending_approval").length],
               ["Publicadas",(marketingData.marketing_campaigns||[]).filter(c=>c.status==="published").length],
@@ -1061,6 +1057,7 @@ if(active==="Operações de Campo")void refreshField();
               ["Leads",marketingReports.reduce((n,r)=>n+Number(r.leads||0),0)],
               ["Conversões",marketingReports.reduce((n,r)=>n+Number(r.conversions||0),0)]
             ].map(([label,value])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>dados do backend</small></article>)}</div>
+            <article className="marketingRequestsPanel"><div className="panelTitle"><div><h2>Pedidos recebidos</h2><p>Solicitações reais encaminhadas ao Marketing</p></div></div>{(marketingData.marketing_requests||[]).slice(0,8).map(request=><div className="financeLine" key={request.id}><div><strong>{String(request.event_name||request.campaign_title||"Pedido de marketing")}</strong><span>{String(request.request_type||"solicitação")} · {String(request.objective||"objectivo não indicado")}</span></div><b>{String(request.status||"pendente")}</b></div>)}{!marketingData.marketing_requests?.length&&<div className="peopleEmpty">Nenhum pedido recebido confirmado.</div>}</article>
             {showMarketingForm&&<form className="financeEntryForm marketingForm" onSubmit={createMarketingRecord}>
               <label><span>Tipo de registo</span><select value={marketingKind} onChange={e=>setMarketingKind(e.target.value)}><option value="campaign">Campanha</option><option value="content">Conteúdo / calendário</option><option value="promotion">Promoção</option><option value="channel">Canal</option><option value="creative">Material criativo</option><option value="lead">Lead</option><option value="metric">Resultado / desempenho</option></select></label>
               {marketingKind!=="campaign"&&<label><span>Campanha</span><select name="campaignId" required><option value="">Selecionar</option>{(marketingData.marketing_campaigns||[]).map(c=><option value={c.id} key={c.id}>{String(c.title)} · {String(c.status).replaceAll("_"," ")}</option>)}</select></label>}
@@ -1088,7 +1085,7 @@ if(active==="Operações de Campo")void refreshField();
             <div className="financeKpis">{[["Missões",fieldData.field_visits?.length||0],["Em curso",(fieldData.field_visits||[]).filter(v=>v.status==="in_progress").length],["KYC pendente",(fieldData.field_kyc_cases||[]).filter(v=>!["approved","rejected","suspended","expired"].includes(String(v.status))).length],["Verificações pendentes",(fieldData.field_verifications||[]).filter(v=>v.status==="pending").length],["Incidentes abertos",(fieldData.field_incidents||[]).filter(v=>!["resolved","closed"].includes(String(v.status))).length],["Evidências",fieldData.field_evidence?.length||0]].map(([label,value])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>backend Field</small></article>)}</div>
             {showFieldAdvanced&&<><div className="fieldOperationPicker">{[["visit","Missão"],["checklist","Checklist"],["verification","Verificação"],["kyc","KYC"],["evidence","Foto/documento"],["form","Formulário"],["response","Resposta"],["incident","Incidente"],["report","Relatório"]].map(([value,label])=><button type="button" className={fieldKind===value?"active":""} onClick={()=>setFieldKind(value)} key={value}>{label}</button>)}</div><form className="financeEntryForm" onSubmit={createFieldRecord}>
               {!['visit','form'].includes(fieldKind)&&<label><span>Missão</span><select name="visitId" required><option value="">Selecionar</option>{(fieldData.field_visits||[]).filter(v=>!["completed","cancelled"].includes(String(v.status))).map(v=><option value={v.id} key={v.id}>{String(v.subject)} · {String(v.status)}</option>)}</select></label>}
-              {fieldKind==="visit"&&<><label><span>Plataforma</span><select name="platform" required><option value="deligo">DeliGo</option><option value="comunhao">Comunhão</option><option value="taomoz">TaoMoz</option><option value="sarca">SARCA</option></select></label><label><span>Agente responsável</span><select name="workerId" required><option value="">Selecionar</option>{(fieldData.employees||[]).filter(e=>e.status==="active").map(e=><option value={e.id} key={e.id}>{String(e.name)} · {String(e.employee_code)}</option>)}</select></label><label><span>Missão</span><input name="subject" required/></label><label><span>Objetivo</span><input name="objective" required/></label><label><span>Tipo de visita</span><select name="visitType"><option value="operational">Operacional</option><option value="verification">Verificação</option><option value="kyc">KYC</option><option value="onboarding">Onboarding</option><option value="inspection">Inspeção</option></select></label><label><span>Prioridade</span><select name="priority"><option value="normal">Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option><option value="low">Baixa</option></select></label><label><span>Local</span><input name="address" required/></label><label><span>Data</span><input name="plannedAt" type="datetime-local" required/></label><label><span>Latitude autorizada</span><input name="latitude" type="number" step=".000001"/></label><label><span>Longitude autorizada</span><input name="longitude" type="number" step=".000001"/></label><label className="fieldCheck"><input name="locationAuthorized" type="checkbox"/><span>Localização autorizada</span></label><label className="fieldCheck"><input name="evidenceRequired" type="checkbox"/><span>Exigir fotografia/documento</span></label></>}
+              {fieldKind==="visit"&&<><label><span>Plataforma</span><select name="platform" required><option value="deligo">DeliGo</option><option value="comunhao">Comunhão</option><option value="taomoz">DeliGo Market</option><option value="sarca">SARCA</option><option value="mestre24">Mestre24</option></select></label><label><span>Agente responsável</span><select name="workerId" required><option value="">Selecionar</option>{(fieldData.employees||[]).filter(e=>e.status==="active").map(e=><option value={e.id} key={e.id}>{String(e.name)} · {String(e.employee_code)}</option>)}</select></label><label><span>Missão</span><input name="subject" required/></label><label><span>Objetivo</span><input name="objective" required/></label><label><span>Tipo de visita</span><select name="visitType"><option value="operational">Operacional</option><option value="verification">Verificação</option><option value="kyc">KYC</option><option value="onboarding">Onboarding</option><option value="inspection">Inspeção</option></select></label><label><span>Prioridade</span><select name="priority"><option value="normal">Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option><option value="low">Baixa</option></select></label><label><span>Local</span><input name="address" required/></label><label><span>Data</span><input name="plannedAt" type="datetime-local" required/></label><label><span>Latitude autorizada</span><input name="latitude" type="number" step=".000001"/></label><label><span>Longitude autorizada</span><input name="longitude" type="number" step=".000001"/></label><label className="fieldCheck"><input name="locationAuthorized" type="checkbox"/><span>Localização autorizada</span></label><label className="fieldCheck"><input name="evidenceRequired" type="checkbox"/><span>Exigir fotografia/documento</span></label></>}
               {fieldKind==="checklist"&&<><label><span>Item de verificação</span><input name="title" required/></label><label><span>Resultado observado</span><select name="checkStatus"><option value="pending">Pendente</option><option value="passed">Conforme</option><option value="failed">Não conforme</option><option value="not_applicable">Não aplicável</option></select></label><label><span>Observações</span><input name="notes"/></label><label className="fieldCheck"><input name="required" type="checkbox" defaultChecked/><span>Obrigatória</span></label></>}
               {fieldKind==="verification"&&<><label><span>Tipo de verificação</span><input name="verificationType" placeholder="KYC, estabelecimento, documento…" required/></label><label><span>Referência</span><input name="reference"/></label><label><span>Observações</span><input name="notes" required/></label></>}
               {fieldKind==="kyc"&&<><label><span>Plataforma</span><select name="platform" required><option value="deligo">DeliGo</option><option value="comunhao">Comunhão</option><option value="taomoz">TaoMoz</option><option value="sarca">SARCA</option></select></label><label><span>Nome do requerente</span><input name="applicant" required/></label><label><span>Tipo de entidade</span><input name="entityType" placeholder="estafeta, motorista, parceiro…" required/></label><label><span>Referência única</span><input name="reference" required/></label><label><span>Fotografias/documentos</span><input name="documents" placeholder="referências separadas por vírgula" required/></label></>}
@@ -1109,11 +1106,11 @@ if(active==="Operações de Campo")void refreshField();
             <div className="safeNotice"><b>Privacidade de localização</b><span>Coordenadas só são guardadas quando a autorização de localização está marcada. Trabalhadores sem autorização não entram neste fluxo nem no mapa operacional.</span></div>
           </section>}
           {active === "Apoio ao Cliente" && <section className="supportWorkspace">
-            <div className="supportHero"><div><span>CENTRO DE ATENDIMENTO</span><h2>Apoio aos utilizadores das quatro plataformas</h2><p>Tickets, conversas, reclamações, dúvidas, escalonamento e resolução.</p></div><button onClick={()=>setShowSupportForm(!showSupportForm)}>Novo atendimento</button></div>
+            <div className="supportHero"><div><span>INBOX DE SUPORTE</span><h2>Mensagens atribuídas a si</h2><p>Responda apenas às tarefas encaminhadas para o seu utilizador.</p></div><button hidden onClick={()=>setShowSupportForm(!showSupportForm)}>Novo atendimento</button></div>
             <div className="financeKpis">{[["Tickets",supportData.support_tickets?.length||0],["Abertos",(supportData.support_tickets||[]).filter(t=>t.status==="open").length],["Em análise",(supportData.support_tickets||[]).filter(t=>t.status==="in_analysis").length],["Aguardam cliente",(supportData.support_tickets||[]).filter(t=>t.status==="waiting_customer").length],["Escalados",(supportData.support_tickets||[]).filter(t=>t.status==="escalated").length],["Resolvidos",(supportData.support_tickets||[]).filter(t=>["resolved","closed"].includes(String(t.status))).length]].map(([label,value])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>fila central</small></article>)}</div>
             {showSupportForm&&<><div className="supportKindPicker">{[["ticket","Novo ticket"],["message","Resposta"],["attachment","Anexo"]].map(([value,label])=><button type="button" key={value} className={supportKind===value?"active":""} onClick={()=>setSupportKind(value)}>{label}</button>)}</div><form className="financeEntryForm" onSubmit={createSupportRecord}>{supportKind!=="ticket"&&<label><span>Ticket</span><select name="ticketId" required value={selectedSupportTicket} onChange={e=>setSelectedSupportTicket(e.target.value)}><option value="">Selecionar</option>{(supportData.support_tickets||[]).filter(t=>t.status!=="closed").map(t=><option value={t.id} key={t.id}>{String(t.subject)} · {String(t.status)}</option>)}</select></label>}{supportKind==="ticket"&&<><label><span>Plataforma</span><select name="platform" required><option value="deligo">DeliGo</option><option value="comunhao">Comunhão</option><option value="taomoz">TaoMoz</option><option value="sarca">SARCA</option></select></label><label><span>Tipo</span><select name="ticketType"><option value="complaint">Reclamação</option><option value="question">Dúvida</option><option value="request">Pedido</option><option value="incident">Incidente</option></select></label><label><span>Categoria</span><input name="category" placeholder="pagamento, conta, viagem…" required/></label><label><span>Prioridade</span><select name="priority"><option value="normal">Normal</option><option value="high">Alta</option><option value="urgent">Urgente</option><option value="low">Baixa</option></select></label><label><span>Assunto</span><input name="subject" required/></label><label><span>Descrição</span><input name="description" required/></label><label><span>Cliente</span><input name="customerName" required/></label><label><span>Referência do cliente</span><input name="customerReference" required/></label><label><span>Contacto</span><input name="customerContact"/></label><label><span>Referência externa</span><input name="externalReference"/></label></>}{supportKind==="message"&&<><label><span>Resposta</span><input name="message" required/></label><label className="fieldCheck"><input name="internal" type="checkbox"/><span>Nota interna</span></label></>}{supportKind==="attachment"&&<><label><span>Nome do ficheiro</span><input name="fileName" required/></label><label><span>Tipo MIME</span><input name="mimeType" placeholder="image/jpeg, application/pdf…"/></label><label><span>Referência segura</span><input name="reference" required/></label></>}<button className="primaryAction">Guardar</button></form></>}
             {supportNotice&&<div className="operationalNotice">{supportNotice}</div>}
-            <div className="workflowBridge"><div><span>ROTEAMENTO CENTRAL</span><h3>Um ticket, vários departamentos, um único histórico</h3><p>Categoria técnica, financeira, laboral, jurídica ou de risco define o departamento e notifica a equipa responsável.</p></div>{(supportData.support_tickets||[]).slice(0,6).map(t=>{const department=(supportData.departments||[]).find(d=>d.id===t.current_department_id);return <article key={t.id}><strong>{String(t.ticket_number||"Ticket sem número")}</strong><span>{String(department?.name||"Apoio ao Cliente")} · {String(t.status).replaceAll("_"," ")}</span></article>})}</div>
+            <div className="workflowBridge" hidden></div>
             <div className="supportTicketList"><div className="panelTitle"><div><h2>Fila de atendimento</h2><p>Estado, cliente, agente, respostas e resolução</p></div></div>{(supportData.support_tickets||[]).map(t=>{const platformName=(supportData.platforms||[]).find(p=>p.id===t.platform_id)?.name,agent=(supportData.employees||[]).find(e=>e.id===t.assigned_to);return <article key={t.id} className={`supportTicket priority-${String(t.priority)}`}><button className="supportTicketOpen" onClick={()=>setSelectedSupportTicket(String(t.id))}><div><span>{String(t.ticket_type).replaceAll("_"," ")} · {String(t.category)} · {String(t.source_channel||t.external_reference||"central").toLowerCase()==="whatsapp"?"WhatsApp":"Central"}</span><strong>{String(t.subject)}</strong><small>{String(t.customer_name||t.customer_reference)} · {String(platformName||"Plataforma")} · Agente: {String(agent?.name||"não atribuído")}</small></div><b>{String(t.status).replaceAll("_"," ")}</b></button><div className="supportTicketActions"><select value={supportTargets[String(t.id)]||""} onChange={e=>setSupportTargets(current=>({...current,[String(t.id)]:e.target.value}))}><option value="">Selecionar agente</option>{(supportData.employees||[]).filter(e=>e.status==="active").map(e=><option value={e.id} key={e.id}>{String(e.name)}</option>)}</select>{t.status==="open"&&<button onClick={()=>void supportAction(String(t.id),"assign")}>Atribuir</button>}{["open","waiting_customer","escalated","resolved"].includes(String(t.status))&&<button onClick={()=>void supportAction(String(t.id),"analysis")}>Em análise</button>}{t.status==="in_analysis"&&<button onClick={()=>void supportAction(String(t.id),"waiting_customer")}>Aguardar cliente</button>}{!["resolved","closed"].includes(String(t.status))&&<button onClick={()=>void supportAction(String(t.id),"escalate")}>Escalar</button>}{!["resolved","closed"].includes(String(t.status))&&<button onClick={()=>void supportAction(String(t.id),"resolve")}>Resolver</button>}{t.status==="resolved"&&<button onClick={()=>void supportAction(String(t.id),"close")}>Fechar</button>}</div></article>})}{!supportData.support_tickets?.length&&<div className="peopleEmpty">Sem tickets no atendimento central.</div>}</div>
             {selectedSupportTicket&&<div className="supportCaseDetail"><div className="supportCaseHead"><div><span>HISTÓRICO COMPLETO</span><h3>{String((supportData.support_tickets||[]).find(t=>t.id===selectedSupportTicket)?.subject||"Ticket")}</h3></div><button onClick={()=>setSelectedSupportTicket("")}>Fechar detalhe</button></div><div className="supportCaseColumns"><article><h4>Conversas e respostas</h4>{(supportData.support_conversations||[]).filter(m=>m.ticket_id===selectedSupportTicket).map(m=><p key={m.id}><strong>{m.sender_type==="agent"?"Agente":"Cliente"}{m.is_internal?" · nota interna":""}</strong><span>{String(m.message)}</span><small>{new Date(String(m.created_at)).toLocaleString("pt-MZ")}</small></p>)}{!(supportData.support_conversations||[]).some(m=>m.ticket_id===selectedSupportTicket)&&<div className="peopleEmpty">Sem conversas.</div>}</article><article><h4>Anexos e escalonamentos</h4>{(supportData.support_attachments||[]).filter(a=>a.ticket_id===selectedSupportTicket).map(a=><p key={a.id}><strong>{String(a.file_name)}</strong><span>{String(a.mime_type||"ficheiro")}</span></p>)}{(supportData.support_escalations||[]).filter(e=>e.ticket_id===selectedSupportTicket).map(e=><p key={e.id}><strong>Escalonamento</strong><span>{String(e.reason)} · {String(e.status)}</span></p>)}</article><article><h4>Histórico</h4>{(supportData.support_history||[]).filter(h=>h.ticket_id===selectedSupportTicket).map(h=><p key={h.id}><strong>{String(h.event_type).replaceAll("_"," ")}</strong><span>{String(h.description)}</span><small>{new Date(String(h.created_at)).toLocaleString("pt-MZ")}</small></p>)}</article></div></div>}
             <div className="safeNotice"><b>Fluxo protegido</b><span>Tickets só podem ser fechados depois da resolução. Escalonamentos exigem destino e motivo, e todas as respostas, atribuições e mudanças de estado ficam no histórico.</span></div>
@@ -1158,11 +1155,10 @@ if(active==="Operações de Campo")void refreshField();
           <TechnicalIncidentAlerts onOpenTechnology={()=>navigate("Tecnologia / IT")}/>
           <section className="metrics">
             {[
-              ["Total de utilizadores", String(totalUsers), dashboard?.test_mode ? "3 contas de teste · 15 carteiras" : "Nas plataformas ligadas ao HQ"],
-              [dashboard?.test_mode ? "Saldo fictício de teste" : "Valor total processado", money(dashboard?.test_mode?.wallet_total ?? dashboard?.modules.totalValue ?? 0), dashboard?.test_mode ? "Ledger central · actualizado em tempo real" : "Volume operacional consolidado"],
-              ["Receita hoje", money(commandCenter?.summary.revenueToday || 0), "Comissões confirmadas no stream corporativo"],
-              ["Lucro líquido", "—", "Nunca inferido do saldo bancário"],
-              ["Operações hoje", String(commandCenter?.summary.operationsToday || 0), "Eventos operacionais recebidos hoje"],
+              ["Total de utilizadores", String(overviewPeople.length || totalUsers), "Contas autorizadas no ecossistema"],
+              ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Taxas, comissões e ganhos confirmados"],
+              ["Receita total levantável", dashboard?.deligoFinance?.summary?.deligo_revenue == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue)), "Receita total confirmada no Admin"],
+              ["Estado das plataformas", `${connectedPlatforms}/${dashboard?.platforms.length || 0}`, "Ligações operacionais confirmadas"],
             ].map(([label, value, note], index) => (
               <article className={`metric metric-${index}`} key={label}>
                 <div className="metricTopline"><span>INDICADOR CENTRAL</span><div className={`metricIcon m${index}`}>{[Users, ChartNoAxesCombined, Coins, Activity, PackageCheck].map((Icon, iconIndex) => iconIndex === index ? <Icon key={iconIndex} aria-hidden="true" /> : null)}</div></div>
@@ -1172,7 +1168,17 @@ if(active==="Operações de Campo")void refreshField();
             ))}
           </section>
 
-          <section className="missionControl">
+          <section className="peoplePanel">
+            <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>navigate("Pessoas")}>Gerir pessoas →</button></div>
+            <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
+            <div className="peopleList">
+              {filteredOverviewPeople.slice(0, 100).map(person => { const app = person.apps[0]; return <button className="peopleRow" key={person.user_id} onClick={()=>app?.slug && setSelectedProfile({ platform: String(app.slug), id: person.user_id, name: String(person.full_name || person.display_name || person.user_id) })}><span className="personIdentity"><i>{String(person.full_name || person.display_name || "U").split(" ").slice(0,2).map(part=>part[0]).join("")}</i><strong>{person.full_name || person.display_name || "Utilizador"}</strong></span><span className="rolePill">{String(app?.name || app?.slug || "Plataforma não indicada")}</span><span>{String(app?.role || "—")}</span><span className="connectedPill">{person.profile_status || "Activo"}</span></button>; })}
+              {!filteredOverviewPeople.length && <div className="peopleEmpty">Nenhum utilizador autorizado encontrado.</div>}
+              {filteredOverviewPeople.length > 100 && <div className="peopleEmpty">A mostrar os primeiros 100 resultados. Use a pesquisa para localizar uma conta.</div>}
+            </div>
+          </section>
+
+          <section className="missionControl" hidden>
             <div className="missionControlHead">
               <div><span>CENTRAL DE OPERAÇÕES</span><h2>O que precisa de atenção agora</h2><p>Leitura consolidada do backend central, sem simular estados que ainda não foram integrados.</p></div>
               <button onClick={() => navigate("Tecnologia / IT")}>Ver saúde técnica <ChevronRight aria-hidden="true" /></button>
@@ -1186,14 +1192,29 @@ if(active==="Operações de Campo")void refreshField();
               <div className="operationalQueue">
                 {operationalItems.map((item) => <button key={item.label} onClick={() => navigate(item.action)}><div><span>{item.label}</span><small>{item.note}</small></div><strong>{item.value}</strong><ChevronRight aria-hidden="true" /></button>)}
               </div>
-              <article className="liveMapCard">
+              <article className="liveMapCard" hidden>
                 <LiveOperationsMap markers={mapMarkers} />
                 <div className="liveMapCopy"><span>MAPA OPERACIONAL · {mapMarkers.length} AO VIVO</span><strong>Tracking em tempo real</strong><p>{mapMarkers.length ? "Posições recentes de estafetas, motoristas e couriers. Actualiza a cada 10 segundos." : "Sem posições recentes para o filtro actual."}</p><button onClick={() => navigate("Mapa operacional")}>Abrir mapa completo</button></div>
               </article>
             </div>
           </section>
 
-          <section className="deligoSyncPanel">
+          <section className="financePanel" aria-label="Resumo financeiro oficial por plataforma">
+            <div className="panelTitle"><div><span>FONTE FINANCEIRA OFICIAL</span><h2>Valores reais por plataforma</h2><p>Sem somar carteiras de utilizadores com lucro corporativo. Só mostramos valores quando a fonte financeira foi validada.</p></div><button onClick={()=>navigate("Finanças")}>Abrir Finanças →</button></div>
+            <div className="financeKpis">
+              {[["Receita DeliGo", "deligo_revenue"], ["Vendas brutas DeliGo", "gross_sales"], ["A pagar a estafetas", "courier_due"], ["A pagar a restaurantes", "restaurant_due"]].map(([label,key])=>{
+                const summary = dashboard?.deligoFinance?.summary as Record<string, unknown> | undefined;
+                const available = Boolean(summary);
+                return <article key={label}><span>{label}</span><strong>{available ? money(Number(summary?.[key] || 0)) : "Indisponível"}</strong><small>{available ? "RPC oficial do DeliGo Admin" : "Sem permissão ou fonte validada"}</small></article>;
+              })}
+            </div>
+            <div className="platformFinanceRows">
+              {(dashboard?.platforms || []).map(item => <div className="biRow" key={`finance-platform-${item.slug}`}><strong>{item.name}</strong><span>{item.slug === "deligo" && dashboard?.deligoFinance ? "Resumo financeiro oficial disponível" : "Sem resumo financeiro validado"}</span><span>{String(item.platform_status || "Estado não confirmado")}</span><button onClick={()=>{setPlatform(item.name);navigate("Plataformas")}}>Abrir painel</button></div>)}
+            </div>
+            <div className="safeNotice"><b>Separação preservada</b><span>O envio de valores para trabalhadores deve continuar a usar a RPC oficial do Admin, com autorização, saldo disponível e registo de auditoria.</span></div>
+          </section>
+
+          <section className="deligoSyncPanel" hidden>
             <div className="sectionHeading"><div><h2>DeliGo em sintonia com a Central</h2><p>Cliente, restaurante e estafeta · filas operacionais reais</p></div><button onClick={()=>{setPlatform("DeliGo");navigate("Plataformas")}}>Abrir DeliGo →</button></div>
             <div className="deligoSyncMetrics">
               {[
@@ -1213,7 +1234,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>
           </section>
 
-          <section className="insightGrid">
+          <section className="insightGrid" hidden>
             <article className="chartPanel">
               <div className="panelTitle"><div><h2>Desempenho do grupo</h2><p>Receita, operações e crescimento consolidados</p></div><div className="chartLegend"><span><i /> Receita</span><span><i /> Operações</span></div></div>
               <div className="groupRealChart">{(dashboard?.modules.platforms || []).map(item => { const maximum = Math.max(...(dashboard?.modules.platforms || []).map(platform => platform.value), 1); return <div className="groupBar" key={item.slug}><div><strong>{item.name}</strong><span>{money(item.value)}</span></div><i><b style={{width:`${Math.max((item.value/maximum)*100,item.value>0?3:0)}%`}} /></i><small>Volume operacional observado</small></div>; })}{!dashboard?.modules.platforms.length && <div className="peopleEmpty">A aguardar indicadores do backend.</div>}</div>
@@ -1234,8 +1255,8 @@ if(active==="Operações de Campo")void refreshField();
               <article className="platformCard" key={card.name}>
                 <div className="platformAccent" style={{ background: card.color }} />
                 <div className="platformTop">
-                  <div className="platformIdentity"><i style={{ background: card.color }}>{(() => { const Icon = platformIcons[card.name] || Sparkles; return <Icon aria-hidden="true" />; })()}</i><div><strong>{card.name}</strong><span>Deligo Staging</span></div></div>
-                  <span className="status"><i /> Ligada</span>
+                  <div className="platformIdentity"><i style={{ background: card.color }}>{(() => { const Icon = platformIcons[card.name] || Sparkles; return <Icon aria-hidden="true" />; })()}</i><div><strong>{card.name}</strong><span>{String(card.platform_status || "Ambiente não confirmado")}</span></div></div>
+                  <span className="status"><i /> {card.connected ? "Ligada" : "Indisponível"}</span>
                 </div>
                 <div className="platformMetrics">
                   {card.metrics.map((metric) => <div key={metric.key}><span>{metric.label}</span><strong>{Number(metric.value).toLocaleString("pt-MZ")}</strong></div>)}
@@ -1245,7 +1266,7 @@ if(active==="Operações de Campo")void refreshField();
             ))}
           </section>
 
-          <section className="governance">
+          <section className="governance" hidden>
             <div className="sectionHeading">
               <div><h2>Controlos corporativos</h2><p>Separação financeira e salvaguardas de governação</p></div>
               <span className="protected">● Área protegida</span>
@@ -1265,7 +1286,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>
           </section>
 
-          <section className="workflowPanel">
+          <section className="workflowPanel" hidden>
             <div className="panelTitle">
               <div><h2>Controlo da distribuição de lucros</h2><p>Separação de funções — nenhuma pessoa controla todo o ciclo</p></div>
               <span className="draftStatus">Sem proposta activa</span>
@@ -1286,7 +1307,7 @@ if(active==="Operações de Campo")void refreshField();
           </section>
 
           <section className="lowerGrid">
-            <article className="panel">
+            <article className="panel" hidden>
               <div className="panelTitle"><div><h2>Estrutura societária</h2><p>Dados autorizados de governação</p></div>{visibleNav.some(([,label])=>label==="Pessoas")&&<button onClick={()=>navigate("Pessoas")}>Gerir pessoas</button>}</div>
               {(dashboard?.governance?.shareholders||[]).map((person,index)=><div className="person" key={person.employeeId||person.displayName}><div className={`personAvatar p${index}`}>{person.displayName.split(/\s+/).slice(0,2).map(part=>part[0]).join("")}</div><div className="personName"><strong>{person.displayName}</strong><span>{person.corporateTitle}</span></div><span className="role">{person.isSuperAdministrator?"SUPER ADMIN":"SÓCIO"}</span><span className="ownership">{person.quotaPercent}% participação</span></div>)}
               {!dashboard?.governance?.shareholders?.length&&<div className="peopleEmpty">Informação societária restrita ao cargo autorizado.</div>}
@@ -1296,7 +1317,7 @@ if(active==="Operações de Campo")void refreshField();
               <div className="profileHistory">{(commandCenter?.liveFeed || []).slice(0, 6).map(event => <div key={event.id}><strong>{event.platforms?.name || "Plataforma"} · {event.event_type.replaceAll("_", " ")}</strong><span>{new Date(event.occurred_at).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</span></div>)}{!commandCenter?.liveFeed.length && <div className="empty"><div>⌁</div><strong>Sem eventos operacionais recentes</strong><p>A Central mostrará eventos assim que as plataformas os registarem.</p></div>}</div>
             </article>
           </section>
-          <section className="departmentStrip">
+          <section className="departmentStrip" hidden>
             {[
               ["Contabilidade", "Plano de contas · Reconciliação · Impostos"],
               ["Recursos Humanos", "Contratos · Férias · Payroll · Ciclo de vida"],
@@ -1304,7 +1325,7 @@ if(active==="Operações de Campo")void refreshField();
               ["Colaboradores externos", "Acesso temporário · Revogação · Auditoria"],
             ].map(([title, text]) => <button key={title} onClick={() => navigate(title)}><strong>{title}</strong><span>{text}</span><b>→</b></button>)}
           </section>
-          <section className="operationsSuite">
+          <section className="operationsSuite" hidden>
             <div className="sectionHeading">
               <div><h2>Operações corporativas</h2><p>Fluxos controlados entre departamentos</p></div>
               <button onClick={() => navigate("Aprovações")}>Abrir aprovações →</button>
@@ -1324,7 +1345,7 @@ if(active==="Operações de Campo")void refreshField();
               ))}
             </div>
           </section>
-          <section className="accessModel">
+          <section className="accessModel" hidden>
             <div>
               <span className="accessEyebrow">ACESSO BASEADO EM PERMISSÕES</span>
               <h2>A autoridade segue o âmbito, nunca apenas o cargo.</h2>
