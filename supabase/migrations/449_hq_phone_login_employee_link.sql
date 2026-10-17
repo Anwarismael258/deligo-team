@@ -17,7 +17,7 @@ declare
   matched_count integer;
 begin
   if p_auth_user_id is null or p_phone_e164 is null
-     or p_phone_e164 !~ '^[+][0-9]{12}
+     or p_phone_e164 !~ '^[+][0-9]{12}$' then
     return null;
   end if;
 
