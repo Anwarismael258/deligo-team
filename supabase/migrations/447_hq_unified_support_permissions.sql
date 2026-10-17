@@ -12,7 +12,8 @@ with grants(role_code, permission_code) as (
     ('CUSTOMER_SUPPORT','support.viewTickets'), ('CUSTOMER_SUPPORT','support.reply'), ('CUSTOMER_SUPPORT','support.close'),
     ('SUPPORT_AGENT','support.viewTickets'), ('SUPPORT_AGENT','support.reply'), ('SUPPORT_AGENT','support.close'),
     ('FINANCE','support.viewTickets'), ('FINANCE','support.reply'),
-    ('FINANCE_DIRECTOR','support.viewTickets'), ('FINANCE_DIRECTOR','support.reply')
+    ('FINANCE_DIRECTOR','support.viewTickets'), ('FINANCE_DIRECTOR','support.reply'),
+    ('ACCOUNTANT','support.viewTickets'), ('ACCOUNTANT','support.reply')
 )
 insert into hq.role_permissions(role_id, permission_id, effect)
 select r.id, p.id, 'allow'
