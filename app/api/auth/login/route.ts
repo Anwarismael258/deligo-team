@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hqRpc } from "@/lib/hq-server";
-
-const STAGING_URL = "https://tpmsgvkdjzoidvyiwwfk.supabase.co";
+import { hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 export async function POST(request: NextRequest) {
   const anonKey = process.env.SUPABASE_ANON_KEY;
-  if (!anonKey) return NextResponse.json({ error: "Autenticação de staging não configurada." }, { status: 503 });
+  if (!anonKey || !process.env.SUPABASE_URL) return NextResponse.json({ error: "Autenticação não configurada." }, { status: 503 });
   const { phone, password } = await request.json() as { phone?: string; password?: string };
   if (!phone || !password) return NextResponse.json({ error: "Telefone e palavra-passe são obrigatórios." }, { status: 400 });
   const digits = phone.replace(/\D/g, "");
   const normalizedPhone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
   if (!/^\+258\d{9}$/.test(normalizedPhone)) return NextResponse.json({ error: "Introduza um número moçambicano válido." }, { status: 400 });
 
-  const authResponse = await fetch(`${process.env.SUPABASE_URL || STAGING_URL}/auth/v1/token?grant_type=password`, {
+  const authResponse = await fetch(`${supabaseUrl()}/auth/v1/token?grant_type=password`, {
     method: "POST", headers: { apikey: anonKey, "Content-Type": "application/json" },
     body: JSON.stringify({ phone: normalizedPhone, password }), cache: "no-store",
   });
