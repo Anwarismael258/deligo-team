@@ -875,7 +875,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
-          {active !== "Visão geral" && active !== "Apoio ao Cliente" && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Apoio ao Cliente" && active !== "Finanças" && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
@@ -884,12 +884,11 @@ if(active==="Operações de Campo")void refreshField();
             </section>
           )}
           {active === "Finanças" && <section className="financeWorkspace">
-            <div className="technologyHero"><div><span>AMBIENTE CONTROLADO</span><h2>Homologação DeliGo</h2><p>Cria três contas de teste no staging: Cliente, Restaurante e Estafeta. Os registos recebem marca de teste, carteiras a zero e nunca chamam gateways de pagamento.</p></div><div className="live"><i /> Somente Super Admin</div></div>
             <div className="financeKpis"><article><span>Ganhos confirmados</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_ledger == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_ledger))}</strong><small>Fonte oficial reconciliada</small></article><article><span>Saldo corporativo disponível</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable))}</strong><small>Carteira CORPORATE_MZN</small></article><article><span>Destino</span><strong>Carteira pessoal</strong><small>Transferência interna com dupla aprovação</small></article></div>
             {corporateWithdrawalStep === "idle" && <form className="financeEntryForm" onSubmit={prepareCorporateWithdrawal}><label><span>Valor a transferir para a minha carteira (MZN)</span><input type="number" min="0.01" step="0.01" required value={corporateWithdrawal.amount} onChange={event => setCorporateWithdrawal(current => ({ ...current, amount: event.target.value }))} /></label><button className="primaryAction">Solicitar transferência interna</button></form>}
             {corporateWithdrawalStep === "otp" && <form className="financeEntryForm" onSubmit={confirmCorporateWithdrawal}><label><span>OTP do segundo aprovador</span><input inputMode="numeric" autoComplete="one-time-code" required value={corporateWithdrawal.otp} onChange={event => setCorporateWithdrawal(current => ({ ...current, otp: event.target.value }))} /></label><button className="primaryAction">Confirmar e transferir para a carteira</button></form>}
             {corporateWithdrawalStep === "done" && <button className="primaryAction" onClick={() => { setCorporateWithdrawalStep("idle"); setCorporateWithdrawal(current => ({ ...current, amount: "", withdrawalId: "", otp: "" })); }}>Novo pedido</button>}
-            {financeNotice && <div className="operationalNotice">{financeNotice}</div>}<div className="safeNotice"><b>PaySuite separado</b><span>O OTP autoriza apenas a transferência interna da carteira corporativa para a carteira pessoal. O levantamento real para M-Pesa/e-Mola só será chamado no perfil, quando existir o endpoint oficial PaySuite.</span></div>
+            {financeNotice && <div className="operationalNotice">{financeNotice}</div>}
               {false && <>
               <div className="financeHero">
                 <div><span>SALDO DE TESOURARIA CORPORATIVA</span><strong>{money(treasuryBalance)}</strong><small>{platform} · soma das contas corporativas registadas no HQ.</small></div>
