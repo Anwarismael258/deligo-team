@@ -76,11 +76,13 @@ export async function PATCH(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const authorization=await requireCorporatePermission("users.edit"),actor=authorization?.actor;
   if (!actor) return NextResponse.json({ error: "Sem permissão para editar trabalhadores." }, { status: 403 });
-  const input = await request.json() as { employeeId?: string; name?: string; phone?: string; jobTitle?: string; department?: string; role?: string; updatedAt?: string };
-  const digits = (input.phone || "").replace(/\D/g, "");
-  const phone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
-  if (!input.employeeId || !input.name?.trim() || !input.jobTitle?.trim() || !input.department || !input.role || !input.updatedAt || !/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "Dados de edição inválidos." }, { status: 400 });
+  const input = await request.json() as { employeeId?: string; name?: string; jobTitle?: string; department?: string; role?: string; updatedAt?: string };
+  if (!input.employeeId || !input.name?.trim() || !input.jobTitle?.trim() || !input.department || !input.role || !input.updatedAt) return NextResponse.json({ error: "Dados de edição inválidos." }, { status: 400 });
   try {
+    const directory = await hqRpc("hq_employee_directory_v1") as Array<Record<string, unknown>>;
+    const current = directory.find(employee => String(employee.id) === String(input.employeeId));
+    const phone = String(current?.phone || current?.phone_e164 || "");
+    if (!/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "O número registado não é válido; não é possível editar este trabalhador." }, { status: 409 });
     const employee = await hqRpc("hq_update_employee_v1", { p_actor_auth_user_id: actor.authUserId, p_employee_id: input.employeeId, p_display_name: input.name, p_phone_e164: phone, p_job_title: input.jobTitle, p_department_code: input.department, p_requested_role_code: input.role, p_expected_updated_at: input.updatedAt });
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (serviceKey && employee.auth_user_id) {

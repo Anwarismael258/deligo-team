@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, hqRpc } from "@/lib/hq-server";
+import { corporateActor, hqRest, hqRpc } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,10 @@ export async function POST(request: NextRequest) {
     }
     const amount = Number(body?.amount);
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Informe um valor válido." }, { status: 400 });
-    const prepared = await hqRpc("hq_prepare_corporate_withdrawal_v1", { p_amount: amount, p_method: String(body?.method || "mpesa"), p_phone_number: String(body?.phoneNumber || "").trim(), p_idempotency_key: String(body?.idempotencyKey || `hq-${actor.employee_id}-${Date.now()}`).trim() });
+    const profiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Array<{ personal_phone?: string | null }>;
+    const phone = String(profiles?.[0]?.personal_phone || "").trim();
+    if (!/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "O número de levantamento registado para este perfil não é válido." }, { status: 409 });
+    const prepared = await hqRpc("hq_prepare_corporate_withdrawal_v1", { p_amount: amount, p_method: "mpesa", p_phone_number: phone, p_idempotency_key: String(body?.idempotencyKey || `hq-${actor.employee_id}-${Date.now()}`).trim() });
     const withdrawalId = String((prepared as Record<string, unknown>).withdrawal_id || "");
     if (!withdrawalId) return NextResponse.json({ error: "Pedido financeiro sem identificador." }, { status: 502 });
     const otp = await hqRpc("hq_send_corporate_withdrawal_otp_v1", { p_withdrawal_id: withdrawalId });
