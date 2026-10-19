@@ -226,7 +226,7 @@ type DashboardData = {
   checkedAt: string;
   platforms: DashboardPlatform[];
   operations: { supportCases: number; campaigns: number; fieldVisits: number; auditEvents: number };
-  deligoFinance?: { summary?: { gross_sales?: number; deligo_revenue?: number; restaurant_due?: number; courier_due?: number; settlements_pending?: number; withdrawals_pending?: number; reconciliation_mismatches?: number } } | null;
+  deligoFinance?: { summary?: { corporate_profit_ledger?: number; corporate_profit_withdrawable?: number; deligo_profit?: number; mestre24_profit?: number; corporate_pending_withdrawals?: number; corporate_reserved_withdrawals?: number; custody_available?: number; custody_pending_reserved?: number; gross_sales?: number; deligo_revenue?: number; restaurant_due?: number; courier_due?: number; settlements_pending?: number; withdrawals_pending?: number; reconciliation_mismatches?: number }; legacy?: unknown } | null;
   deligoOperations?: {
     summary: { activeOrders:number; attentionOrders:number; pendingKyc:number; openSupport:number; ticketsSold:number; ticketRevenue:number; ticketProfit:number };
     activeOrders: Array<{id:string;status:string;total_amount:number;created_at:string}>;
@@ -844,65 +844,7 @@ if(active==="Operações de Campo")void refreshField();
           )}
           {false && active === "Homologação" && <section className="homologationWorkspace">
             <div className="technologyHero"><div><span>AMBIENTE CONTROLADO</span><h2>Homologação DeliGo</h2><p>Cria três contas de teste no staging: Cliente, Restaurante e Estafeta. Os registos recebem marca de teste, carteiras a zero e nunca chamam gateways de pagamento.</p></div><div className="live"><i /> Somente Super Admin</div></div>
-            <div className="financeKpis"><article><span>Personas</span><strong>3</strong><small>Cliente, Restaurante, Estafeta</small></article><article><span>Carteiras</span><strong>0 MT</strong><small>Saldo inicial obrigatório</small></article><article><span>Pedidos</span><strong>0</strong><small>Nenhuma operação criada</small></article><article><span>Destino</span><strong>Staging</strong><small>Nunca produção financeira</small></article></div>
-            <div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Preparar cenário de teste</h3><p>A palavra-passe é transmitida somente para criar estas contas de teste e não é apresentada ou guardada no HQ.</p></div></div><div className="financeEntryForm"><label><span>Palavra-passe das contas de teste</span><input type="password" value={homologationPassword} onChange={event=>setHomologationPassword(event.target.value)} minLength={8} autoComplete="new-password" placeholder="Mínimo 8 caracteres" /></label><button className="primaryAction" onClick={()=>void provisionDeligoTestPersonas()}>Criar / atualizar contas DeliGo</button></div></div>
-            {!!homologationResult.length&&<div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Resultado da preparação</h3><p>Contas que podem ser usadas na próxima fase de testes no BlueStacks.</p></div></div><div className="peopleTable"><div className="peopleRow peopleHeader"><span>Conta de teste</span><span>Estado</span><span>Modo</span><span>Operações</span></div>{homologationResult.map(person=><div className="peopleRow" key={person.code}><span><strong>{String(person.code||"persona")}</strong></span><span className="connectedPill">{person.created?"Criada":"Atualizada"}</span><span>Teste controlado</span><span>0</span></div>)}</div></div>}
-            {homologationNotice&&<div className="operationalNotice">{homologationNotice}</div>}
-            <div className="safeNotice"><b>Limites de segurança</b><span>Esta área não cria utilizadores reais, não envia SMS, não cria pedidos, não credita carteiras e não executa pagamentos. Toda ação permanece rastreável no ambiente de homologação.</span></div>
-          </section>}
-          {active === "Meu Perfil" && <ProfileSettings/>}
-          {active === "Plataformas" && platform === "Todas as plataformas" && (
-            <section className="platformDirectory" aria-label="Plataformas do grupo">
-              <div className="platformDirectoryHead"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do grupo</h2><p>Estado verificado e acesso directo aos painéis autorizados.</p></div><b>{connectedPlatforms}/{dashboard?.platforms.length || 0} operacionais</b></div>
-              <div className="platformDirectoryGrid">
-                {platformDirectory.map((item) => {
-                  const users = metricFor(item, ["utilizador", "membro", "comprador", "passageiro"]);
-                  const operations = metricFor(item, ["pedido", "evento", "viagem", "serviço", "operaç"]);
-                  const Icon = platformIcons[item.name] || Sparkles;
-                  return <button className={`platformDirectoryCard ${platform === item.name ? "selected" : ""}`} key={item.slug} onClick={() => { setPlatform(item.name); setPlatformCollection(""); setSubArea("Resumo"); }}>
-                    <div><i className="platformArtwork" style={{ background: platformCards.find((card) => card.name === item.name)?.color || "#555" }}><img src={platformArtwork[item.name]} alt={`Marca ${item.name}`} /><Icon aria-hidden="true" /></i><span className={item.connected ? "connectedPill" : "warningPill"}>{item.connected ? "Ligada" : "A verificar"}</span></div>
-                    <h3>{item.name}</h3><p>{operationalLabel(item.name)} · painel independente.</p><small>Estado: {String((item as Record<string,unknown>).integration_status || "Não verificado")}{(item as Record<string,unknown>).last_sync_at ? ` · Actualizado ${new Date(String((item as Record<string,unknown>).last_sync_at)).toLocaleString("pt-MZ")}` : " · Actualização não disponível"}</small>
-                    <dl><div><dt>Utilizadores</dt><dd>{users}</dd></div><div><dt>Valor total das carteiras</dt><dd>{walletTotalFor(item as Record<string, unknown>)}</dd></div><div><dt>Operações</dt><dd>{operations}</dd></div></dl><div className="platformRoleList">{(platformRoles[item.name] || []).map(role => <span key={role}>{role}</span>)}</div>
-                    <strong>Abrir painel da plataforma <ChevronRight aria-hidden="true" /></strong>
-                  </button>;
-                })}
-              </div>
-            </section>
-          )}
-          {active === "Plataformas" && selectedPlatformModule && (
-            <section className="platformModule">
-              <div className="platformModuleHero">
-                <div><span>MÓDULO DA PLATAFORMA</span><h2>{selectedPlatformModule.name}</h2><p>Painel administrativo adaptado ao HQ, com dados agregados do schema dedicado.</p></div>
-                <div className="platformValue"><span>Valor total das carteiras</span><strong>{walletTotalFor(selectedPlatformModule as Record<string, unknown>)}</strong><small>Fonte financeira validada; indisponível quando não existe resumo oficial</small></div>
-              </div>
-              <div className="platformControlGrid">
-                <article><span>Estado</span><strong className={selectedPlatformStatus?.connected ? "connectedPill" : "warningPill"}>{selectedPlatformStatus?.connected ? "Operacional" : "A verificar"}</strong><small>Ligação ao backend específico</small></article>
-                <article><span>Perfis da plataforma</span><strong>{(platformRoles[selectedPlatformModule.name] || []).length}</strong><small>{(platformRoles[selectedPlatformModule.name] || []).join(" · ")}</small></article>
-                <article><span>{operationalLabel(selectedPlatformModule.name)}</span><strong>{metricFor(selectedPlatformStatus, ["pedido", "evento", "viagem", "serviço", "operaç"])}</strong><small>Operações realizadas</small></article>
-                <article><span>Incidentes</span><strong>{recordsFor(platformSnapshot, "support") + recordsFor(platformSnapshot, "disputes")}</strong><small>Suporte e disputas registadas</small></article>
-                <article><span>Integrações</span><strong>{Object.values(platformSnapshot?.data || {}).filter(Array.isArray).length}</strong><small>Fontes ligadas ao HQ</small></article>
-                <article><span>{teamLabel(selectedPlatformModule.name)}</span><strong>{teamValue(selectedPlatformStatus, selectedPlatformModule.name)}</strong><small>Equipa ou rede operacional</small></article>
-              </div>
-              <div className="moduleToolbar">
-                <div className="moduleTabs"><span className="active">Resumo operacional</span><span>Dados agregados do backend</span></div>
-                <input value={peopleSearch} onChange={(event) => setPeopleSearch(event.target.value)} placeholder={`Pesquisar pessoas em ${selectedPlatformModule.name}…`} aria-label="Pesquisar utilizadores" />
-              </div>
-              {platformSnapshot && <div className="peoplePanel"><div className="peoplePanelHead"><div><h3>Estado administrativo ligado</h3><p>Toque numa fonte para abrir apenas os seus registos, fotografias e detalhes.</p></div><b>{Object.values(platformSnapshot.data).filter(Array.isArray).length} fontes</b></div><div className="peopleTable"><div className="peopleRow peopleHeader"><span>Fonte</span><span>Registos</span><span>Estado</span><span>Actualização</span></div>{Object.entries(platformSnapshot.data).map(([source, value]) => <button className="peopleRow sourceRow" onClick={() => setPlatformCollection(source)} key={source}><span className="personIdentity"><i>{source.slice(0, 2).toUpperCase()}</i><strong>{source.replaceAll("_", " ")}</strong></span><span>{Array.isArray(value) ? value.length : "—"}</span><span className="connectedPill">Abrir registos</span><span>{new Date(platformSnapshot.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}</span></button>)}</div></div>}
-              <div className="peoplePanel">
-                <div className="peoplePanelHead"><div><h3>Utilizadores recentes</h3><p>Nomes reais disponíveis no backend central.</p></div><b>{shownPeople.length} resultados</b></div>
-                <div className="peopleTable">
-                  <div className="peopleRow peopleHeader"><span>Utilizador</span><span>Função</span><span>Registo</span><span>Estado</span></div>
-                  {shownPeople.map((person) => <button className="peopleRow" onClick={()=>setSelectedProfile({platform:platformSlug(platform),id:person.id,name:person.name})} key={person.id}><span className="personIdentity"><i>{person.name.split(" ").slice(0,2).map((part) => part[0]).join("")}</i><strong>{person.name}</strong></span><span className="rolePill">{person.role.replaceAll("_", " ")}</span><span>{new Date(person.created_at).toLocaleDateString("pt-MZ")}</span><span className="connectedPill">Activo</span></button>)}
-                  {!shownPeople.length && <div className="peopleEmpty">Nenhum utilizador corresponde à pesquisa.</div>}
-                </div>
-              </div>
-              {platformAdminError && <div className="operationalNotice">{platformAdminError}</div>}
-              
-            </section>
-          )}
-          {active === "Finanças" && (
-            <section className="financeWorkspace">
-              <div className="financeKpis"><article><span>Valor total confirmado</span><strong>{dashboard?.deligoFinance?.summary?.gross_sales == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.gross_sales))}</strong><small>Fonte oficial do Admin</small></article><article><span>Total levantável</span><strong>{dashboard?.deligoFinance?.summary?.deligo_revenue == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue))}</strong><small>Receita total confirmada</small></article><article><span>Levantamento</span><strong>Protegido</strong><small>Exige aprovação OTP</small></article></div><button className="primaryAction" disabled title="Fluxo OTP financeiro ainda não publicado no backend">Levantar ganhos</button><div className="safeNotice"><b>Dupla aprovação obrigatória</b><span>O levantamento só poderá ser executado depois de existir no backend um fluxo OTP entre o CEO e a Diretora Financeira, com auditoria e confirmação PaySuite.</span></div>
+            <div className="financeKpis"><article><span>Lucros confirmados</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_ledger == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_ledger))}</strong><small>Fonte canónica do Admin</small></article><article><span>Total levantável</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable))}</strong><small>Carteira de lucros disponível</small></article><article><span>Saldo que entra no Admin</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable))}</strong><small>Mesma carteira corporativa</small></article></div><button className="primaryAction" disabled title="Fluxo OTP financeiro ainda não publicado no backend">Levantar ganhos</button><div className="safeNotice"><b>Dupla aprovação obrigatória</b><span>O levantamento só poderá ser executado depois de existir no backend um fluxo OTP entre o CEO e a Diretora Financeira, com auditoria e confirmação PaySuite.</span></div>
               {false && <>
               <div className="financeHero">
                 <div><span>SALDO DE TESOURARIA CORPORATIVA</span><strong>{money(treasuryBalance)}</strong><small>{platform} · soma das contas corporativas registadas no HQ.</small></div>
@@ -1183,7 +1125,7 @@ if(active==="Operações de Campo")void refreshField();
             {[
               ["Total de utilizadores", String(overviewPeople.length || totalUsers), "Contas autorizadas no ecossistema"],
               ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Apenas consulta"],
-              ["Receita total disponível", dashboard?.deligoFinance?.summary?.deligo_revenue == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue)), "Levantamento com aprovação Admin + Finance"],
+              ["Receita total disponível", dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue)), "Levantamento com aprovação Admin + Finance"],
               ["Estado das plataformas", `${connectedPlatforms}/${dashboard?.platforms.length || 0}`, "Ligações confirmadas"],
             ].map(([label, value, note], index) => (
               <article className={`metric metric-${index}`} key={label} onClick={() => label === "Total de utilizadores" && navigate("Utilizadores")} role={label === "Total de utilizadores" ? "button" : undefined} tabIndex={label === "Total de utilizadores" ? 0 : undefined}>
