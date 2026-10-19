@@ -57,7 +57,7 @@ export async function POST(req:NextRequest){
       table="projects";record={...record,legal_entity_id:entity,platform_id:platforms[String(record.platform_slug)]||null,created_by:c.actor.employee_id};delete record.platform_slug;
     }else if(body.resource==="task"){
       if(record.assigned_to){const recipient=(await rest(c.key,`employees?id=eq.${encodeURIComponent(String(record.assigned_to))}&status=eq.active&select=id`))?.[0];if(!recipient)return NextResponse.json({error:"O destinatário não está activo ou não existe."},{status:400})}
-      table="tasks";record={...record,legal_entity_id:entity,platform_id:platforms[String(record.platform_slug)]||null,assigned_by:c.actor.employee_id,created_by:c.actor.employee_id};delete record.platform_slug;
+      table="tasks";record={...record,legal_entity_id:entity,platform_id:platforms[String(record.platform_slug)]||null,assigned_by:c.actor.employee_id,created_by:c.actor.employee_id,task_origin:"manual",task_type:String(record.task_type||"general")};delete record.platform_slug;
     }else if(body.resource==="member")table="project_members";
     else if(body.resource==="milestone")table="project_milestones",record={...record,created_by:c.actor.employee_id};
     else if(body.resource==="dependency")table="task_dependencies",record={...record,created_by:c.actor.employee_id};
