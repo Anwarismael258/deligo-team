@@ -9,7 +9,7 @@ const platforms: Record<string,string> = {
   sarca:"20000000-0000-0000-0000-000000000004",
   mestre24:"20000000-0000-0000-0000-000000000005",
 };
-const readers = new Set(["SUPER_ADMIN","SUPERVISOR","OPERATIONS","TECHNOLOGY","MARKETING","FIELD","CUSTOMER_SUPPORT","HUMAN_RESOURCES","ACQUISITION","OPERATIONS_SUPERVISOR"]);
+const readers = new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","OPERATIONS","TECHNOLOGY","MARKETING","FIELD","CUSTOMER_SUPPORT","HUMAN_RESOURCES","ACQUISITION","OPERATIONS_SUPERVISOR"]);
 const writers = new Set(readers);
 const headers = (key:string) => ({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 
@@ -54,6 +54,7 @@ export async function POST(req:NextRequest){
     if(body.resource==="project"){
       table="projects";record={...record,legal_entity_id:entity,platform_id:platforms[String(record.platform_slug)]||null,created_by:c.actor.employee_id};delete record.platform_slug;
     }else if(body.resource==="task"){
+      if(record.assigned_to){const recipient=(await rest(c.key,`employees?id=eq.${encodeURIComponent(String(record.assigned_to))}&status=eq.active&select=id`))?.[0];if(!recipient)return NextResponse.json({error:"O destinatário não está activo ou não existe."},{status:400})}
       table="tasks";record={...record,legal_entity_id:entity,platform_id:platforms[String(record.platform_slug)]||null,assigned_by:c.actor.employee_id,created_by:c.actor.employee_id};delete record.platform_slug;
     }else if(body.resource==="member")table="project_members";
     else if(body.resource==="milestone")table="project_milestones",record={...record,created_by:c.actor.employee_id};
@@ -61,6 +62,7 @@ export async function POST(req:NextRequest){
     else if(body.resource==="update")table="project_updates",record={...record,created_by:c.actor.employee_id};
     else return NextResponse.json({error:"Tipo de registo inválido."},{status:400});
     const created=(await rest(c.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];
+    if(body.resource==="task"&&record.assigned_to)await rest(c.key,"notifications",{method:"POST",body:JSON.stringify([{employee_id:record.assigned_to,type:"task_assigned",title:"Nova tarefa atribuída",body:String(record.title||"Tarefa"),target_url:"/minhas-tarefas",priority:String(record.priority||"normal"),source_type:"task",source_id:created.id}])});
     await audit(c.key,c.actor.employee_id,`${body.resource}_created`,body.resource,created.id,null,created);
     return NextResponse.json({record:created},{status:201});
   }catch(error){
