@@ -14,19 +14,26 @@ const access: Record<Module, string[]> = {
   field: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "FIELD"],
 };
 
-const mediaKeys = ["photo_url", "image_url", "document_url", "file_url", "selfie_url", "bi_url", "nuit_url", "proof_url", "document_front_path", "document_back_path", "selfie_path", "photos", "documents", "files", "attachments"];
+const mediaKeys = ["photo_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "bi_url", "nuit_url", "proof_url", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "identity_document", "selfie_path", "photos", "documents", "kyc_documents", "files", "attachments"];
 const getRows = async (path: string) => {
   try { return await stagingRest(path) as Row[]; }
   catch { return []; }
 };
+const mediaItems = (value: unknown, key: string) => {
+  const values = Array.isArray(value) ? value : [value];
+  return values.flatMap((item) => {
+    if (typeof item === "string" && item.trim()) return [{ key, url: item.trim(), label: key.replaceAll("_", " ") }];
+    if (item && typeof item === "object") {
+      const object = item as Row;
+      const url = object.url || object.path || object.reference || object.storage_path || object.file_url;
+      if (typeof url === "string" && url.trim()) return [{ key, url: url.trim(), label: String(object.label || key.replaceAll("_", " ")) }];
+    }
+    return [];
+  });
+};
 const withKycMedia = (row: Row) => ({
   ...row,
-  _kyc_media: mediaKeys.flatMap((key) => {
-    const value = row[key];
-    if (typeof value === "string" && value.trim()) return [{ key, url: value.trim(), label: key.replaceAll("_", " ") }];
-    if (Array.isArray(value)) return value.flatMap((item) => typeof item === "string" && item.trim() ? [{ key, url: item.trim(), label: key.replaceAll("_", " ") }] : []);
-    return [];
-  }),
+  _kyc_media: mediaKeys.flatMap((key) => mediaItems(row[key], key)),
 });
 
 export async function GET(request: NextRequest) {
@@ -52,7 +59,7 @@ export async function GET(request: NextRequest) {
     collections = { requests, campaigns, events };
   } else {
     const [deligoKyc, sarcaDrivers, comunhaoChurches, taomozSellerKyc, taomozSellers, mestre24Kyc, mestre24Profiles, restaurants, couriers, notes] = await Promise.all([
-      getRows("profiles?select=id,full_name,phone,role,city,address,email,kyc_status,kyc_rejection_reason,approval_submitted_at,approval_sla_deadline,verification_score,is_blocked,created_at,updated_at&role=in.(restaurant,courier)&order=updated_at.desc&limit=250"),
+      getRows("profiles?select=*&role=in.(restaurant,courier)&order=updated_at.desc&limit=250"),
       getRows("driver_profiles?select=*&order=updated_at.desc&limit=250"),
       getRows("church_applications?select=*&order=updated_at.desc&limit=250"),
       getRows("kyc_submissions?select=*&role=eq.seller&order=updated_at.desc&limit=250"),
