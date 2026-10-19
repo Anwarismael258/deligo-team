@@ -21,7 +21,7 @@ const apiHeaders = (key: string) => ({
 
 async function financeContext(permission:string) {
   const authorization = await requireCorporatePermission(permission),actor=authorization?.actor;
-  if (!authorization || !actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return null;
+  if (!authorization || !actor || !["SUPER_ADMIN", "FINANCE", "FINANCE_DIRECTOR"].includes(actor.role)) return null;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   return key ? { actor, authorization, key, headers: apiHeaders(key) } : null;
 }

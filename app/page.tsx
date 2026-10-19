@@ -200,7 +200,7 @@ const personas = {
   assets: { name: "Património", role: "Património e Logística", initials: "PL", modules: ["Visão geral", "Património", "Relatórios"] },
 } as const;
 
-const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
+const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", FINANCE_DIRECTOR: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
 const unpublishedModules = new Set(["Embaixadores"]);
 const universalModules = new Set<string>();
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};

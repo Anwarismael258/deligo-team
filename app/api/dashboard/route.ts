@@ -33,7 +33,7 @@ export async function GET() {
       console.error("HQ dashboard RPC failed", dashboardResponse.status, modulesResponse.status, mestre24Response.status);
       return NextResponse.json({ error: "O backend corporativo não respondeu correctamente." }, { status: 502 });
     }
-    const canViewDeligoFinance = ["SUPER_ADMIN", "FINANCE"].includes(actor.role) && (actor.role === "SUPER_ADMIN" || Boolean(authorization?.is_super_admin) || (Array.isArray(authorization?.permissions) && authorization.permissions.includes("finance.view") && Array.isArray(authorization?.platform_slugs) && authorization.platform_slugs.includes("deligo")));
+    const canViewDeligoFinance = ["SUPER_ADMIN", "FINANCE", "FINANCE_DIRECTOR"].includes(actor.role) && (actor.role === "SUPER_ADMIN" || Boolean(authorization?.is_super_admin) || (Array.isArray(authorization?.permissions) && authorization.permissions.includes("finance.view") && Array.isArray(authorization?.platform_slugs) && authorization.platform_slugs.includes("deligo")));
     const deligoFinanceResponse = canViewDeligoFinance ? fetch(`${supabaseUrl()}/rest/v1/rpc/hq_deligo_finance_summary_v1`, { method: "POST", headers: rpcHeaders, body: JSON.stringify({ p_actor_auth_user_id: actor.authUserId, p_from: null, p_to: null }), cache: "no-store", signal: AbortSignal.timeout(12_000) }) : null;
     const anonKey = process.env.SUPABASE_ANON_KEY;
     const canonicalFinanceResponse = canViewDeligoFinance && anonKey ? fetch(`${supabaseUrl()}/rest/v1/rpc/admin_canonical_finance_summary_v1`, { method: "POST", headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }) : null;

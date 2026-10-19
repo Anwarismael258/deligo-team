@@ -1,6 +1,6 @@
 "use client";
 
-const routeForRole=(role?:string)=>({SUPER_ADMIN:"/",FINANCE:"/financas",SUPERVISOR:"/",MARKETING:"/marketing",FIELD:"/field",CUSTOMER_SUPPORT:"/apoio-cliente"} as Record<string,string>)[String(role||"").toUpperCase()]||"/";
+const routeForRole=(role?:string)=>({SUPER_ADMIN:"/",FINANCE:"/financas",FINANCE_DIRECTOR:"/financas",SUPERVISOR:"/",MARKETING:"/marketing",FIELD:"/field",CUSTOMER_SUPPORT:"/apoio-cliente"} as Record<string,string>)[String(role||"").toUpperCase()]||"/";
 
 import loginStyles from "../globals.css?inline";
 import { FormEvent, useEffect, useRef, useState } from "react";
