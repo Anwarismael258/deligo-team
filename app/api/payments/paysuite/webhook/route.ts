@@ -31,6 +31,23 @@ export async function POST(request: NextRequest) {
   });
   if (!response.ok) return NextResponse.json({ error: "Não foi possível registar o evento PaySuite." }, { status: 503 });
   const data = event.data as (Record<string, unknown> | undefined);
+  if (event.event === "payout.success" || event.event === "payout.failed") {
+    const reference = String(data?.reference || "").trim();
+    if (!reference) return NextResponse.json({ error: "Payout sem referência idempotente." }, { status: 400 });
+    const lookup = await fetch(`${url}/rest/v1/payout_requests?metadata->>reference=eq.${encodeURIComponent(reference)}&select=id,status&limit=1`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": "payments", "Content-Profile": "payments" }, cache: "no-store",
+    });
+    if (!lookup.ok) return NextResponse.json({ error: "Não foi possível localizar o pedido PaySuite." }, { status: 503 });
+    const [payout] = await lookup.json() as Array<{ id?: string }>;
+    if (!payout?.id) return NextResponse.json({ received: true, ignored: true, reason: "payout_not_found" });
+    const rpcName = event.event === "payout.success" ? "complete_paysuite_payout_v1" : "fail_paysuite_payout_v1";
+    const rpcBody = event.event === "payout.success"
+      ? { p_payout_request_id: payout.id, p_provider_reference: providerId }
+      : { p_payout_request_id: payout.id, p_reason: String(data?.failure_reason || data?.message || "PaySuite rejeitou o payout") };
+    const payoutRpc = await fetch(`${url}/rest/v1/rpc/${rpcName}`, { method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify(rpcBody) });
+    if (!payoutRpc.ok) return NextResponse.json({ error: "Evento recebido, mas a carteira não foi reconciliada." }, { status: 503 });
+    return NextResponse.json({ received: true, event: event.event, provider_id: providerId, payout: await payoutRpc.json().catch(() => null) });
+  }
   const amountMinor = Number(data?.amount_minor ?? data?.amountMinor ?? data?.amount ?? 0);
   const rpc = await fetch(`${url}/rest/v1/rpc/process_paysuite_webhook_v1`, {
     method: "POST",
