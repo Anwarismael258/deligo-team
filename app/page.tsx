@@ -303,6 +303,8 @@ export function HQApp() {
   const [sessionRole, setSessionRole] = useState("");
   const [sessionUser,setSessionUser]=useState<SessionUser|null>(null);
   const [ownProfile,setOwnProfile]=useState<Record<string,unknown>|null>(null);
+  const [profileBiography,setProfileBiography]=useState("");
+  const [profileSaveBusy,setProfileSaveBusy]=useState(false);
   const [ownWallets,setOwnWallets]=useState<Array<Record<string,unknown>>>([]);
   const [profileWalletNotice,setProfileWalletNotice]=useState("");
   const [profileWithdrawal,setProfileWithdrawal]=useState<{walletId:string;amount:string;method:string;phone:string;busy:boolean}>({walletId:"",amount:"",method:"mpesa",phone:"",busy:false});
@@ -475,6 +477,7 @@ export function HQApp() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Não foi possível carregar a carteira.");
       setOwnProfile(data.profile || null);
+      setProfileBiography(String(data.profile?.biography || ""));
       setOwnWallets(Array.isArray(data.wallets) ? data.wallets : []);
     }).catch(error => { setOwnProfile(null); setOwnWallets([]); setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
   }, [active, sessionUser?.id]);
@@ -1173,7 +1176,7 @@ if(active==="Operações de Campo")void refreshField();
           {active === "Meu Perfil" && <section className="accountDetailGrid">
             <article className="profileCard">
               <div className="profileHero"><div className="profileAvatar">{ownProfile?.avatar_url?<img src={String(ownProfile.avatar_url)} alt="Foto de perfil"/>:currentPersona.initials}</div><div><h2>{currentPersona.name}</h2><p>{currentPersona.role}</p><span>● {sessionUser?.status||"A validar"}</span></div></div>
-              <form className="profileEditForm" onSubmit={async event=>{event.preventDefault();const form=new FormData(event.currentTarget),file=form.get("avatar");setProfileWalletNotice("A guardar perfil…");let avatarUrl=ownProfile?.avatar_url||null;if(file instanceof File&&file.size){const upload=new FormData();upload.append("file",file);const response=await fetch("/api/profile/avatar",{method:"POST",body:upload});const result=await response.json();if(!response.ok){setProfileWalletNotice(result.error||"Não foi possível carregar a fotografia.");return}avatarUrl=result.avatar_url}const response=await fetch("/api/profile",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({avatar_url:avatarUrl,biography:form.get("biography")})});const result=await response.json();setProfileWalletNotice(response.ok?"Perfil actualizado.":result.error||"Não foi possível actualizar o perfil.");if(response.ok)setOwnProfile(result.profile||null)}}><label><span>Foto de perfil</span><input name="avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><label><span>Biografia</span><textarea name="biography" defaultValue={String(ownProfile?.biography||"")} maxLength={500} placeholder="Escreva uma breve biografia…"/></label><button className="primaryAction">Guardar perfil</button></form>
+              <form className="profileEditForm" onSubmit={async event=>{event.preventDefault();setProfileSaveBusy(true);const form=new FormData(event.currentTarget),file=form.get("avatar");setProfileWalletNotice("A guardar perfil…");try{let avatarUrl=ownProfile?.avatar_url||null;if(file instanceof File&&file.size){const upload=new FormData();upload.append("file",file);const response=await fetch("/api/profile/avatar",{method:"POST",body:upload});const result=await response.json();if(!response.ok)throw new Error(result.error||"Não foi possível carregar a fotografia.");avatarUrl=result.avatar_url}const response=await fetch("/api/profile",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({avatar_url:avatarUrl,biography:profileBiography})});const result=await response.json();if(!response.ok)throw new Error(result.error||"Não foi possível actualizar o perfil.");setOwnProfile(result.profile||null);setProfileBiography(String(result.profile?.biography||""));setProfileWalletNotice("Perfil guardado com sucesso.")}catch(error){setProfileWalletNotice(error instanceof Error?error.message:"Não foi possível guardar o perfil.")}finally{setProfileSaveBusy(false)}}}><label><span>Foto de perfil</span><input name="avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><label><span>Biografia</span><textarea name="biography" value={profileBiography} onChange={event=>setProfileBiography(event.target.value)} maxLength={500} placeholder="Escreva uma breve biografia…"/></label><button className="primaryAction" disabled={profileSaveBusy}>{profileSaveBusy?"A guardar…":"Guardar perfil"}</button></form>
               <div className="profileFields">
                 <div><span>ID do trabalhador</span><strong>{sessionUser?.employee_code||"—"}</strong></div>
                 <div><span>Cargo</span><strong>{sessionUser?.job_title||currentPersona.role}</strong></div>
