@@ -220,6 +220,9 @@ type DashboardPlatform = {
   name: string;
   connected: boolean;
   metrics: DashboardMetric[];
+  integration_status?: string;
+  platform_status?: string;
+  data_freshness?: string;
 };
 type DashboardData = {
   environment: string;
@@ -774,6 +777,7 @@ if(active==="Operações de Campo")void refreshField();
   const selectedPlatformStatus = dashboard?.platforms.find((item) => item.name === platform);
   const platformDirectory = (dashboard?.platforms || []).map((item) => ({
     ...item,
+    color: platformCards.find((card) => card.name === item.name)?.color || "#667085",
     value: dashboard?.modules.platforms.find((module) => module.name === item.name)?.value || 0,
   }));
   const platformRoles: Record<string, string[]> = {
@@ -875,7 +879,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
-          {active !== "Visão geral" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
@@ -883,6 +887,13 @@ if(active==="Operações de Campo")void refreshField();
               </div>
             </section>
           )}
+          {active === "Plataformas" && <section className="platformWorkspace">
+            <div className="platformHero"><div><span>PORTFÓLIO DIGITAL</span><h2>Plataformas do ecossistema</h2><p>Estado e indicadores reais de cada plataforma ligada à Central.</p></div><button onClick={() => void fetch("/api/dashboard",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then((data:DashboardData)=>setDashboard(normalizeDashboardNames(data))).catch(()=>undefined)}>Actualizar</button></div>
+            <div className="platformGrid">
+              {platformDirectory.map(item => { const status=String(item.integration_status||item.platform_status||"unknown"); const state=status==="connected"||status==="operational"||item.connected?"Ligada":status==="error"?"Erro":"Estado não confirmado"; return <article className="platformCard" key={item.slug} style={{borderTopColor:item.color}}><div className="platformCardHead"><div><strong>{item.name}</strong><span>{state}</span></div><span>{item.platform_status||"—"}</span></div><div className="platformCardMetrics">{(item.metrics||[]).slice(0,4).map(metric=><div key={metric.key||metric.label}><small>{metric.label}</small><b>{String(metric.value??0)}</b></div>)}</div><button className="primaryAction" onClick={()=>setPlatform(item.name)}>Abrir plataforma</button></article> })}
+              {!platformDirectory.length && <div className="peopleEmpty">Nenhuma plataforma foi devolvida pelo backend autorizado.</div>}
+            </div>
+          </section>}
           {active === "Finanças" && <section className="financeWorkspace">
             <div className="financeKpis"><article><span>Ganhos confirmados</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_ledger == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_ledger))}</strong><small>Fonte oficial reconciliada</small></article><article><span>Saldo corporativo disponível</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable))}</strong><small>Carteira CORPORATE_MZN</small></article><article><span>Destino</span><strong>Carteira pessoal</strong><small>Transferência interna com dupla aprovação</small></article></div>
             {corporateWithdrawalStep === "idle" && <form className="financeEntryForm" onSubmit={prepareCorporateWithdrawal}><label><span>Valor a transferir para a minha carteira (MZN)</span><input type="number" min="0.01" step="0.01" required value={corporateWithdrawal.amount} onChange={event => setCorporateWithdrawal(current => ({ ...current, amount: event.target.value }))} /></label><button className="primaryAction">Solicitar transferência interna</button></form>}
