@@ -1,5 +1,7 @@
 "use client";
 
+const routeForRole=(role?:string)=>({SUPER_ADMIN:"/",FINANCE:"/financas",SUPERVISOR:"/",MARKETING:"/marketing",FIELD:"/field",CUSTOMER_SUPPORT:"/apoio-cliente"} as Record<string,string>)[String(role||"").toUpperCase()]||"/";
+
 import loginStyles from "../globals.css?inline";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
@@ -40,9 +42,9 @@ export default function LoginPage() {
     const form = new FormData(event.currentTarget);
     try {
       const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ phone: form.get("phone"), password: form.get("password") }) });
-      const result = await response.json().catch(() => ({})) as { error?: string };
+      const result = await response.json().catch(() => ({})) as { error?: string; user?: { hq_role?: string } };
       if (!response.ok) { setNotice(result.error || "Não foi possível entrar."); return; }
-      window.location.assign("/");
+      window.location.assign(routeForRole(result.user?.hq_role));
     } catch {
       setNotice("Não foi possível contactar a Central. Verifique se o localhost está activo e tente novamente.");
     } finally {
@@ -51,7 +53,7 @@ export default function LoginPage() {
   };
 
   const requestOtp = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLoading(true); setNotice(""); const form=new FormData(event.currentTarget); const response=await fetch("/api/auth/otp/request",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone")})}); const result=await response.json() as {error?:string}; setNotice(result.error||"OTP enviado. Consulte o seu telefone."); if(response.ok)setOtpSent(true); setLoading(false); };
-  const verifyOtp = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLoading(true); setNotice(""); const form=new FormData(event.currentTarget); try { const response=await fetch("/api/auth/otp/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone"),token:form.get("otp")}),signal:AbortSignal.timeout(15000)}); const result=await response.json() as {error?:string;mustSetPassword?:boolean;active?:boolean}; if(!response.ok){setNotice(result.error||"OTP inválido.");return;} if(result.mustSetPassword){const password=window.prompt("Primeiro acesso: defina uma senha com pelo menos 10 caracteres.");if(!password){setNotice("Defina a sua senha para continuar.");return;}const saved=await fetch("/api/auth/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password}),signal:AbortSignal.timeout(15000)});if(!saved.ok){const error=await saved.json() as {error?:string};setNotice(error.error||"Não foi possível guardar a senha.");return;}} window.location.assign(result.active?"/":"/login"); } catch { setNotice("A validação demorou demasiado. Solicite um novo OTP e tente novamente."); } finally { setLoading(false); } };
+  const verifyOtp = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); setLoading(true); setNotice(""); const form=new FormData(event.currentTarget); try { const response=await fetch("/api/auth/otp/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone"),token:form.get("otp")}),signal:AbortSignal.timeout(15000)}); const result=await response.json() as {error?:string;mustSetPassword?:boolean;active?:boolean;role?:string}; if(!response.ok){setNotice(result.error||"OTP inválido.");return;} if(result.mustSetPassword){const password=window.prompt("Primeiro acesso: defina uma senha com pelo menos 10 caracteres.");if(!password){setNotice("Defina a sua senha para continuar.");return;}const saved=await fetch("/api/auth/password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password}),signal:AbortSignal.timeout(15000)});if(!saved.ok){const error=await saved.json() as {error?:string};setNotice(error.error||"Não foi possível guardar a senha.");return;}} window.location.assign(result.active?routeForRole(result.role):"/login"); } catch { setNotice("A validação demorou demasiado. Solicite um novo OTP e tente novamente."); } finally { setLoading(false); } };
 
   return (
     <>
