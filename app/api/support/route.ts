@@ -122,7 +122,7 @@ export async function POST(request:NextRequest){
     }
     if(table==="support_attachments")record.uploaded_by=current.actor.employee_id;
     const created=(await rest(current.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];await history(current.key,ticket.id,body.resource==="message"?"response_sent":"attachment_added",body.resource==="message"?"Resposta adicionada à conversa":"Anexo associado ao ticket",current.actor.employee_id,{department_id:current.departmentId,source_channel:ticket.source_channel||"central"});await audit(current.key,current.actor.employee_id,`support_${body.resource}_created`,ticket.id,{record_id:created.id,department_id:current.departmentId});return NextResponse.json({record:created},{status:201});
-  }catch{return NextResponse.json({error:"Não foi possível guardar o atendimento. Confirme cliente, plataforma e dados obrigatórios."},{status:409})}
+  }catch(error){const message=error instanceof Error?error.message:"";if(message.includes("WHATSAPP_OUTBOUND_NOT_CONFIGURED"))return NextResponse.json({error:"WhatsApp ainda não está configurado no deployment: faltam WHATSAPP_ACCESS_TOKEN ou WHATSAPP_PHONE_NUMBER_ID."},{status:503});if(message.includes("WHATSAPP_SEND_FAILED"))return NextResponse.json({error:"O WhatsApp recusou o envio. Confirme o número, o token Meta e a janela de atendimento."},{status:502});return NextResponse.json({error:"Não foi possível guardar o atendimento. Confirme cliente, plataforma e dados obrigatórios."},{status:409})}
 }
 
 export async function PATCH(request:NextRequest){
