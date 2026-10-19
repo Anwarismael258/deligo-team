@@ -875,7 +875,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
-          {active !== "Visão geral" && active !== "Apoio ao Cliente" && active !== "Finanças" && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
@@ -1153,7 +1153,7 @@ if(active==="Operações de Campo")void refreshField();
           {active==="Centro de Notificações"&&<><NotificationCenter/><ManualCommunication/></>}
           {active==="Minhas Tarefas"&&<MyTasksCenter/>}
           {active==="Aprovações"&&<ApprovalRules/>}
-          {workflowDepartmentByModule[active]&&active!=="Apoio ao Cliente"&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>} 
+          {workflowDepartmentByModule[active]&&active!=="Apoio ao Cliente"&&active!=="Marketing"&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>}
           {active === "Mapa operacional" && <DeligoOperationalMap/>}
           {false && active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Operações de Campo" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
             <section className="moduleWorkspace">
