@@ -373,6 +373,8 @@ export function HQApp() {
   const [supportSearch,setSupportSearch]=useState("");
   const [supportChannel,setSupportChannel]=useState("all");
   const [supportStatus,setSupportStatus]=useState("open");
+  const [showWhatsappComposer,setShowWhatsappComposer]=useState(false);
+  const [whatsappNotice,setWhatsappNotice]=useState("");
   const [showSupportForm,setShowSupportForm]=useState(false);
   const [supportKind,setSupportKind]=useState("ticket");
   const [supportNotice,setSupportNotice]=useState("");
@@ -433,6 +435,7 @@ export function HQApp() {
   const hasPermission=(code:string)=>Boolean(sessionUser?.is_super_admin||sessionUser?.permissions?.includes(code));
   const visibleNav = nav.filter(([, label]) => (currentPersona.modules.includes(label as never)||universalModules.has(label))&&!unpublishedModules.has(label)&&(!sessionUser||!modulePermission[label]||hasPermission(modulePermission[label])));
   const visibleSupportTickets=(supportData.support_tickets||[]).filter(ticket=>{const text=`${ticket.subject||""} ${ticket.customer_name||""} ${ticket.customer_reference||""}`.toLowerCase();const channel=String(ticket.source_channel||ticket.external_reference||"central").toLowerCase()==="whatsapp"?"whatsapp":"central";return (!supportSearch||text.includes(supportSearch.toLowerCase()))&&(supportChannel==="all"||channel===supportChannel)&&(supportStatus==="all"||supportStatus===String(ticket.status||""))});
+  const sendNewWhatsapp=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);setWhatsappNotice("A enviar…");const response=await fetch("/api/support/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone"),message:form.get("message")})});const data=await response.json();setWhatsappNotice(response.ok?"Mensagem enviada pelo WhatsApp oficial.":data.error||"Não foi possível enviar.");if(response.ok)event.currentTarget.reset()};
 
   const prepareCorporateWithdrawal = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setFinanceNotice("");
@@ -1101,6 +1104,7 @@ if(active==="Operações de Campo")void refreshField();
             <div className="safeNotice"><b>Privacidade de localização</b><span>Coordenadas só são guardadas quando a autorização de localização está marcada. Trabalhadores sem autorização não entram neste fluxo nem no mapa operacional.</span></div>
           </section>}
           {active === "Apoio ao Cliente" && <section className="supportWorkspace">
+            <button className="primaryAction" onClick={()=>setShowWhatsappComposer(value=>!value)}>Nova mensagem WhatsApp</button>{showWhatsappComposer&&<form className="financeEntryForm" onSubmit={sendNewWhatsapp}><label><span>Número</span><input name="phone" defaultValue="+258 " placeholder="+258 8xx xxx xxx" required /></label><label><span>Mensagem</span><textarea name="message" defaultValue="Boa tarde !" required maxLength={4096} /></label><button className="primaryAction">Enviar WhatsApp</button>{whatsappNotice&&<small>{whatsappNotice}</small>}</form>}
             <div className="supportFilters"><input aria-label="Pesquisar mensagens" placeholder="Pesquisar cliente ou assunto" value={supportSearch} onChange={e=>setSupportSearch(e.target.value)} /><select aria-label="Filtrar canal" value={supportChannel} onChange={e=>setSupportChannel(e.target.value)}><option value="all">Todos os canais</option><option value="whatsapp">WhatsApp</option><option value="central">Central</option></select><select aria-label="Filtrar estado" value={supportStatus} onChange={e=>setSupportStatus(e.target.value)}><option value="open">Abertos</option><option value="in_analysis">Em análise</option><option value="waiting_customer">Aguardam cliente</option><option value="escalated">Escalados</option><option value="resolved">Resolvidos</option><option value="all">Todos</option></select></div>
             <div className="supportHero"><div><span>INBOX DE SUPORTE</span><h2>Mensagens atribuídas a si</h2><p>Responda apenas às tarefas encaminhadas para o seu utilizador.</p></div><button hidden onClick={()=>setShowSupportForm(!showSupportForm)}>Novo atendimento</button></div>
             <div className="financeKpis">{[["Tickets",supportData.support_tickets?.length||0],["Abertos",(supportData.support_tickets||[]).filter(t=>t.status==="open").length],["Em análise",(supportData.support_tickets||[]).filter(t=>t.status==="in_analysis").length],["Aguardam cliente",(supportData.support_tickets||[]).filter(t=>t.status==="waiting_customer").length],["Escalados",(supportData.support_tickets||[]).filter(t=>t.status==="escalated").length],["Resolvidos",(supportData.support_tickets||[]).filter(t=>["resolved","closed"].includes(String(t.status))).length]].map(([label,value])=><article key={String(label)}><span>{label}</span><strong>{value}</strong><small>fila central</small></article>)}</div>
