@@ -12,7 +12,7 @@ const platforms: Record<string,string> = {
 const readers = new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","OPERATIONS","TECHNOLOGY","MARKETING","FIELD","CUSTOMER_SUPPORT","HUMAN_RESOURCES","ACQUISITION","OPERATIONS_SUPERVISOR"]);
 // Tarefas de equipa são criadas/atribuídas apenas pela gestão autorizada.
 // Os restantes trabalhadores podem consultar e executar as tarefas que lhes pertencem.
-const writers = new Set(["SUPER_ADMIN", "FINANCE", "SUPERVISOR"]);
+const writers = new Set(["SUPER_ADMIN", "FINANCE", "FINANCE_DIRECTOR", "SUPERVISOR", "OPERATIONS_SUPERVISOR"]);
 const headers = (key:string) => ({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 
 async function context(){
@@ -38,12 +38,14 @@ export async function GET(){
     ["milestones","project_milestones?select=*&order=due_date.asc.nullslast&limit=500"],
     ["dependencies","task_dependencies?select=*&limit=800"],
     ["updates","project_updates?select=*&order=created_at.desc&limit=500"],
-    ["employees","employees?select=id,name,employee_code,status,department_id&limit=500"],
+    ["employees","employees?select=id,display_name,employee_code,status,department_id&limit=500"],
     ["platforms","platforms?select=id,name,slug&limit=20"],
     ["departments","departments?select=id,name,code&limit=100"],
   ];
   const pairs=await Promise.all(sources.map(async([name,path])=>{try{return [name,await rest(c.key,path)]}catch{return [name,[]]}}));
-  return NextResponse.json({data:Object.fromEntries(pairs)},{headers:{"Cache-Control":"private, no-store"}});
+  const data=Object.fromEntries(pairs) as Record<string,unknown>;
+  if(Array.isArray(data.employees)) data.employees=(data.employees as Array<Record<string,unknown>>).map(employee=>({...employee,name:employee.display_name||"Trabalhador"}));
+  return NextResponse.json({data},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(req:NextRequest){
