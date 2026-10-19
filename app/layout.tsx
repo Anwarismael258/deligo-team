@@ -4,6 +4,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "DeliGo Triunfal HQ",
   description: "Central de Gestão e Operações",
+  other: {
+    "facebook-domain-verification": "bjqy5kfh0h1wbbtn0y3y6jo05hwfbz",
+  },
   icons: {
     icon: "/deligo-icon.png",
     shortcut: "/deligo-icon.png",
