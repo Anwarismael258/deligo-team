@@ -1154,7 +1154,7 @@ if(active==="Operações de Campo")void refreshField();
           {active==="Aprovações"&&<ApprovalRules/>}
           {workflowDepartmentByModule[active]&&active!=="Apoio ao Cliente"&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>} 
           {active === "Mapa operacional" && <DeligoOperationalMap/>}
-          {active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Operações de Campo" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
+          {false && active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Operações de Campo" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
                 <div><span>ESPAÇO OPERACIONAL</span><h2>{active}{subArea ? ` · ${subArea}` : ""}</h2></div>
@@ -1193,8 +1193,7 @@ if(active==="Operações de Campo")void refreshField();
             {[
               ["Total de utilizadores", String(overviewPeople.length || totalUsers), "Contas autorizadas no ecossistema"],
               ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Apenas consulta"],
-              ["Receita total disponível", dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.deligo_revenue)), "Levantamento com aprovação Admin + Finance"],
-              ["Estado das plataformas", `${connectedPlatforms}/${dashboard?.platforms.length || 0}`, "Ligações confirmadas"],
+              ["Valor total das carteiras", !["SUPER_ADMIN","FINANCE","SUPERVISOR"].includes(sessionRole) || !dashboard?.modules?.totalValue ? "Indisponível" : money(Number(dashboard.modules.totalValue)), "Fonte financeira oficial do ecossistema"],
             ].map(([label, value, note], index) => (
               <article className={`metric metric-${index}`} key={label} onClick={() => label === "Total de utilizadores" && navigate("Utilizadores")} role={label === "Total de utilizadores" ? "button" : undefined} tabIndex={label === "Total de utilizadores" ? 0 : undefined}>
                 <div className="metricTopline"><span>INDICADOR CENTRAL</span></div>
@@ -1210,12 +1209,12 @@ if(active==="Operações de Campo")void refreshField();
               {!filteredOverviewPeople.length && <div className="peopleEmpty">Nenhum utilizador autorizado encontrado.</div>}
             </div>
           </section>
-          <section className="platformPanel">
+          {false && <section className="platformPanel">
             <div className="sectionHeading"><div><h2>Estado das plataformas</h2><p>Resumo operacional sem métricas fictícias.</p></div><button onClick={()=>navigate("Plataformas")}>Abrir plataformas →</button></div>
             <div className="platformGrid">
               {(dashboard?.platforms || []).map(item => <article className="platformCard" key={item.slug}><strong>{item.name}</strong><span>{String(item.platform_status || "Estado não confirmado")}</span><small>Dados: {item.data_freshness || "não indicado"}</small><button onClick={()=>navigate("Plataformas")}>Abrir</button></article>)}
             </div>
-          </section>
+          </section>}
           </>}
           {active === "Utilizadores" && <section className="peoplePanel">
             <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
