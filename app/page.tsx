@@ -1194,7 +1194,7 @@ if(active==="Operações de Campo")void refreshField();
             {[
               ["Total de utilizadores", String(overviewPeople.length || totalUsers), "Contas autorizadas no ecossistema"],
               ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Apenas consulta"],
-              ["Valor total das carteiras", !["SUPER_ADMIN","FINANCE","SUPERVISOR"].includes(sessionRole) || !dashboard?.modules?.totalValue ? "Indisponível" : money(Number(dashboard.modules.totalValue)), "Fonte financeira oficial do ecossistema"],
+              ["Valor total das carteiras", !["SUPER_ADMIN","FINANCE","SUPERVISOR"].includes(sessionRole) || dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable)), "Saldo confirmado da fonte financeira DeliGo"],
             ].map(([label, value, note], index) => (
               <article className={`metric metric-${index}`} key={label} onClick={() => label === "Total de utilizadores" && navigate("Utilizadores")} role={label === "Total de utilizadores" ? "button" : undefined} tabIndex={label === "Total de utilizadores" ? 0 : undefined}>
                 <div className="metricTopline"><span>INDICADOR CENTRAL</span></div>
