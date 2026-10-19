@@ -26,5 +26,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt"><body>{children}</body></html>;
+  return <html lang="pt"><head><meta name="facebook-domain-verification" content="bjqy5kfh0h1wbbtn0y3y6jo05hwfbz" /></head><body>{children}</body></html>;
 }
