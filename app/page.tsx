@@ -770,11 +770,6 @@ if(active==="Operações de Campo")void refreshField();
     },
     [dashboard?.platforms, platform],
   );
-  const historicalTotalUsers = dashboard?.platforms.reduce((sum, item) => {
-    return sum + item.metrics
-      .filter((metric) => ["users", "members", "buyers", "passengers", "clients", "professionals"].includes(metric.key))
-      .reduce((platformTotal, metric) => platformTotal + Number(metric.value || 0), 0);
-  }, 0) || 0;
   const filteredOverviewPeople = overviewPeople.filter(person => `${person.full_name || ""} ${person.display_name || ""} ${person.primary_email || ""} ${person.primary_phone || ""} ${person.apps.map(app => `${app.name || ""} ${app.slug || ""}`).join(" ")}`.toLocaleLowerCase("pt").includes(overviewPeopleSearch.toLocaleLowerCase("pt")));
   const selectedPlatformModule = dashboard?.modules.platforms.find((item) => item.name === platform);
   const selectedPlatformStatus = dashboard?.platforms.find((item) => item.name === platform);
