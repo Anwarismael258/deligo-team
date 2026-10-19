@@ -15,8 +15,12 @@ export async function POST(request: NextRequest) {
     }
     const amount = Number(body?.amount);
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Informe um valor válido." }, { status: 400 });
-    const profiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Array<{ personal_phone?: string | null }>;
-    const phone = String(profiles?.[0]?.personal_phone || "").trim();
+    const [employees, profiles] = await Promise.all([
+      hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=phone_e164`) as Promise<Array<{ phone_e164?: string | null }>>,
+      hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Promise<Array<{ personal_phone?: string | null }>>,
+    ]);
+    const rawPhone = String(employees?.[0]?.phone_e164 || profiles?.[0]?.personal_phone || "").replace(/[\s()-]/g, "");
+    const phone = /^8\d{8}$/.test(rawPhone) ? `+258${rawPhone}` : rawPhone;
     if (!/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "O número de levantamento registado para este perfil não é válido." }, { status: 409 });
     const prepared = await hqRpc("hq_prepare_corporate_withdrawal_v1", { p_amount: amount, p_method: "mpesa", p_phone_number: phone, p_idempotency_key: String(body?.idempotencyKey || `hq-${actor.employee_id}-${Date.now()}`).trim() });
     const withdrawalId = String((prepared as Record<string, unknown>).withdrawal_id || "");
