@@ -26,7 +26,7 @@ export async function GET() {
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_dashboard_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_platform_modules_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_mestre24_module_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
-      fetch(`${supabaseUrl()}/rest/v1/platforms?select=slug,status,integration_status,last_sync_at,updated_at`, { headers: { ...rpcHeaders, "Accept-Profile": "hq" }, cache: "no-store", signal: AbortSignal.timeout(12_000) }),
+      fetch(`${supabaseUrl()}/rest/v1/platforms?select=id,slug,name,platform_code,status,integration_status,last_sync_at,updated_at&order=name`, { headers: { ...rpcHeaders, "Accept-Profile": "hq" }, cache: "no-store", signal: AbortSignal.timeout(12_000) }),
       authorizationResponse.then(response => response.ok ? response.json() : null),
     ]);
     if (!dashboardResponse.ok || !modulesResponse.ok || !mestre24Response.ok) {
@@ -59,7 +59,14 @@ export async function GET() {
     const totalValue = 0;
     const mergedModules = { ...modules, totalValue, platforms: [...modulePlatforms, mestre24.module] };
     const statusBySlug = new Map(platformStatuses.map((item) => [String(item.slug), item]));
-    const enrichedPlatforms = [...dashboardPlatforms, mestre24.platform].map((item) => { const row = item as Record<string, unknown>; const status = statusBySlug.get(String(row.slug || "")); return { ...row, platform_status: status?.status || row.platform_status || "development", integration_status: status?.integration_status || (row.connected ? "connected" : "unknown"), last_sync_at: status?.last_sync_at || status?.updated_at || null }; });
+    const cataloguePlatforms = platformStatuses.map((item) => ({
+      slug: String(item.slug),
+      name: String(item.name || item.slug),
+      connected: ["connected", "operational"].includes(String(item.integration_status || item.status)),
+      metrics: [],
+    }));
+    const sourcePlatforms = dashboardPlatforms.length ? dashboardPlatforms : cataloguePlatforms;
+    const enrichedPlatforms = [...sourcePlatforms, mestre24.platform].filter((item, index, rows) => rows.findIndex(candidate => String(candidate.slug) === String(item.slug)) === index).map((item) => { const row = item as Record<string, unknown>; const status = statusBySlug.get(String(row.slug || "")); return { ...row, platform_status: status?.status || row.platform_status || "development", integration_status: status?.integration_status || (row.connected ? "connected" : "unknown"), last_sync_at: status?.last_sync_at || status?.updated_at || null }; });
     const now = Date.now();
     const deligoOperations = {
       activeOrders, pendingKyc, openSupport, accountControls, openIncidents,
