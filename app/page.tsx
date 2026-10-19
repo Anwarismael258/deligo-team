@@ -897,7 +897,7 @@ if(active==="Operações de Campo")void refreshField();
                 </div>
               </div>
               {platformAdminError && <div className="operationalNotice">{platformAdminError}</div>}
-              {platformAdminSnapshot && <><button className="profileQuickOpen" onClick={() => { const first = Object.values(platformAdminSnapshot.data).find(value => Array.isArray(value) && value.length) as Record<string,unknown>[] | undefined; const row = first?.[0]; if (row) { const id = String(row.id || row.user_id || row.profile_id || "0"); setSelectedProfile({ platform: platformSlug(platform), id, name: String(row.full_name || row.name || row.church_name || row.store_name || id) }); } }}>Abrir primeiro perfil com saldo e galeria</button><PlatformAdminPanel snapshot={platformAdminSnapshot} platform={platform} selectedCollection={platformCollection} onSelectCollection={setPlatformCollection} onAction={platformAction} onOpenProfile={(id, name) => setSelectedProfile({ platform: platformSlug(platform), id, name })} onOpenRecord={(collection,row) => setSelectedPlatformRecord({ collection,row })} /></>}
+              
             </section>
           )}
           {active === "Finanças" && (
