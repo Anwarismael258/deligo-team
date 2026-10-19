@@ -24,7 +24,7 @@ export async function POST(request:NextRequest){
     try {
       const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
       if(!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
-      const contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?auth_user_id=eq.${encodeURIComponent(payload.user.id)}&status=in.(active,invited)&select=id,employee_code,display_name,status&limit=1`,{method:"GET",headers:{apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Accept-Profile":"hq","Content-Profile":"hq"},cache:"no-store",signal:AbortSignal.timeout(5000)});
+      const contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?auth_user_id=eq.${encodeURIComponent(payload.user.id)}&status=in.(active,invited)&select=id,employee_code,display_name,status,role,requested_role&limit=1`,{method:"GET",headers:{apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Accept-Profile":"hq","Content-Profile":"hq"},cache:"no-store",signal:AbortSignal.timeout(5000)});
       if(contextResponse.ok){
         const rows=await contextResponse.json() as Array<Record<string,unknown>>;
         const candidate=rows[0];
@@ -37,6 +37,6 @@ export async function POST(request:NextRequest){
     catch { actor=null; }
   }
   if(!actor)return NextResponse.json({error:"Este telefone não está associado a um trabalhador da Central."},{status:403});
-  const response=NextResponse.json({ok:true,mustSetPassword:Boolean(payload.user?.user_metadata?.must_set_password),active:actor.status==="active"});const secure=request.nextUrl.protocol==="https:";
+  const response=NextResponse.json({ok:true,mustSetPassword:Boolean(payload.user?.user_metadata?.must_set_password),active:actor.status==="active",role:String(actor.role||actor.requested_role||"")});const secure=request.nextUrl.protocol==="https:";
   response.cookies.set("hq_access_token",payload.access_token,{httpOnly:true,secure,sameSite:"strict",path:"/",maxAge:payload.expires_in||3600});response.cookies.set("hq_refresh_token",payload.refresh_token,{httpOnly:true,secure,sameSite:"strict",path:"/",maxAge:604800});return response;
 }
