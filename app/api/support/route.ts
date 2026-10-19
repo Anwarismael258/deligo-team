@@ -36,7 +36,7 @@ function canReplyToTicket(current:{actor:{role:string}},ticket:Record<string,unk
 async function sendWhatsAppReply(channel:unknown, contact:unknown, message:string):Promise<string|null>{
   if(String(channel||"").toLowerCase()!=="whatsapp")return null;
   const token=process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId=process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const phoneNumberId=process.env.WHATSAPP_PHONE_NUMBER||process.env.WHATSAPP_PHONE_NUMBER_ID;
   const to=String(contact||"").replace(/[^0-9]/g,"");
   if(!token||!phoneNumberId||!to)throw new Error("WHATSAPP_OUTBOUND_NOT_CONFIGURED");
   const response=await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`,{

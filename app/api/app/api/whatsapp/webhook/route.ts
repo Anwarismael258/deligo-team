@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 
 function isValidVerifyToken(token: string | null): boolean {
-  const expected = process.env.WHATSAPP_VERIFY_TOKEN;
+  const expected = process.env.WHATSAPP_VERIFY||process.env.WHATSAPP_VERIFY_TOKEN;
 
   return Boolean(
     token &&

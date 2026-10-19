@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   let whatsappMessageId: string | null = null;
   if (channel === "whatsapp") {
     const token = process.env.WHATSAPP_ACCESS_TOKEN;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER||process.env.WHATSAPP_PHONE_NUMBER_ID;
     if (!token || !phoneNumberId || !contact) return NextResponse.json({ error: "WhatsApp não está configurado para este atendimento." }, { status: 503 });
     const mediaForm = new FormData();
     mediaForm.append("messaging_product", "whatsapp");

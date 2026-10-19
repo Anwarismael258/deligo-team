@@ -15,7 +15,7 @@ const platformIds: Record<string, string> = {
 };
 
 function validVerifyToken(token: string | null) {
-  const expected = process.env.WHATSAPP_VERIFY_TOKEN;
+  const expected = process.env.WHATSAPP_VERIFY||process.env.WHATSAPP_VERIFY_TOKEN;
   return Boolean(token && expected && token.length === expected.length &&
     timingSafeEqual(Buffer.from(token), Buffer.from(expected)));
 }
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       const phoneNumberId = String(item.metadata.phone_number_id || "");
       if (!externalId || !sender || !phoneNumberId) continue;
 
-      const expectedPhoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+      const expectedPhoneId = process.env.WHATSAPP_PHONE_NUMBER||process.env.WHATSAPP_PHONE_NUMBER_ID;
       if (expectedPhoneId && phoneNumberId !== expectedPhoneId) {
         console.warn("WHATSAPP_PHONE_NUMBER_ID_NOT_CONFIGURED_FOR_THIS_WEBHOOK", phoneNumberId);
         continue;

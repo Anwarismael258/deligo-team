@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   const message = String(body.message || "").trim();
   if (phone.length < 9 || message.length < 1 || message.length > 4096) return NextResponse.json({ error: "Número ou mensagem inválidos." }, { status: 400 });
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER||process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneNumberId) return NextResponse.json({ error: "WhatsApp não está configurado no deployment." }, { status: 503 });
   const response = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: phone, type: "text", text: { preview_url: false, body: message } }), cache: "no-store" });
   const result = await response.json().catch(() => ({})) as { messages?: Array<{ id?: string }>; error?: { message?: string } };
