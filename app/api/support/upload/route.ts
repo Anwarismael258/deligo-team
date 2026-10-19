@@ -14,6 +14,8 @@ export async function POST(request: NextRequest) {
   if (!bucket) return NextResponse.json({ error: "O armazenamento de anexos de suporte ainda não está configurado no deployment." }, { status: 503 });
   const form = await request.formData();
   const ticketId = String(form.get("ticketId") || "");
+  const channel = String(form.get("channel") || "").toLowerCase();
+  const contact = String(form.get("contact") || "").replace(/[^0-9]/g, "");
   const file = form.get("file");
   if (!ticketId || !(file instanceof File)) return NextResponse.json({ error: "Selecione um ficheiro e um atendimento." }, { status: 400 });
   if (!allowedTypes.has(file.type)) return NextResponse.json({ error: "Formato não permitido. Use JPG, PNG, WEBP, GIF ou PDF." }, { status: 400 });
@@ -27,5 +29,23 @@ export async function POST(request: NextRequest) {
     cache: "no-store",
   });
   if (!upload.ok) return NextResponse.json({ error: "Não foi possível guardar o anexo no armazenamento seguro." }, { status: 502 });
-  return NextResponse.json({ storage_reference: `${bucket}/${path}`, file_name: file.name, mime_type: file.type, size_bytes: file.size }, { status: 201 });
+  let whatsappMessageId: string | null = null;
+  if (channel === "whatsapp") {
+    const token = process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (!token || !phoneNumberId || !contact) return NextResponse.json({ error: "WhatsApp não está configurado para este atendimento." }, { status: 503 });
+    const mediaForm = new FormData();
+    mediaForm.append("messaging_product", "whatsapp");
+    mediaForm.append("type", file.type);
+    mediaForm.append("file", file, file.name);
+    const mediaResponse = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/media`, { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: mediaForm, cache: "no-store" });
+    const mediaResult = await mediaResponse.json() as { id?: string; error?: { message?: string } };
+    if (!mediaResponse.ok || !mediaResult.id) return NextResponse.json({ error: `WhatsApp recusou o anexo: ${mediaResult.error?.message || "media inválida"}` }, { status: 502 });
+    const mediaType = file.type === "application/pdf" ? "document" : "image";
+    const messageResponse = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: contact, type: mediaType, [mediaType]: { id: mediaResult.id, ...(mediaType === "document" ? { filename: file.name } : {}) } }), cache: "no-store" });
+    const messageResult = await messageResponse.json() as { messages?: Array<{ id?: string }>; error?: { message?: string } };
+    if (!messageResponse.ok) return NextResponse.json({ error: `WhatsApp recusou o envio: ${messageResult.error?.message || "não foi possível enviar"}` }, { status: 502 });
+    whatsappMessageId = messageResult.messages?.[0]?.id || null;
+  }
+  return NextResponse.json({ storage_reference: `${bucket}/${path}`, file_name: file.name, mime_type: file.type, size_bytes: file.size, whatsapp_message_id: whatsappMessageId }, { status: 201 });
 }
