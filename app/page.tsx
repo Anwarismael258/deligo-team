@@ -1215,14 +1215,6 @@ if(active==="Operações de Campo")void refreshField();
               </article>
             ))}
           </section>
-          <section className="peoplePanel">
-            <div className="sectionHeading"><div><h2>Total de utilizadores</h2><p>Pesquise e abra apenas o detalhe autorizado do utilizador.</p></div><button onClick={()=>navigate("Utilizadores")}>Ver todos →</button></div>
-            <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
-            <div className="peopleList">
-              {filteredOverviewPeople.slice(0, 100).map(person => { const app = person.apps[0]; return <button className="peopleRow" key={person.user_id} onClick={()=>app?.slug && setSelectedProfile({ platform: String(app.slug), id: person.user_id, name: String(person.full_name || person.display_name || person.user_id) })}><span className="personIdentity"><i>{String(person.full_name || person.display_name || "U").split(" ").slice(0,2).map(part=>part[0]).join("")}</i><strong>{person.full_name || person.display_name || "Utilizador"}</strong></span><span className="rolePill">{String(app?.name || app?.slug || "Plataforma não indicada")}</span><span>{String(app?.role || "—")}</span><span className="connectedPill">{person.profile_status || "Activo"}</span></button>; })}
-              {!filteredOverviewPeople.length && <div className="peopleEmpty">Nenhum utilizador autorizado encontrado.</div>}
-            </div>
-          </section>
           {false && <section className="platformPanel">
             <div className="sectionHeading"><div><h2>Estado das plataformas</h2><p>Resumo operacional sem métricas fictícias.</p></div><button onClick={()=>navigate("Plataformas")}>Abrir plataformas →</button></div>
             <div className="platformGrid">
