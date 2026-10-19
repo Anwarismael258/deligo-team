@@ -16,6 +16,10 @@ export async function POST(request: NextRequest) {
   if (!token || !phoneNumberId) return NextResponse.json({ error: "WhatsApp não está configurado no deployment." }, { status: 503 });
   const response = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: phone, type: "text", text: { preview_url: false, body: message } }), cache: "no-store" });
   const result = await response.json().catch(() => ({})) as { messages?: Array<{ id?: string }>; error?: { message?: string } };
-  if (!response.ok) return NextResponse.json({ error: result.error?.message || "A Meta recusou o envio. Fora da janela de 24 horas, use um template aprovado." }, { status: 502 });
+  if (!response.ok) {
+    const providerMessage = String(result.error?.message || "");
+    if (/authentication|oauth|access token|invalid token/i.test(providerMessage)) return NextResponse.json({ error: "A Meta rejeitou a autenticação do WhatsApp. Gere um token válido com whatsapp_business_messaging e confirme o Phone Number ID no Vercel." }, { status: 502 });
+    return NextResponse.json({ error: providerMessage || "A Meta recusou o envio. Fora da janela de 24 horas, use um template aprovado." }, { status: 502 });
+  }
   return NextResponse.json({ ok: true, messageId: result.messages?.[0]?.id || null });
 }
