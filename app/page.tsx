@@ -317,6 +317,8 @@ export function HQApp() {
   const [hrNotice, setHrNotice] = useState("");
   const [financeData, setFinanceData] = useState<FinanceData>({ financial_accounts:[], financial_transactions:[], budgets:[], payment_requests:[], cashflow_forecasts:[], profit_distributions:[], profit_destination:[], payroll_runs:[], payroll_lines:[] });
   const [financeNotice, setFinanceNotice] = useState("");
+  const [corporateWithdrawal, setCorporateWithdrawal] = useState({ amount: "", method: "mpesa", phoneNumber: "", withdrawalId: "", otp: "" });
+  const [corporateWithdrawalStep, setCorporateWithdrawalStep] = useState<"idle" | "otp" | "done">("idle");
   const [financeEntryKind, setFinanceEntryKind] = useState("transaction");
   const [showFinanceForm, setShowFinanceForm] = useState(false);
   const [accountingData,setAccountingData]=useState<Record<string,FinanceRecord[]>>({});
@@ -427,6 +429,22 @@ export function HQApp() {
   const activePresentation = modulePresentation[active];
   const hasPermission=(code:string)=>Boolean(sessionUser?.is_super_admin||sessionUser?.permissions?.includes(code));
   const visibleNav = nav.filter(([, label]) => (currentPersona.modules.includes(label as never)||universalModules.has(label))&&!unpublishedModules.has(label)&&(!sessionUser||!modulePermission[label]||hasPermission(modulePermission[label])));
+
+  const prepareCorporateWithdrawal = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setFinanceNotice("");
+    const response = await fetch("/api/finance/corporate-withdrawal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ amount: Number(corporateWithdrawal.amount), method: corporateWithdrawal.method, phoneNumber: corporateWithdrawal.phoneNumber }) });
+    const data = await response.json();
+    if (!response.ok) { setFinanceNotice(data.error || "Não foi possível iniciar a transferência."); return; }
+    const withdrawalId = String(data.prepared?.withdrawal_id || data.prepared?.id || "");
+    setCorporateWithdrawal(current => ({ ...current, withdrawalId })); setCorporateWithdrawalStep("otp"); setFinanceNotice("Pedido criado. O OTP foi enviado ao segundo aprovador. Nenhum PaySuite foi chamado.");
+  };
+  const confirmCorporateWithdrawal = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setFinanceNotice("");
+    const response = await fetch("/api/finance/corporate-withdrawal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ withdrawalId: corporateWithdrawal.withdrawalId, otp: corporateWithdrawal.otp }) });
+    const data = await response.json();
+    if (!response.ok) { setFinanceNotice(data.error || "OTP inválido ou pedido expirado."); return; }
+    setCorporateWithdrawalStep("done"); setFinanceNotice("Transferência interna confirmada para a carteira pessoal. O levantamento PaySuite continua separado.");
+  };
 
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" }).then(async (response) => {
@@ -844,7 +862,11 @@ if(active==="Operações de Campo")void refreshField();
           )}
           {active === "Finanças" && <section className="financeWorkspace">
             <div className="technologyHero"><div><span>AMBIENTE CONTROLADO</span><h2>Homologação DeliGo</h2><p>Cria três contas de teste no staging: Cliente, Restaurante e Estafeta. Os registos recebem marca de teste, carteiras a zero e nunca chamam gateways de pagamento.</p></div><div className="live"><i /> Somente Super Admin</div></div>
-            <div className="financeKpis"><article><span>Lucros confirmados</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_ledger == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_ledger))}</strong><small>Fonte canónica do Admin</small></article><article><span>Total levantável</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable))}</strong><small>Carteira de lucros disponível</small></article><article><span>Saldo que entra no Admin</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable))}</strong><small>Mesma carteira corporativa</small></article></div><button className="primaryAction" disabled title="Fluxo OTP financeiro ainda não publicado no backend">Levantar ganhos</button><div className="safeNotice"><b>Dupla aprovação obrigatória</b><span>O levantamento só poderá ser executado depois de existir no backend um fluxo OTP entre o CEO e a Diretora Financeira, com auditoria e confirmação PaySuite.</span></div>
+            <div className="financeKpis"><article><span>Ganhos confirmados</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_ledger == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_ledger))}</strong><small>Fonte oficial reconciliada</small></article><article><span>Saldo corporativo disponível</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable))}</strong><small>Carteira CORPORATE_MZN</small></article><article><span>Destino</span><strong>Carteira pessoal</strong><small>Transferência interna com dupla aprovação</small></article></div>
+            {corporateWithdrawalStep === "idle" && <form className="financeEntryForm" onSubmit={prepareCorporateWithdrawal}><label><span>Valor a transferir (MZN)</span><input type="number" min="0.01" step="0.01" required value={corporateWithdrawal.amount} onChange={event => setCorporateWithdrawal(current => ({ ...current, amount: event.target.value }))} /></label><label><span>Método PaySuite futuro</span><select value={corporateWithdrawal.method} onChange={event => setCorporateWithdrawal(current => ({ ...current, method: event.target.value }))}><option value="mpesa">M-Pesa</option><option value="emola">e-Mola</option></select></label><label><span>Número do beneficiário</span><input required value={corporateWithdrawal.phoneNumber} onChange={event => setCorporateWithdrawal(current => ({ ...current, phoneNumber: event.target.value }))} placeholder="+258..." /></label><button className="primaryAction">Solicitar transferência interna</button></form>}
+            {corporateWithdrawalStep === "otp" && <form className="financeEntryForm" onSubmit={confirmCorporateWithdrawal}><label><span>OTP do segundo aprovador</span><input inputMode="numeric" autoComplete="one-time-code" required value={corporateWithdrawal.otp} onChange={event => setCorporateWithdrawal(current => ({ ...current, otp: event.target.value }))} /></label><button className="primaryAction">Confirmar e transferir para a carteira</button></form>}
+            {corporateWithdrawalStep === "done" && <button className="primaryAction" onClick={() => { setCorporateWithdrawalStep("idle"); setCorporateWithdrawal(current => ({ ...current, amount: "", phoneNumber: "", withdrawalId: "", otp: "" })); }}>Novo pedido</button>}
+            {financeNotice && <div className="operationalNotice">{financeNotice}</div>}<div className="safeNotice"><b>PaySuite separado</b><span>O OTP autoriza apenas a transferência interna da carteira corporativa para a carteira pessoal. O levantamento real para M-Pesa/e-Mola só será chamado no perfil, quando existir o endpoint oficial PaySuite.</span></div>
               {false && <>
               <div className="financeHero">
                 <div><span>SALDO DE TESOURARIA CORPORATIVA</span><strong>{money(treasuryBalance)}</strong><small>{platform} · soma das contas corporativas registadas no HQ.</small></div>
