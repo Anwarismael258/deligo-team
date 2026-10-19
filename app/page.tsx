@@ -302,6 +302,9 @@ export function HQApp() {
   const [selectedMapWorker, setSelectedMapWorker] = useState<LiveMapMarker | null>(null);
   const [sessionRole, setSessionRole] = useState("");
   const [sessionUser,setSessionUser]=useState<SessionUser|null>(null);
+  const [ownProfile,setOwnProfile]=useState<Record<string,unknown>|null>(null);
+  const [ownWallets,setOwnWallets]=useState<Array<Record<string,unknown>>>([]);
+  const [profileWalletNotice,setProfileWalletNotice]=useState("");
   const [notifications,setNotifications]=useState<FinanceRecord[]>([]);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
@@ -463,6 +466,16 @@ export function HQApp() {
       if (sessionPersona) setPersona(sessionPersona);
     }).catch(() => window.location.replace("/login"));
   }, []);
+  useEffect(() => {
+    if (active !== "Meu Perfil" || !sessionUser) return;
+    setProfileWalletNotice("");
+    fetch("/api/profile", { cache: "no-store" }).then(async response => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível carregar a carteira.");
+      setOwnProfile(data.profile || null);
+      setOwnWallets(Array.isArray(data.wallets) ? data.wallets : []);
+    }).catch(error => { setOwnProfile(null); setOwnWallets([]); setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
+  }, [active, sessionUser?.id]);
   const refreshNotifications=async()=>{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();setNotifications((await r.json()).notifications||[])};
   useEffect(() => {
     if (active !== "Visão geral" || !sessionUser) return;
@@ -1149,6 +1162,11 @@ if(active==="Operações de Campo")void refreshField();
                 <div><span>Email corporativo</span><strong>{sessionUser?.email||"—"}</strong></div>
                 <div><span>Último acesso</span><strong>{sessionUser?.last_login_at?new Date(sessionUser.last_login_at).toLocaleString("pt-MZ"):"—"}</strong></div>
               </div>
+            </article>
+            <article className="walletProfileCard">
+              <div className="profileSectionTitle"><span>CARTEIRA DIGITAL</span><h2>Saldo pessoal</h2><p>Saldo real da carteira do trabalhador no backend central.</p></div>
+              {ownWallets.length ? ownWallets.map(wallet => <div className="walletBalanceRow" key={String(wallet.id)}><div><strong>{String(wallet.wallet_code || "Carteira pessoal")}</strong><span>{String(wallet.currency || "MZN")} · saldo disponível</span></div><b>{money(Number(wallet.available_amount || 0))}</b></div>) : <div className="peopleEmpty">{profileWalletNotice || "Carteira ainda não disponível para este perfil."}</div>}
+              <div className="safeNotice"><b>Levantamento</b><span>O levantamento real é feito apenas pelo fluxo PaySuite autorizado e dentro do saldo disponível.</span></div>
             </article>
             <article className="permissionCard"><h2>Âmbito de acesso</h2><p>Módulos autorizados pelo cargo validado no backend.</p><div>{visibleNav.map(([,item]) => <span key={item}>✓ {item}</span>)}</div></article>
           </section>}
