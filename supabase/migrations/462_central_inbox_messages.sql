@@ -11,14 +11,14 @@ alter table public.central_area_roles enable row level security;
 drop policy if exists "area roles readable" on public.central_area_roles;
 create policy "area roles readable" on public.central_area_roles for select to authenticated using (true);
 insert into public.central_area_roles(area, role) values
-  ('geral','admin'), ('geral','supervisor'), ('geral','suporte'),
-  ('comercial','admin'), ('comercial','supervisor'), ('comercial','marketing'),
-  ('carreiras','admin'), ('carreiras','supervisor'),
-  ('noticias','admin'), ('noticias','supervisor'), ('noticias','marketing'), ('noticias','financas')
+  ('geral','SUPER_ADMIN'), ('geral','SUPERVISOR'), ('geral','SUPPORT'),
+  ('comercial','SUPER_ADMIN'), ('comercial','SUPERVISOR'), ('comercial','MARKETING'),
+  ('carreiras','SUPER_ADMIN'), ('carreiras','SUPERVISOR'),
+  ('noticias','SUPER_ADMIN'), ('noticias','SUPERVISOR'), ('noticias','MARKETING'), ('noticias','FINANCE')
 on conflict do nothing;
 create or replace function public.has_area_access(_area text) returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.user_roles r join public.central_area_roles a on a.role = r.role::text where r.user_id = auth.uid() and a.area = _area)
+  select exists (select 1 from public.user_roles r join public.central_area_roles a on lower(a.role) = lower(r.role::text) where r.user_id = auth.uid() and a.area = _area)
 $$;
 grant execute on function public.has_area_access(text) to authenticated;
 
