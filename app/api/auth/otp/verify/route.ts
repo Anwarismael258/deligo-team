@@ -26,7 +26,8 @@ export async function POST(request:NextRequest){
       if(!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
       // Supabase's newer sb_secret_* keys authenticate through apikey. They
       // are not JWTs and must not be sent as Authorization: Bearer tokens.
-      const employeeHeaders={apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq"};
+      const employeeHeaders:Record<string,string>={apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq"};
+      if(!serviceKey.startsWith("sb_secret_")) employeeHeaders.Authorization=`Bearer ${serviceKey}`;
       const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{apikey:anonKey,Authorization:`Bearer ${payload.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(1500)});
       if(rpcResponse.ok){
         const rpcPayload=await rpcResponse.json();
