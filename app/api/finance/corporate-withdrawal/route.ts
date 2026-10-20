@@ -3,6 +3,13 @@ import { corporateActor, hqRest, hqRpc } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
+function normalizeMozPhone(value: unknown) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (/^2588\d{8}$/.test(digits)) return `+${digits}`;
+  if (/^8\d{8}$/.test(digits)) return `+258${digits}`;
+  return String(value || "").trim();
+}
+
 export async function POST(request: NextRequest) {
   const actor = await corporateActor();
   if (!actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return NextResponse.json({ error: "Apenas Admin ou Finanças podem iniciar este pedido." }, { status: 403 });
@@ -19,8 +26,7 @@ export async function POST(request: NextRequest) {
       hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=phone_e164`) as Promise<Array<{ phone_e164?: string | null }>>,
       hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Promise<Array<{ personal_phone?: string | null }>>,
     ]);
-    const rawPhone = String(employees?.[0]?.phone_e164 || profiles?.[0]?.personal_phone || "").replace(/[\s()-]/g, "");
-    const phone = /^8\d{8}$/.test(rawPhone) ? `+258${rawPhone}` : rawPhone;
+    const phone = normalizeMozPhone(employees?.[0]?.phone_e164 || profiles?.[0]?.personal_phone);
     if (!/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "O número de levantamento registado para este perfil não é válido." }, { status: 409 });
     const prepared = await hqRpc("hq_prepare_corporate_withdrawal_v1", { p_amount: amount, p_method: "mpesa", p_phone_number: phone, p_idempotency_key: String(body?.idempotencyKey || `hq-${actor.employee_id}-${Date.now()}`).trim() });
     const withdrawalId = String((prepared as Record<string, unknown>).withdrawal_id || "");
