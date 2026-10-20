@@ -24,8 +24,10 @@ export async function POST(request:NextRequest){
     try {
       const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
       if(!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
-      const employeeHeaders={apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Accept-Profile":"hq","Content-Profile":"hq"};
-      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(5000)});
+      // Supabase's newer sb_secret_* keys authenticate through apikey. They
+      // are not JWTs and must not be sent as Authorization: Bearer tokens.
+      const employeeHeaders={apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq"};
+      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{apikey:serviceKey,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(5000)});
       if(rpcResponse.ok) actor=await rpcResponse.json() as Record<string,unknown>;
       if(actor) {
         // The security-definer RPC is the canonical HQ lookup. It also handles
@@ -42,7 +44,7 @@ export async function POST(request:NextRequest){
       if(contextResponse.ok){
         const candidate=rows[0];
         if(String(candidate?.status||"").toLowerCase() === "invited"){
-          const activationResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?id=eq.${encodeURIComponent(String(candidate.id))}&status=eq.invited`,{method:"PATCH",headers:{apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({status:"active",last_login_at:new Date().toISOString()}),cache:"no-store",signal:AbortSignal.timeout(5000)});
+          const activationResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?id=eq.${encodeURIComponent(String(candidate.id))}&status=eq.invited`,{method:"PATCH",headers:{apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({status:"active",last_login_at:new Date().toISOString()}),cache:"no-store",signal:AbortSignal.timeout(5000)});
           if(activationResponse.ok){ const activated=await activationResponse.json() as Array<Record<string,unknown>>; actor=activated[0]||null; }
         } else actor=candidate||null;
       }
