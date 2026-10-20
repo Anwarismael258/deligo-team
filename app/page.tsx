@@ -19,6 +19,7 @@ import {ProfileSettings} from "./components/ProfileSettings";
 import {DeligoCommandButton} from "./components/DeligoCommandButton";
 import {DeligoOperationalMap} from "./components/DeligoOperationalMap";
 import {DeligoFinance} from "./components/DeligoFinance";
+import {MicrocreditWorkspace} from "./components/MicrocreditWorkspace";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 
@@ -29,6 +30,7 @@ const nav = [
   ["♙", "Utilizadores"],
   ["♙", "Pessoas"],
   ["□", "Finanças"],
+  ["▣", "Triunfal Microcrédito"],
   ["↗", "Marketing"],
   ["⌖", "Operações de Campo"],
   ["◌", "Apoio ao Cliente"],
@@ -37,7 +39,7 @@ const nav = [
   ["♢", "Centro de Notificações"],
 ];
 const navGroups: Array<[string,string[]]> = [
-  ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças"]],
+  ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças","Triunfal Microcrédito"]],
   ["OPERAÇÕES", ["Marketing","Operações de Campo","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
 
@@ -45,7 +47,7 @@ const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : l
 
 const moduleIcons: Record<string, LucideIcon> = {
   "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Utilizadores": Users, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
-  "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Contabilidade": Coins,
+  "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Triunfal Microcrédito": WalletCards, "Contabilidade": Coins,
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
   "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Operações de Campo": Route,
   "Apoio ao Cliente": Headphones, "Avaliações & Reputação": Star, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
@@ -204,7 +206,7 @@ const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", FINANCE_DIRECTOR:
 const unpublishedModules = new Set(["Embaixadores"]);
 const universalModules = new Set<string>();
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
-const modulePermission:Record<string,string>={"Utilizadores":"users.view","Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
+const modulePermission:Record<string,string>={"Utilizadores":"users.view","Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Triunfal Microcrédito":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
 
 const platformCards = [
   { name: "DeliGo", color: "#e53935", metrics: ["Utilizadores", "Pedidos", "Parceiros", "Receita"] },
@@ -943,6 +945,7 @@ if(active==="Operações de Campo")void refreshField();
               </>}
             </section>
           }
+          {active === "Triunfal Microcrédito" && <MicrocreditWorkspace />}
           {active === "Contabilidade"&&<section className="accountingWorkspace">
             <div className="accountingHero"><div><span>MOTOR CONTABILÍSTICO</span><h2>Diário, razão e demonstrações</h2><p>Operações financeiras contabilizáveis alimentam automaticamente lançamentos equilibrados e idempotentes.</p></div><div><button onClick={()=>setShowAccountingForm(!showAccountingForm)}>Novo registo</button><button onClick={()=>window.location.assign("/api/accounting/export")}>Exportar CSV</button></div></div>
             {showAccountingForm&&<form className="financeEntryForm" onSubmit={createAccountingRecord}><label><span>Tipo</span><select value={accountingKind} onChange={e=>setAccountingKind(e.target.value)}><option value="invoice">Fatura / conta</option><option value="tax">Imposto</option><option value="period">Período contabilístico</option><option value="reconciliation">Reconciliação bancária</option></select></label>{accountingKind==="invoice"&&<><label><span>Número</span><input name="number" required/></label><label><span>Natureza</span><select name="direction"><option value="payable">Conta a pagar</option><option value="receivable">Conta a receber</option></select></label><label><span>Contraparte</span><input name="counterparty" required/></label><label><span>Emissão</span><input name="issuedOn" type="date" required/></label><label><span>Vencimento</span><input name="dueOn" type="date"/></label><label><span>Subtotal</span><input name="amount" type="number" min="0" step=".01" required/></label><label><span>Imposto</span><input name="tax" type="number" min="0" step=".01" defaultValue="0"/></label></>}{accountingKind==="tax"&&<><label><span>Tipo de imposto</span><input name="taxType" required/></label><label><span>Início</span><input name="start" type="date" required/></label><label><span>Fim</span><input name="end" type="date" required/></label><label><span>Vencimento</span><input name="dueOn" type="date" required/></label><label><span>Base tributável</span><input name="amount" type="number" min="0" step=".01" required/></label><label><span>Imposto</span><input name="tax" type="number" min="0" step=".01" required/></label></>}{accountingKind==="period"&&<><label><span>Nome</span><input name="name" required/></label><label><span>Início</span><input name="start" type="date" required/></label><label><span>Fim</span><input name="end" type="date" required/></label></>}{accountingKind==="reconciliation"&&<><label><span>Conta</span><select name="accountId" required>{(accountingData.chart_of_accounts||[]).map(a=><option value={a.id} key={a.id}>{String(a.code)} · {String(a.name)}</option>)}</select></label><label><span>Saldo extrato</span><input name="statement" type="number" step=".01" required/></label><label><span>Saldo razão</span><input name="ledger" type="number" step=".01" required/></label></>}<button className="primaryAction" type="submit">Guardar</button></form>}

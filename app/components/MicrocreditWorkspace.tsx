@@ -1,0 +1,21 @@
+"use client";
+import { useEffect, useMemo, useState } from "react";
+
+const statuses = [["pendente","Pendente"],["em_analise","Em análise"],["aprovado","Aprovado"],["recusado","Recusado"],["desembolsado","Desembolsado"],["pago","Pago"],["cancelado","Cancelado"]];
+const money = (v: unknown) => `${Number(v || 0).toLocaleString("pt-MZ", { maximumFractionDigits: 2 })} MT`;
+const date = (v: unknown) => v ? new Date(String(v)).toLocaleString("pt-MZ") : "";
+
+export function MicrocreditWorkspace() {
+  const [rows, setRows] = useState<any[]>([]), [notes, setNotes] = useState<any[]>([]), [q, setQ] = useState(""), [status, setStatus] = useState("todos"), [selected, setSelected] = useState<any>(null), [note, setNote] = useState(""), [notice, setNotice] = useState("");
+  const load = async () => { const r = await fetch(`/api/microcredit?status=${status}`, { cache: "no-store" }); const b = await r.json(); if (!r.ok) return setNotice(b.error || "Não foi possível carregar."); setRows(b.applications || []); setNotes(b.notes || []); setNotice(""); };
+  useEffect(() => { void load(); }, [status]);
+  const shown = useMemo(() => rows.filter(r => `${r.full_name} ${r.phone} ${r.reference} ${r.bi_number} ${r.nuit}`.toLowerCase().includes(q.toLowerCase())), [rows, q]);
+  const save = async (body: Record<string, unknown>) => { const r = await fetch("/api/microcredit", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selected.id, ...body }) }); const b = await r.json(); if (!r.ok) return setNotice(b.error || "Não foi possível guardar."); await load(); if (b.application) setSelected(b.application); setNote(""); setNotice("Alteração guardada."); };
+  return <section className="financeWorkspace">
+    <div className="financeHero"><div><span>TRIUNFAL MICROCRÉDITO</span><h2>Pedidos recebidos do site institucional</h2><p>Analise pedidos, documentos e estados com histórico protegido.</p></div><button onClick={() => void load()}>Actualizar</button></div>
+    <div className="peopleSearchBar"><input value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar nome, telefone, referência, BI ou NUIT"/><select value={status} onChange={e => setStatus(e.target.value)}><option value="todos">Todos os estados</option>{statuses.map(([v,l]) => <option key={v} value={v}>{l}</option>)}</select><b>{shown.length} pedidos</b></div>
+    {notice && <div className="operationalNotice">{notice}</div>}
+    <div className="procurementList">{shown.map(r => <button key={r.id} onClick={() => setSelected(r)}><div><strong>{r.reference} · {r.full_name}</strong><span>{r.phone} · recebido {date(r.created_at)}</span></div><b>{money(r.amount)} · {statuses.find(([v]) => v === r.status)?.[1] || r.status}</b></button>)}{!shown.length && <div className="peopleEmpty">Nenhum pedido recebido.</div>}</div>
+    {selected && <div className="employeeDetail"><div className="employeeDetailHead"><div><span>PEDIDO {selected.reference}</span><h3>{selected.full_name}</h3><p>{selected.phone} · {selected.employer || "Sem empregador"}</p></div><button onClick={() => setSelected(null)}>Fechar</button></div><div className="employeeDetailGrid"><article><span>Valor</span><strong>{money(selected.amount)}</strong></article><article><span>Total a pagar</span><strong>{money(selected.total_due)}</strong></article><article><span>Prazo</span><strong>{selected.term_days} dias</strong></article><article><span>Estado</span><strong>{selected.status}</strong></article></div><div className="peopleSearchBar">{statuses.map(([v,l]) => <button key={v} disabled={selected.status === v} onClick={() => void save({ status: v })}>{l}</button>)}</div><h3>Dados do cliente</h3><p>BI: {selected.bi_number} · NUIT: {selected.nuit} · Salário: {money(selected.monthly_income)}</p><h3>Notas internas</h3><textarea value={note} onChange={e => setNote(e.target.value)} maxLength={2000} placeholder="Nota para a equipa financeira"/><button className="primaryAction" disabled={!note.trim()} onClick={() => void save({ note })}>Guardar nota</button><div className="procurementList">{notes.filter(n => n.application_id === selected.id).map(n => <article key={n.id}><strong>{n.body}</strong><span>{date(n.created_at)}</span></article>)}</div></div>}
+  </section>;
+}
