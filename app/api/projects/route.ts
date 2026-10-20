@@ -44,7 +44,7 @@ export async function GET(){
   ];
   const pairs=await Promise.all(sources.map(async([name,path])=>{try{return [name,await rest(c.key,path)]}catch{return [name,[]]}}));
   const data=Object.fromEntries(pairs) as Record<string,unknown>;
-  if(Array.isArray(data.employees)) data.employees=(data.employees as Array<Record<string,unknown>>).map(employee=>({...employee,name:employee.display_name||"Trabalhador"}));
+  if(Array.isArray(data.employees)) data.employees=(data.employees as Array<Record<string,unknown>>).map(employee=>({...employee,name:employee.display_name||"Trabalhador",status:String(employee.status||"").toLowerCase()}));
   return NextResponse.json({data},{headers:{"Cache-Control":"private, no-store"}});
 }
 
@@ -58,7 +58,7 @@ export async function POST(req:NextRequest){
     if(body.resource==="project"){
       table="projects";record={...record,legal_entity_id:entity,platform_id:platforms[String(record.platform_slug)]||null,created_by:c.actor.employee_id};delete record.platform_slug;
     }else if(body.resource==="task"){
-      if(record.assigned_to){const recipient=(await rest(c.key,`employees?id=eq.${encodeURIComponent(String(record.assigned_to))}&status=eq.active&select=id`))?.[0];if(!recipient)return NextResponse.json({error:"O destinatário não está activo ou não existe."},{status:400})}
+      if(record.assigned_to){const recipients=await rest(c.key,`employees?id=eq.${encodeURIComponent(String(record.assigned_to))}&select=id,status`);const recipient=recipients?.[0];if(!recipient||String(recipient.status||"").toLowerCase()!=="active")return NextResponse.json({error:"O destinatário não está activo ou não existe."},{status:400})}
       table="tasks";record={...record,legal_entity_id:entity,platform_id:platforms[String(record.platform_slug)]||null,assigned_by:c.actor.employee_id,created_by:c.actor.employee_id,task_origin:"manual",task_type:String(record.task_type||"general")};delete record.platform_slug;
     }else if(body.resource==="member")table="project_members";
     else if(body.resource==="milestone")table="project_milestones",record={...record,created_by:c.actor.employee_id};
