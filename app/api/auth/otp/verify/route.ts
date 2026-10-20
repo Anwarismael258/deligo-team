@@ -28,7 +28,7 @@ export async function POST(request:NextRequest){
       // are not JWTs and must not be sent as Authorization: Bearer tokens.
       const employeeHeaders:Record<string,string>={apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq"};
       if(!serviceKey.startsWith("sb_secret_")) employeeHeaders.Authorization=`Bearer ${serviceKey}`;
-      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{apikey:anonKey,Authorization:`Bearer ${payload.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(1500)});
+      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{...employeeHeaders,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(2500)});
       if(rpcResponse.ok){
         const rpcPayload=await rpcResponse.json();
         actor=(Array.isArray(rpcPayload)?rpcPayload[0]:rpcPayload) as Record<string,unknown>;
