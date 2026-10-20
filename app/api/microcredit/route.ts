@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, stagingRest } from "@/lib/hq-server";
+import { corporateActor, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
 const staff = new Set(["SUPER_ADMIN", "FINANCE"]);
 const columns = "id,reference,full_name,bi_number,nuit,phone,wallet,email,employer,monthly_income,salary_day,amount,total_due,term_days,purpose,status,bi_front_path,bi_back_path,income_path,created_at,status_updated_at,status_updated_by";
@@ -7,6 +7,22 @@ const columns = "id,reference,full_name,bi_number,nuit,phone,wallet,email,employ
 async function actor() {
   const current = await corporateActor();
   return current && staff.has(current.role) ? current : null;
+}
+
+async function signedDocument(path: unknown) {
+  if (typeof path !== "string" || !path.trim()) return null;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) return null;
+  const response = await fetch(`${supabaseUrl()}/storage/v1/object/sign/loan-documents/${path.split("/").map(encodeURIComponent).join("/")}`, {
+    method: "POST",
+    headers: { apikey: key, Authorization: key.startsWith("sb_secret_") ? `Bearer ${key}` : `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ expiresIn: 3600 }),
+    cache: "no-store",
+  });
+  if (!response.ok) return null;
+  const body = await response.json() as { signedURL?: string };
+  if (!body.signedURL) return null;
+  return body.signedURL.startsWith("http") ? body.signedURL : `${supabaseUrl()}${body.signedURL}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -20,7 +36,15 @@ export async function GET(request: NextRequest) {
       stagingRest(`loan_applications?${query.toString()}`),
       stagingRest("loan_application_notes?select=id,application_id,body,created_at,author_id&order=created_at.desc&limit=500"),
     ]);
-    return NextResponse.json({ applications, notes });
+    const enrichedApplications = await Promise.all((applications as Record<string, unknown>[]).map(async application => ({
+      ...application,
+      documents: {
+        bi_front: await signedDocument(application.bi_front_path),
+        bi_back: await signedDocument(application.bi_back_path),
+        income: await signedDocument(application.income_path),
+      },
+    })));
+    return NextResponse.json({ applications: enrichedApplications, notes });
   } catch {
     return NextResponse.json({ error: "Não foi possível carregar os pedidos. Confirme a migração do microcrédito." }, { status: 500 });
   }
