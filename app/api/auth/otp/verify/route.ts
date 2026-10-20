@@ -27,7 +27,7 @@ export async function POST(request:NextRequest){
       // Supabase's newer sb_secret_* keys authenticate through apikey. They
       // are not JWTs and must not be sent as Authorization: Bearer tokens.
       const employeeHeaders={apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq"};
-      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{apikey:anonKey,Authorization:`Bearer ${payload.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(5000)});
+      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{apikey:anonKey,Authorization:`Bearer ${payload.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(1500)});
       if(rpcResponse.ok){
         const rpcPayload=await rpcResponse.json();
         actor=(Array.isArray(rpcPayload)?rpcPayload[0]:rpcPayload) as Record<string,unknown>;
@@ -38,10 +38,10 @@ export async function POST(request:NextRequest){
       } else {
       // The phone used for OTP is the canonical identity. Query it first so a
       // stale or missing Auth link cannot block an otherwise valid HQ worker.
-      let contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?phone_e164=eq.${encodeURIComponent(normalized)}&status=in.(active,invited)&select=id,employee_code,display_name,status,role,requested_role,auth_user_id,phone_e164&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(5000)});
+      let contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?auth_user_id=eq.${encodeURIComponent(payload.user.id)}&status=in.(active,invited)&select=id,employee_code,display_name,status,role,requested_role,auth_user_id,phone_e164&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(2500)});
       let rows=contextResponse.ok?await contextResponse.json() as Array<Record<string,unknown>>:[];
       if(!rows.length){
-        contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?auth_user_id=eq.${encodeURIComponent(payload.user.id)}&status=in.(active,invited)&select=id,employee_code,display_name,status,role,requested_role,auth_user_id,phone_e164&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(5000)});
+        contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?phone_e164=eq.${encodeURIComponent(normalized)}&status=in.(active,invited)&select=id,employee_code,display_name,status,role,requested_role,auth_user_id,phone_e164&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(2500)});
         if(contextResponse.ok) rows=await contextResponse.json() as Array<Record<string,unknown>>;
       }
       if(contextResponse.ok){
