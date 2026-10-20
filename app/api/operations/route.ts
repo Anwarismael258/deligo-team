@@ -14,7 +14,7 @@ const access: Record<Module, string[]> = {
   field: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "FIELD"],
 };
 
-const mediaKeys = ["photo_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "bi_url", "nuit_url", "proof_url", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "identity_document", "selfie_path", "photos", "documents", "kyc_documents", "files", "attachments"];
+const mediaKeys = ["photo_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "bi_url", "nuit_url", "proof_url", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "identity_document", "selfie_path", "photos", "documents", "document_references", "kyc_documents", "files", "attachments"];
 const getRows = async (path: string) => {
   try { return await stagingRest(path) as Row[]; }
   catch { return []; }
@@ -58,8 +58,9 @@ export async function GET(request: NextRequest) {
     ]);
     collections = { requests, campaigns, events };
   } else {
-    const [deligoKyc, sarcaDrivers, comunhaoChurches, taomozSellerKyc, taomozSellers, mestre24Kyc, mestre24Profiles, restaurants, couriers, notes] = await Promise.all([
-      getRows("profiles?select=*&role=in.(restaurant,courier)&order=updated_at.desc&limit=250"),
+    const [deligoKyc, deligoProfiles, sarcaDrivers, comunhaoChurches, taomozSellerKyc, taomozSellers, mestre24Kyc, mestre24Profiles, restaurants, couriers, notes] = await Promise.all([
+      getRows("kyc_submissions?select=*&order=updated_at.desc&limit=250"),
+      getRows("profiles?select=id,full_name,phone,role,account_status&order=updated_at.desc&limit=500"),
       getRows("driver_profiles?select=*&order=updated_at.desc&limit=250"),
       getRows("church_applications?select=*&order=updated_at.desc&limit=250"),
       getRows("kyc_submissions?select=*&role=eq.seller&order=updated_at.desc&limit=250"),
@@ -70,14 +71,19 @@ export async function GET(request: NextRequest) {
       getRows("couriers?select=*&order=created_at.desc&limit=120"),
       getRows("field_internal_notes?select=*&order=created_at.desc&limit=100"),
     ]);
+    const deligoProfilesById = new Map(deligoProfiles.map((row) => [String(row.id || ""), row]));
     const tag = (rows: Row[], platform: string, subjectType: string) => rows.map((row) => withKycMedia({ ...row, _platform: platform, _subject_type: subjectType }));
+    const deligoKycTagged = tag(deligoKyc, "DeliGo", "Estafeta / Restaurante").map((row) => {
+      const profile = deligoProfilesById.get(String(row.user_id || row.profile_id || row.owner_id || ""));
+      return { ...profile, ...row, applicant_name: row.applicant_name || row.full_name || row.name || profile?.full_name || "Utilizador" };
+    });
     const sellerByProfile = new Map(taomozSellers.map((row) => [String(row.profile_id || ""), row]));
     const taomozKyc = taomozSellerKyc.map((row) => ({ ...sellerByProfile.get(String(row.profile_id || "")), ...row }));
     const mestre24ByUser = new Map(mestre24Profiles.map((row) => [String(row.user_id || ""), row]));
     const mestre24Verification = mestre24Kyc.map((row) => ({ ...mestre24ByUser.get(String(row.professional_user_id || "")), ...row }));
     collections = {
-      verifications: [...tag(deligoKyc, "DeliGo", "Estafeta / Restaurante"), ...tag(sarcaDrivers, "SARCA", "Condutor"), ...tag(comunhaoChurches, "Comunhão", "Igreja"), ...tag(taomozKyc, "TaoMoz", "Vendedor")],
-      deligoKyc: tag(deligoKyc, "DeliGo", "Estafeta / Restaurante"), sarcaDrivers: tag(sarcaDrivers, "SARCA", "Condutor"), comunhaoChurches: tag(comunhaoChurches, "Comunhão", "Igreja"), taomozSellers: tag(taomozKyc, "TaoMoz", "Vendedor"), restaurants, couriers, notes,
+      verifications: [...deligoKycTagged, ...tag(sarcaDrivers, "SARCA", "Condutor"), ...tag(comunhaoChurches, "Comunhão", "Igreja"), ...tag(taomozKyc, "TaoMoz", "Vendedor")],
+      deligoKyc: deligoKycTagged, sarcaDrivers: tag(sarcaDrivers, "SARCA", "Condutor"), comunhaoChurches: tag(comunhaoChurches, "Comunhão", "Igreja"), taomozSellers: tag(taomozKyc, "TaoMoz", "Vendedor"), restaurants, couriers, notes,
     };
     collections.mestre24Professionals = tag(mestre24Verification, "Mestre24", "Profissional");
     collections.verifications.push(...collections.mestre24Professionals);
