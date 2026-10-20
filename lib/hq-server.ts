@@ -7,6 +7,12 @@ export const supabaseUrl = () => {
   return url.replace(/\/$/, "");
 };
 
+function privilegedHeaders(serviceKey: string, extra: Record<string, string> = {}) {
+  const headers: Record<string, string> = { apikey: serviceKey, "Content-Type": "application/json", ...extra };
+  if (!serviceKey.startsWith("sb_secret_")) headers.Authorization = `Bearer ${serviceKey}`;
+  return headers;
+}
+
 export async function corporateActor() {
   const anonKey = process.env.SUPABASE_ANON_KEY;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -40,7 +46,7 @@ export async function requireCorporatePermission(permission:string,platform?:str
 export async function hqRpc(name: string, body: Record<string, unknown> = {}) {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
-  const response = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, { method: "POST", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store" });
+  const response = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, { method: "POST", headers: privilegedHeaders(serviceKey), body: JSON.stringify(body), cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || "HQ_RPC_FAILED");
   return response.json();
 }
@@ -50,7 +56,7 @@ export async function stagingRest(path: string, init: RequestInit = {}) {
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
   const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
     ...init,
-    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json", Prefer: "return=representation", ...(init.headers || {}) },
+    headers: { ...privilegedHeaders(serviceKey), Prefer: "return=representation", ...(init.headers || {}) },
     cache: "no-store",
   });
   if (!response.ok) throw new Error((await response.text()) || "STAGING_REST_FAILED");
@@ -63,15 +69,7 @@ export async function hqRest(path: string, init: RequestInit = {}) {
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
   const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
     ...init,
-    headers: {
-      apikey: serviceKey,
-      Authorization: `Bearer ${serviceKey}`,
-      "Accept-Profile": "hq",
-      "Content-Profile": "hq",
-      "Content-Type": "application/json",
-      Prefer: "return=representation",
-      ...(init.headers || {}),
-    },
+    headers: { ...privilegedHeaders(serviceKey, { "Accept-Profile": "hq", "Content-Profile": "hq" }), Prefer: "return=representation", ...(init.headers || {}) },
     cache: "no-store",
   });
   if (!response.ok) throw new Error((await response.text()) || "HQ_REST_FAILED");
