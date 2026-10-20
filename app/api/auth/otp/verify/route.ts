@@ -4,15 +4,16 @@ const STAGING_URL="https://tpmsgvkdjzoidvyiwwfk.supabase.co";
 export async function POST(request:NextRequest){
   const anonKey=process.env.SUPABASE_ANON_KEY;if(!anonKey)return NextResponse.json({error:"Autenticação não configurada."},{status:503});
   const {phone,token}=await request.json() as {phone?:string;token?:string}; const digits=String(phone||"").replace(/\D/g,""); const normalized=digits.startsWith("258")?`+${digits}`:`+258${digits.replace(/^0/,"")}`;
-  if(!/^\+258\d{9}$/.test(normalized)||!/^\d{6}$/.test(String(token||"")))return NextResponse.json({error:"Telefone ou OTP inválido."},{status:400});
+  const cleanToken=String(token||"").replace(/\D/g,"").slice(0,6);
+  if(!/^\+258\d{9}$/.test(normalized)||!/^\d{6}$/.test(cleanToken))return NextResponse.json({error:"Telefone ou OTP inválido."},{status:400});
   let auth: Response, payload: {access_token?:string;refresh_token?:string;expires_in?:number;user?:{id?:string;user_metadata?:Record<string,unknown>};msg?:string;message?:string;error_description?:string};
   try {
     const authUrl=`${process.env.SUPABASE_URL||STAGING_URL}/auth/v1/verify`, headers={apikey:anonKey,"Content-Type":"application/json"};
     const grantType="grant_type=otp";
-    auth=await fetch(authUrl,{method:"POST",headers,body:JSON.stringify({grant_type:"otp",phone:normalized,token,type:"sms"}),cache:"no-store",signal:AbortSignal.timeout(8000)});
+    auth=await fetch(authUrl,{method:"POST",headers,body:JSON.stringify({grant_type:"otp",phone:normalized,token:cleanToken,type:"sms"}),cache:"no-store",signal:AbortSignal.timeout(8000)});
     payload=await auth.json();
     if(!auth.ok){
-      auth=await fetch(authUrl,{method:"POST",headers,body:JSON.stringify({grant_type:"otp",phone:normalized.replace(/^\+/,""),token,type:"sms"}),cache:"no-store",signal:AbortSignal.timeout(4000)});
+      auth=await fetch(authUrl,{method:"POST",headers,body:JSON.stringify({grant_type:"otp",phone:normalized.replace(/^\+/,""),token:cleanToken,type:"sms"}),cache:"no-store",signal:AbortSignal.timeout(4000)});
       payload=await auth.json();
     }
   } catch {
