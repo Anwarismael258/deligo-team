@@ -27,8 +27,11 @@ export async function POST(request:NextRequest){
       // Supabase's newer sb_secret_* keys authenticate through apikey. They
       // are not JWTs and must not be sent as Authorization: Bearer tokens.
       const employeeHeaders={apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq"};
-      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{apikey:serviceKey,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(5000)});
-      if(rpcResponse.ok) actor=await rpcResponse.json() as Record<string,unknown>;
+      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{apikey:anonKey,Authorization:`Bearer ${payload.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(5000)});
+      if(rpcResponse.ok){
+        const rpcPayload=await rpcResponse.json();
+        actor=(Array.isArray(rpcPayload)?rpcPayload[0]:rpcPayload) as Record<string,unknown>;
+      }
       if(actor) {
         // The security-definer RPC is the canonical HQ lookup. It also handles
         // an existing Auth identity without relying on REST schema exposure.
