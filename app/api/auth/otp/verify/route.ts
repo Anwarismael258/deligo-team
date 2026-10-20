@@ -24,11 +24,18 @@ export async function POST(request:NextRequest){
     try {
       const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
       if(!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
-      const contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?auth_user_id=eq.${encodeURIComponent(payload.user.id)}&status=in.(active,invited)&select=id,employee_code,display_name,status,role,requested_role&limit=1`,{method:"GET",headers:{apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Accept-Profile":"hq","Content-Profile":"hq"},cache:"no-store",signal:AbortSignal.timeout(5000)});
+      const employeeHeaders={apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Accept-Profile":"hq","Content-Profile":"hq"};
+      let contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?auth_user_id=eq.${encodeURIComponent(payload.user.id)}&status=in.(active,invited)&select=id,employee_code,display_name,status,role,requested_role,auth_user_id,phone_e164&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(5000)});
       if(contextResponse.ok){
-        const rows=await contextResponse.json() as Array<Record<string,unknown>>;
+        let rows=await contextResponse.json() as Array<Record<string,unknown>>;
+        // Some existing workers have a reconciled phone identity but an old/missing
+        // auth_user_id. The phone is the canonical login identifier for OTP.
+        if(!rows.length){
+          contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?phone_e164=eq.${encodeURIComponent(normalized)}&status=in.(active,invited)&select=id,employee_code,display_name,status,role,requested_role,auth_user_id,phone_e164&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(5000)});
+          if(contextResponse.ok) rows=await contextResponse.json() as Array<Record<string,unknown>>;
+        }
         const candidate=rows[0];
-        if(candidate?.status === "invited"){
+        if(String(candidate?.status||"").toLowerCase() === "invited"){
           const activationResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?id=eq.${encodeURIComponent(String(candidate.id))}&status=eq.invited`,{method:"PATCH",headers:{apikey:serviceKey,Authorization:`Bearer ${serviceKey}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({status:"active",last_login_at:new Date().toISOString()}),cache:"no-store",signal:AbortSignal.timeout(5000)});
           if(activationResponse.ok){ const activated=await activationResponse.json() as Array<Record<string,unknown>>; actor=activated[0]||null; }
         } else actor=candidate||null;
