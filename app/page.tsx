@@ -315,7 +315,7 @@ export function HQApp() {
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
-  const [employeeStatusFilter, setEmployeeStatusFilter] = useState("all");
+  const [employeeStatusFilter, setEmployeeStatusFilter] = useState("current");
   const [employeeDepartmentFilter, setEmployeeDepartmentFilter] = useState("all");
   const [selectedEmployee, setSelectedEmployee] = useState<ManagedEmployee | null>(null);
   const [employeeHistory, setEmployeeHistory] = useState<EmployeeHistory[]>([]);
@@ -807,7 +807,9 @@ if(active==="Operações de Campo")void refreshField();
   const employeeDepartments = [...new Set(managedEmployees.map((employee) => String(employee.department || "")).filter(Boolean))].sort();
   const shownEmployees = managedEmployees.filter((employee) => {
     const matchesSearch = `${employee.name} ${employee.employee_code} ${employee.department} ${employee.job_title}`.toLocaleLowerCase("pt").includes(employeeSearch.toLocaleLowerCase("pt"));
-    const matchesStatus = employeeStatusFilter === "all" || employee.status === employeeStatusFilter;
+    const matchesStatus = employeeStatusFilter === "current"
+      ? ["active", "invited", "suspended"].includes(String(employee.status))
+      : employeeStatusFilter === "all" || employee.status === employeeStatusFilter;
     const matchesDepartment = employeeDepartmentFilter === "all" || employee.department === employeeDepartmentFilter;
     return matchesSearch && matchesStatus && matchesDepartment;
   });
