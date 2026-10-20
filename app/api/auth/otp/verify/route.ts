@@ -9,7 +9,7 @@ export async function POST(request:NextRequest){
   try {
     const authUrl=`${supabaseUrl()}/auth/v1/verify`, headers={apikey:anonKey,"Content-Type":"application/json"};
     const grantType="grant_type=otp";
-    auth=await fetch(authUrl,{method:"POST",headers,body:JSON.stringify({grant_type:"otp",phone:normalized,token:cleanToken,type:"sms"}),cache:"no-store",signal:AbortSignal.timeout(8000)});
+    auth=await fetch(authUrl,{method:"POST",headers,body:JSON.stringify({grant_type:"otp",phone:normalized,token:cleanToken,type:"sms"}),cache:"no-store",signal:AbortSignal.timeout(20000)});
     payload=await auth.json();
     if(!auth.ok){
       auth=await fetch(authUrl,{method:"POST",headers,body:JSON.stringify({grant_type:"otp",phone:normalized.replace(/^\+/,""),token:cleanToken,type:"sms"}),cache:"no-store",signal:AbortSignal.timeout(4000)});
