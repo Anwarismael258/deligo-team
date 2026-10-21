@@ -38,7 +38,8 @@ export async function GET() {
       console.error("HQ dashboard RPC failed", dashboardResponse.status, modulesResponse.status, mestre24Response.status);
       return NextResponse.json({ error: "O backend corporativo não respondeu correctamente." }, { status: 502 });
     }
-    const canViewDeligoFinance = ["SUPER_ADMIN", "FINANCE", "FINANCE_DIRECTOR"].includes(actor.role) && (["SUPER_ADMIN","FINANCE"].includes(actor.role) || Boolean(authorization?.is_super_admin) || (Array.isArray(authorization?.permissions) && authorization.permissions.includes("finance.view") && Array.isArray(authorization?.platform_slugs) && authorization.platform_slugs.includes("deligo")));
+    const actorRole = String(actor.role || "").toUpperCase();
+    const canViewDeligoFinance = ["SUPER_ADMIN", "FINANCE", "FINANCE_DIRECTOR"].includes(actorRole) && (["SUPER_ADMIN","FINANCE"].includes(actorRole) || Boolean(authorization?.is_super_admin) || (Array.isArray(authorization?.permissions) && authorization.permissions.includes("finance.view") && Array.isArray(authorization?.platform_slugs) && authorization.platform_slugs.includes("deligo")));
     const deligoFinanceResponse = canViewDeligoFinance ? fetch(`${supabaseUrl()}/rest/v1/rpc/hq_deligo_finance_summary_v1`, { method: "POST", headers: rpcHeaders, body: JSON.stringify({ p_actor_auth_user_id: actor.authUserId, p_from: null, p_to: null }), cache: "no-store", signal: AbortSignal.timeout(12_000) }) : null;
     const anonKey = process.env.SUPABASE_ANON_KEY;
     const canonicalFinanceResponse = canViewDeligoFinance && anonKey ? fetch(`${supabaseUrl()}/rest/v1/rpc/admin_canonical_finance_summary_v1`, { method: "POST", headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }) : null;
@@ -55,7 +56,22 @@ export async function GET() {
       stagingRest("order_disputes?select=*&status=not.in.(resolved,closed)&order=created_at.desc&limit=8").catch(() => []),
     ]) as [Record<string, unknown>, Record<string, unknown>, { platform: Record<string, unknown>; module: Record<string, unknown> }, unknown, Array<Record<string, unknown>>, [Record<string, unknown> | null, Record<string, unknown> | null], Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>];
     const [legacyDeligoFinance, canonicalFinance] = financeResponses as [Record<string, unknown> | null, Record<string, unknown> | null];
-    const deligoFinance = canonicalFinance ? { summary: canonicalFinance, legacy: legacyDeligoFinance } : legacyDeligoFinance;
+    // The DeliGo app keeps the canonical user wallets in public.wallets.
+    // Keep this separate from corporate profit: the overview card is a wallet
+    // indicator, while the Finance screen shows corporate profit.
+    const deligoWalletRows = canViewDeligoFinance
+      ? await stagingRest("wallets?select=balance,currency&currency=eq.MZN&limit=10000").catch(() => null)
+      : null;
+    const deligoWalletTotal = Array.isArray(deligoWalletRows)
+      ? deligoWalletRows.reduce((total, row) => total + Number((row as Record<string, unknown>).balance || 0), 0)
+      : null;
+    const financeSummary = canonicalFinance || legacyDeligoFinance;
+    const summaryWithWallet = financeSummary
+      ? { ...financeSummary, ...(deligoWalletTotal == null ? {} : { corporate_wallet_total: deligoWalletTotal }) }
+      : (deligoWalletTotal == null ? null : { corporate_wallet_total: deligoWalletTotal });
+    const deligoFinance = summaryWithWallet
+      ? { summary: summaryWithWallet, legacy: legacyDeligoFinance }
+      : null;
     const dashboardPlatforms = Array.isArray(dashboard.platforms) ? dashboard.platforms : [];
     const modulePlatforms = Array.isArray(modules.platforms) ? modules.platforms : [];
     // Module catalogue values are not cash and must never appear as corporate
@@ -85,7 +101,7 @@ export async function GET() {
         ticketProfit: eventTickets.reduce((sum, item) => sum + Number(item.deligo_commission || 0), 0),
       },
     };
-    return NextResponse.json({ ...dashboard, platforms: enrichedPlatforms, modules: mergedModules, deligoOperations, deligoFinance, historical_total_value: totalValue, governance: ["SUPER_ADMIN","FINANCE"].includes(actor.role) ? deligoTriunfalGovernance : null, executive }, {
+    return NextResponse.json({ ...dashboard, platforms: enrichedPlatforms, modules: mergedModules, deligoOperations, deligoFinance, historical_total_value: totalValue, governance: ["SUPER_ADMIN","FINANCE"].includes(actorRole) ? deligoTriunfalGovernance : null, executive }, {
       headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });
   } catch (error) {

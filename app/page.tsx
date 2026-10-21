@@ -244,7 +244,7 @@ type DashboardData = {
   checkedAt: string;
   platforms: DashboardPlatform[];
   operations: { supportCases: number; campaigns: number; fieldVisits: number; auditEvents: number };
-  deligoFinance?: { summary?: { corporate_profit_ledger?: number; corporate_profit_withdrawable?: number; deligo_profit?: number; mestre24_profit?: number; corporate_pending_withdrawals?: number; corporate_reserved_withdrawals?: number; custody_available?: number; custody_pending_reserved?: number; gross_sales?: number; deligo_revenue?: number; restaurant_due?: number; courier_due?: number; settlements_pending?: number; withdrawals_pending?: number; reconciliation_mismatches?: number }; legacy?: unknown } | null;
+  deligoFinance?: { summary?: { corporate_wallet_total?: number; corporate_profit_ledger?: number; corporate_profit_withdrawable?: number; deligo_profit?: number; mestre24_profit?: number; corporate_pending_withdrawals?: number; corporate_reserved_withdrawals?: number; custody_available?: number; custody_pending_reserved?: number; gross_sales?: number; deligo_revenue?: number; restaurant_due?: number; courier_due?: number; settlements_pending?: number; withdrawals_pending?: number; reconciliation_mismatches?: number }; legacy?: unknown } | null;
   deligoOperations?: {
     summary: { activeOrders:number; attentionOrders:number; pendingKyc:number; openSupport:number; ticketsSold:number; ticketRevenue:number; ticketProfit:number };
     activeOrders: Array<{id:string;status:string;total_amount:number;created_at:string}>;
@@ -1285,7 +1285,7 @@ if(active==="Operações de Campo")void refreshField();
           <section className="metrics">
             {[
               ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Apenas consulta"],
-              ["Valor total das carteiras", !["SUPER_ADMIN","FINANCE","SUPERVISOR"].includes(sessionRole) || dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable)), "Saldo confirmado da fonte financeira DeliGo"],
+              ["Valor total das carteiras", dashboard?.deligoFinance?.summary?.corporate_wallet_total == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_wallet_total)), "Saldo confirmado da fonte financeira DeliGo"],
             ].map(([label, value, note], index) => (
               <article className={`metric metric-${index}`} key={label}>
                 <div className="metricTopline"><span>INDICADOR CENTRAL</span></div>
