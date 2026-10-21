@@ -59,7 +59,11 @@ export async function GET() {
     const profileRows = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`);
     const [legacyResult, canonicalResult, appsResult] = await Promise.allSettled([
       stagingRest(`wallets?user_id=eq.${encodeURIComponent(actor.authUserId)}&select=id,balance,currency&limit=1`) as Promise<Array<Record<string, unknown>>>,
-      paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&account_type=eq.user&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
+      // A carteira pessoal é consolidada por utilizador, não por um único
+      // account_type. O mesmo trabalhador pode ter contas pessoais de DeliGo,
+      // SARCA, Mestre24, estafeta ou comerciante; a carteira CORPORATE_MZN
+      // continua fora deste filtro porque não tem owner_user_id.
+      paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
       coreRest(key, "apps?select=id,slug,name"),
     ]);
     const legacy = legacyResult.status === "fulfilled" ? legacyResult.value : [];

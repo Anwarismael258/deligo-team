@@ -57,7 +57,9 @@ export async function POST(request: NextRequest) {
     const walletFilter = body?.walletId
       ? `id=eq.${encodeURIComponent(body.walletId)}&owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`
       : `owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`;
-    const wallets = await paymentsRest(`wallet_accounts?${walletFilter}&account_type=eq.user&status=eq.active&currency_code=eq.MZN&select=*`) as Wallet[];
+    // Consolidate every personal wallet owned by this worker. Corporate
+    // wallets have no owner_user_id and are never included here.
+    const wallets = await paymentsRest(`wallet_accounts?${walletFilter}&status=eq.active&currency_code=eq.MZN&select=*`) as Wallet[];
     const eligibleWallets = (Array.isArray(wallets) ? wallets : []).filter(isPaySuiteWallet).filter((wallet) => Number(wallet.available_balance_minor || 0) > 0);
     const totalAvailableMinor = eligibleWallets.reduce((sum, wallet) => sum + Number(wallet.available_balance_minor || 0), 0);
     const requestedMinor = moneyMinor(amount);
