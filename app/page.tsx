@@ -322,6 +322,7 @@ export function HQApp() {
   const [sessionUser,setSessionUser]=useState<SessionUser|null>(null);
   const [ownProfile,setOwnProfile]=useState<Record<string,unknown>|null>(null);
   const [profileBiography,setProfileBiography]=useState("");
+  const [profileEditing,setProfileEditing]=useState(false);
   const [profileSaveBusy,setProfileSaveBusy]=useState(false);
   const [ownWallets,setOwnWallets]=useState<Array<Record<string,unknown>>>([]);
   const [profileWalletNotice,setProfileWalletNotice]=useState("");
@@ -454,6 +455,7 @@ export function HQApp() {
   const [homologationResult, setHomologationResult] = useState<Array<{ code?: string; created?: boolean }>>([]);
   const personaBase=personas[persona];
   const currentPersona={...personaBase,name:sessionUser?.name||personaBase.name,role:sessionUser?.job_title||personaBase.role,initials:(sessionUser?.name||personaBase.name).split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()};
+  const ownAvatarUrl=String(ownProfile?.avatar_url||"").trim();
   const isFullAdmin = Boolean(sessionUser?.is_super_admin || sessionUser?.hq_role === "FINANCE" || sessionRole === "FINANCE");
   const canCreateEmployee = isFullAdmin || sessionRole === "SUPERVISOR";
   const isAccountScreen = active==="Meu Perfil";
@@ -500,7 +502,7 @@ export function HQApp() {
     }).catch(() => window.location.replace("/login"));
   }, []);
   useEffect(() => {
-    if (active !== "Meu Perfil" || !sessionUser) return;
+    if (!sessionUser) return;
     setProfileWalletNotice("");
     fetch("/api/profile", { cache: "no-store" }).then(async response => {
       const data = await response.json();
@@ -893,7 +895,7 @@ if(active==="Operações de Campo")void refreshField();
           <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span>Meu Perfil</button>
         </nav>
         <div className="user">
-          <div className="avatar">{currentPersona.initials}</div>
+          <div className="avatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Fotografia de perfil"/>:currentPersona.initials}</div>
           <div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span></div>
           <b>•••</b>
         </div>
@@ -912,11 +914,11 @@ if(active==="Operações de Campo")void refreshField();
              <button className="iconButton" title="Notificações" aria-label={`Notificações${notifications.filter(n=>!n.read_at).length?`, ${notifications.filter(n=>!n.read_at).length} não lidas`:""}`} onClick={()=>setNotificationsOpen(!notificationsOpen)}><Bell aria-hidden="true" size={19} strokeWidth={2.2} />{notifications.some(n=>!n.read_at)&&<><i /><b className="notificationCount">{notifications.filter(n=>!n.read_at).length}</b></>}</button>
             {notificationsOpen&&<div className="notificationMenu"><div><strong>Notificações</strong><button onClick={()=>void markNotifications()}>Marcar todas como lidas</button></div>{notifications.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);if(n.target_url)window.location.assign(String(n.target_url))}}><strong>{String(n.title)}</strong><span>{String(n.body)}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")}</small></button>)}{!notifications.length&&<p>Sem notificações.</p>}</div>}
             <button className="accountTrigger" onClick={() => setAccountOpen(!accountOpen)} aria-label="Abrir menu da conta">
-              <div className="miniAvatar">{currentPersona.initials}</div>
+              <div className="miniAvatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Fotografia de perfil"/>:currentPersona.initials}</div>
               <div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span></div><b>⌄</b>
             </button>
             {accountOpen && <div className="accountMenu">
-              <div className="accountMenuHead"><div className="avatar">{currentPersona.initials}</div><div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span><small>DeliGo Triunfal, Lda.</small></div></div>
+              <div className="accountMenuHead"><div className="avatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Fotografia de perfil"/>:currentPersona.initials}</div><div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span><small>DeliGo Triunfal, Lda.</small></div></div>
               <div className="accountMenuGroup">
                 <button onClick={() => { navigate("Meu Perfil"); setAccountOpen(false); }}><span>♙</span>Meu Perfil</button>
                 <button onClick={() => { navigate("Registo de Auditoria"); setAccountOpen(false); }}><span>▤</span>Minha Actividade</button>
@@ -1254,8 +1256,10 @@ if(active==="Operações de Campo")void refreshField();
           )}
           {active === "Meu Perfil" && <section className="accountDetailGrid">
             <article className="profileCard">
-              <div className="profileHero"><div className="profileAvatar">{ownProfile?.avatar_url?<img src={String(ownProfile.avatar_url)} alt="Foto de perfil"/>:currentPersona.initials}</div><div><h2>{currentPersona.name}</h2><p>{currentPersona.role}</p><span>● {sessionUser?.status||"A validar"}</span></div></div>
-              <form className="profileEditForm" onSubmit={async event=>{event.preventDefault();setProfileSaveBusy(true);const form=new FormData(event.currentTarget),file=form.get("avatar");setProfileWalletNotice("A guardar perfil…");try{let avatarUrl=ownProfile?.avatar_url||null;if(file instanceof File&&file.size){const upload=new FormData();upload.append("file",file);const response=await fetch("/api/profile/avatar",{method:"POST",body:upload});const result=await response.json();if(!response.ok)throw new Error(result.error||"Não foi possível carregar a fotografia.");avatarUrl=result.avatar_url}const response=await fetch("/api/profile",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({avatar_url:avatarUrl,biography:profileBiography})});const result=await response.json();if(!response.ok)throw new Error(result.error||"Não foi possível actualizar o perfil.");setOwnProfile(result.profile||null);setProfileBiography(String(result.profile?.biography||""));setProfileWalletNotice("Perfil guardado com sucesso.")}catch(error){setProfileWalletNotice(error instanceof Error?error.message:"Não foi possível guardar o perfil.")}finally{setProfileSaveBusy(false)}}}><label><span>Foto de perfil</span><input name="avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><label><span>Biografia</span><textarea name="biography" value={profileBiography} onChange={event=>setProfileBiography(event.target.value)} maxLength={500} placeholder="Escreva uma breve biografia…"/></label><button className="primaryAction" disabled={profileSaveBusy}>{profileSaveBusy?"A guardar…":"Guardar perfil"}</button></form>
+              <div className="profileHero"><div className="profileAvatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Foto de perfil"/>:currentPersona.initials}</div><div><h2>{currentPersona.name}</h2><p>{currentPersona.role}</p><span>● {sessionUser?.status||"A validar"}</span></div></div>
+              <button className="secondaryAction profileEditToggle" type="button" onClick={()=>setProfileEditing(current=>!current)}>{profileEditing?"Fechar edição":"Editar foto e biografia"}</button>
+              {profileEditing&&<form className="profileEditForm" onSubmit={async event=>{event.preventDefault();setProfileSaveBusy(true);const form=new FormData(event.currentTarget),file=form.get("avatar");setProfileWalletNotice("A guardar perfil…");try{let avatarUrl=ownProfile?.avatar_url||null;if(file instanceof File&&file.size){const upload=new FormData();upload.append("file",file);const response=await fetch("/api/profile/avatar",{method:"POST",body:upload});const result=await response.json();if(!response.ok)throw new Error(result.error||"Não foi possível carregar a fotografia.");avatarUrl=result.avatar_url}const response=await fetch("/api/profile",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({avatar_url:avatarUrl,biography:profileBiography})});const result=await response.json();if(!response.ok)throw new Error(result.error||"Não foi possível actualizar o perfil.");setOwnProfile(result.profile||null);setProfileBiography(String(result.profile?.biography||""));setProfileWalletNotice("Perfil guardado com sucesso.");setProfileEditing(false)}catch(error){setProfileWalletNotice(error instanceof Error?error.message:"Não foi possível guardar o perfil.")}finally{setProfileSaveBusy(false)}}}><label><span>Foto de perfil</span><input name="avatar" type="file" accept="image/jpeg,image/png,image/webp"/></label><label><span>Biografia</span><textarea name="biography" value={profileBiography} onChange={event=>setProfileBiography(event.target.value)} maxLength={500} placeholder="Escreva uma breve biografia…"/></label><button className="primaryAction" disabled={profileSaveBusy}>{profileSaveBusy?"A guardar…":"Guardar perfil"}</button></form>}
+              {profileWalletNotice&&<div className="profileNotice">{profileWalletNotice}</div>}
               <div className="profileFields">
                 <div><span>ID do trabalhador</span><strong>{sessionUser?.employee_code||"—"}</strong></div>
                 <div><span>Cargo</span><strong>{sessionUser?.job_title||currentPersona.role}</strong></div>
@@ -1265,9 +1269,14 @@ if(active==="Operações de Campo")void refreshField();
                 <div><span>Último acesso</span><strong>{sessionUser?.last_login_at?new Date(sessionUser.last_login_at).toLocaleString("pt-MZ"):"—"}</strong></div>
               </div>
             </article>
+            <article className="profileBiographyCard">
+              <div className="profileSectionTitle"><span>BIOGRAFIA</span><h2>Sobre mim</h2><p>Apresentação profissional visível no perfil.</p></div>
+              {profileBiography.trim()?<p className="profileBiographyText">{profileBiography}</p>:<div className="peopleEmpty">Ainda não adicionou uma biografia.</div>}
+              <button className="secondaryAction" type="button" onClick={()=>setProfileEditing(true)}>Editar biografia</button>
+            </article>
             <article className="walletProfileCard">
               <div className="profileSectionTitle"><span>CARTEIRA DIGITAL</span><h2>Saldo pessoal</h2><p>Saldo real da carteira do trabalhador no backend central.</p></div>
-              {ownWallets.length ? ownWallets.map(wallet => <div className="walletBalanceRow" key={String(wallet.id)}><div><strong>{String(wallet.wallet_code || "Carteira pessoal")}</strong><span>{String(wallet.currency || "MZN")} · saldo disponível</span></div><b>{money(Number(wallet.available_amount || 0))}</b><button className="primaryAction walletWithdrawButton" disabled={Number(wallet.available_amount || 0)<=0 || wallet.withdrawal_enabled===false} onClick={() => void withdrawOwnWallet(wallet)}>Levantar saldo</button></div>) : <div className="peopleEmpty">{profileWalletNotice || "Carteira ainda não disponível para este perfil."}</div>}
+              {ownWallets.length ? ownWallets.map(wallet => <div className="walletBalanceRow" key={String(wallet.id)}><div><strong>{String(wallet.wallet_code || "Carteira pessoal")}</strong><span>{String(wallet.currency || "MZN")} · saldo disponível</span></div><b>{money(Number(wallet.available_amount || 0))}</b><button className="primaryAction walletWithdrawButton" disabled={Number(wallet.available_amount || 0)<=0 || wallet.withdrawal_enabled===false} onClick={() => void withdrawOwnWallet(wallet)}>Levantar saldo</button></div>) : <div className="peopleEmpty">Carteira ainda não disponível para este perfil.</div>}
               <div className="safeNotice"><b>Levantamento</b><span>O levantamento real é feito apenas pelo fluxo PaySuite autorizado e dentro do saldo disponível.</span></div>
             </article>
             <article className="permissionCard"><h2>Âmbito de acesso</h2><p>Módulos autorizados pelo cargo validado no backend.</p><div>{visibleNav.map(([,item]) => <span key={item}>✓ {item}</span>)}</div></article>
