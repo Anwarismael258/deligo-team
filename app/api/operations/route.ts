@@ -122,7 +122,9 @@ export async function GET(request: NextRequest) {
         ...row,
         id: row.id,
         user_id: row.subject_user_id,
-        applicant_name: row.subject_name || "Profissional Mestre24",
+        applicant_name: row.subject_name && row.subject_name !== (row.source_snapshot as Row | undefined)?.document_type
+          ? row.subject_name
+          : "Profissional Mestre24",
         entity_reference: row.source_record_id || row.subject_user_id || row.id,
         _hq_case_id: row.id,
         _platform: "Mestre24",
