@@ -4,7 +4,7 @@ export type PlatformBackend = "deligo" | "comunhao" | "sarca" | "taomoz" | "mest
 
 const backendUrl = (platform: PlatformBackend) => {
   const envName = { deligo: "DELIGO_SUPABASE_URL", comunhao: "COMUNHAO_SUPABASE_URL", sarca: "SARCA_SUPABASE_URL", taomoz: "TAOMOZ_SUPABASE_URL", mestre24: "MESTRE24_SUPABASE_URL" }[platform];
-  const url = process.env[envName]?.trim();
+  const url = process.env[envName]?.trim() || (platform === "deligo" ? process.env.SUPABASE_URL?.trim() : "");
   if (!url) throw new Error(`PLATFORM_${platform.toUpperCase()}_URL_NOT_CONFIGURED`);
   return url.replace(/\/$/, "");
 };
@@ -15,7 +15,9 @@ const headers = (platform: PlatformBackend, authenticatedWrite = false) => {
   const key = platformKey(platform);
   if (!key) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
   const actorToken = authenticatedWrite ? process.env[`${platform.toUpperCase()}_ADMIN_ACCESS_TOKEN`] : null;
-  return new Headers({ apikey: key, Authorization: `Bearer ${actorToken || key}`, "Content-Type": "application/json" });
+  const result = new Headers({ apikey: key, "Content-Type": "application/json" });
+  if (!key.startsWith("sb_secret_")) result.set("Authorization", `Bearer ${actorToken || key}`);
+  return result;
 };
 
 const storageBuckets: Record<PlatformBackend, string[]> = { deligo: ["kyc"], comunhao: ["church-application-branding", "profile-media"], sarca: ["driver-kyc", "profile-media"], taomoz: ["kyc-documents"], mestre24: ["mestre24-kyc", "mestre24-portfolio"] };

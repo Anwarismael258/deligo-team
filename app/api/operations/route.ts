@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRpc, stagingRest } from "@/lib/hq-server";
 import { buildPlatformDecision, type PlatformDecision } from "@/lib/platform-decisions";
-import { platformFunction, platformRest, platformRpc, type PlatformBackend } from "@/lib/platform-backends";
+import { platformFunction, platformRest, platformRpc, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
 
@@ -31,10 +31,41 @@ const mediaItems = (value: unknown, key: string) => {
     return [];
   });
 };
-const withKycMedia = (row: Row) => ({
+const withKycMedia = (row: Row): Row => ({
   ...row,
   _kyc_media: mediaKeys.flatMap((key) => mediaItems(row[key], key)),
 });
+
+const platformBackend = (label: unknown): PlatformBackend | null => {
+  const value = String(label || "").toLowerCase();
+  if (value === "deligo") return "deligo";
+  if (value === "sarca") return "sarca";
+  if (value === "taomoz" || value === "deligo market") return "taomoz";
+  if (value === "mestre24") return "mestre24";
+  if (value === "comunhao" || value === "comunhão") return "comunhao";
+  return null;
+};
+
+async function withSignedKycMedia(row: Row) {
+  const platform = platformBackend(row._platform);
+  const media = Array.isArray(row._kyc_media) ? row._kyc_media as Row[] : [];
+  if (!platform || !media.length) return { ...row, document_count: media.length };
+  const signed = await Promise.all(media.map(async (item) => {
+    const source = String(item.url || "");
+    try {
+      const signedUrl = await signPlatformPath(platform, source);
+      return { ...item, signed_url: /^https?:\/\//i.test(signedUrl) ? signedUrl : null };
+    } catch {
+      return { ...item, signed_url: null };
+    }
+  }));
+  return {
+    ...row,
+    document_count: media.length,
+    _kyc_media: signed,
+    document_references: signed.map((item) => item.signed_url).filter((value): value is string => typeof value === "string" && value.length > 0),
+  };
+}
 
 export async function GET(request: NextRequest) {
   const actor = await corporateActor();
@@ -88,6 +119,7 @@ export async function GET(request: NextRequest) {
     collections.mestre24Professionals = tag(mestre24Verification, "Mestre24", "Profissional");
     collections.verifications.push(...collections.mestre24Professionals);
   }
+  if (collections.verifications) collections.verifications = await Promise.all(collections.verifications.map(withSignedKycMedia));
   return NextResponse.json({ module: requestedModule, collections, checkedAt: new Date().toISOString(), permissions: { canDecideKyc: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role) } }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
