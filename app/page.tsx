@@ -351,6 +351,9 @@ export function HQApp() {
   const [hrNotice, setHrNotice] = useState("");
   const [financeData, setFinanceData] = useState<FinanceData>({ financial_accounts:[], financial_transactions:[], budgets:[], payment_requests:[], cashflow_forecasts:[], profit_distributions:[], profit_destination:[], payroll_runs:[], payroll_lines:[] });
   const [financeNotice, setFinanceNotice] = useState("");
+  const [workerTransferEmployees, setWorkerTransferEmployees] = useState<Array<{ id: string; name: string; employee_code?: string; job_title?: string; role?: string }>>([]);
+  const [workerTransfer, setWorkerTransfer] = useState({ employeeId: "", amount: "" });
+  const [workerTransferBusy, setWorkerTransferBusy] = useState(false);
   const [corporateWithdrawal, setCorporateWithdrawal] = useState({ amount: "", withdrawalId: "", otp: "" });
   const [corporateWithdrawalStep, setCorporateWithdrawalStep] = useState<"idle" | "otp" | "done">("idle");
   const [financeEntryKind, setFinanceEntryKind] = useState("transaction");
@@ -506,6 +509,29 @@ export function HQApp() {
     setFinanceNotice(response.ok ? "Novo OTP enviado ao segundo aprovador. Use-o imediatamente; o anterior foi substituído." : (data.error || "Não foi possível enviar um novo OTP."));
     if (response.ok) setCorporateWithdrawal(current => ({ ...current, otp: "" }));
   };
+  const transferToWorker = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setWorkerTransferBusy(true);
+    setFinanceNotice("A transferir para a carteira pessoal do trabalhador…");
+    try {
+      const response = await fetch("/api/finance/worker-transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: workerTransfer.employeeId, amount: Number(workerTransfer.amount) }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setFinanceNotice(data.error || "Não foi possível concluir a transferência. Nenhum saldo foi movimentado.");
+        return;
+      }
+      const employee = workerTransferEmployees.find(item => item.id === workerTransfer.employeeId);
+      setFinanceNotice(`Transferência de ${money(Number(workerTransfer.amount))} concluída para ${employee?.name || "o trabalhador"}. O valor já está disponível para levantamento PaySuite.`);
+      setWorkerTransfer(current => ({ ...current, amount: "" }));
+      void fetch("/api/dashboard", { cache: "no-store" }).then(response => response.ok ? response.json() : null).then(data => { if (data) setDashboard(data); }).catch(() => undefined);
+    } finally {
+      setWorkerTransferBusy(false);
+    }
+  };
 
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" }).then(async (response) => {
@@ -591,6 +617,13 @@ export function HQApp() {
 
   const refreshFinance = async () => { const response=await fetch("/api/finance",{cache:"no-store"}); if(!response.ok)throw new Error(); const result=await response.json(); setFinanceData(result.data); };
   useEffect(() => { if(active!=="Finanças")return; refreshFinance().catch(()=>setFinanceNotice("Não foi possível carregar os registos financeiros para este perfil.")); },[active]);
+  useEffect(() => {
+    if (active !== "Finanças" || !["SUPER_ADMIN", "FINANCE"].includes(sessionUser?.hq_role || "")) return;
+    fetch("/api/finance/worker-transfer", { cache: "no-store" })
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(data => setWorkerTransferEmployees(Array.isArray(data.employees) ? data.employees : []))
+      .catch(() => setWorkerTransferEmployees([]));
+  }, [active, sessionUser?.hq_role]);
   useEffect(()=>{if(active!=="Contabilidade")return;fetch("/api/accounting",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(r=>{setAccountingData(r.data||{});setAccountingReports(r.reports||{})}).catch(()=>{setAccountingData({});setAccountingReports({})})},[active]);
   const refreshLegal=async()=>{const r=await fetch("/api/legal",{cache:"no-store"});if(!r.ok)throw new Error();setLegalData((await r.json()).data||{})};
   useEffect(()=>{if(active!=="Jurídico")return;refreshLegal().catch(()=>setLegalData({}))},[active]);
@@ -987,6 +1020,12 @@ if(active==="Operações de Campo")void refreshField();
           {active === "Finanças" && <section className="financeWorkspace">
             <div className="financeKpis"><article><span>Receita corporativa líquida confirmada</span><strong>{corporateConfirmedRevenue == null ? "Indisponível" : money(corporateConfirmedRevenue)}</strong><small>DeliGo Eats + Mestre24 · depois das taxas do provedor</small></article><article><span>Saldo corporativo disponível</span><strong>{corporateSummary?.corporate_wallet_available == null ? "Indisponível" : money(Number(corporateSummary.corporate_wallet_available))}</strong><small>Carteira CORPORATE_MZN · dinheiro disponível da empresa</small></article><article><span>Ganhos DeliGo Eats</span><strong>{deligoEatsConfirmed == null ? "Indisponível" : money(deligoEatsConfirmed)}</strong><small>Comissões líquidas confirmadas na carteira corporativa</small></article><article><span>Subscrições Mestre24 líquidas</span><strong>{mestre24Confirmed == null ? "Indisponível" : money(mestre24Confirmed)}</strong><small>Bruto {mestre24GrossConfirmed == null ? "indisponível" : money(mestre24GrossConfirmed)} · taxa PaySuite {mestre24ProviderFees == null ? "indisponível" : money(mestre24ProviderFees)}</small></article><article><span>Saldo pessoal do utilizador</span><strong>{ownWallets.length ? money(personalWalletTotal) : "Sem carteira"}</strong><small>Carteiras pessoais do trabalhador actual · separado da empresa</small></article></div>
             <div className="safeNotice"><b>Como ler estes valores</b><span>Receita confirmada é o que já foi reconhecido por plataforma. Saldo corporativo é o que está actualmente disponível na carteira CORPORATE_MZN. Saldo pessoal é apenas do trabalhador ligado nesta sessão. Não se somam estes valores nem se usa saldo pessoal para levantamentos corporativos.</span></div>
+            {["SUPER_ADMIN", "FINANCE"].includes(sessionUser?.hq_role || "") && <form className="financeEntryForm" onSubmit={transferToWorker}>
+              <label><span>Transferir dinheiro para trabalhador</span><select required value={workerTransfer.employeeId} onChange={event => setWorkerTransfer(current => ({ ...current, employeeId: event.target.value }))}><option value="">Seleccionar trabalhador activo</option>{workerTransferEmployees.map(employee => <option value={employee.id} key={employee.id}>{employee.name} · {employee.employee_code || employee.role || "Trabalhador"}</option>)}</select></label>
+              <label><span>Valor a enviar para a carteira pessoal (MZN)</span><input type="number" min="0.01" step="0.01" required value={workerTransfer.amount} onChange={event => setWorkerTransfer(current => ({ ...current, amount: event.target.value }))} /></label>
+              <button className="primaryAction" disabled={workerTransferBusy}>{workerTransferBusy ? "A transferir…" : "Transferir para trabalhador"}</button>
+              <small>Disponível apenas para Admin e Finanças. O valor entra na carteira pessoal do trabalhador e poderá ser levantado pelo botão Levantar via PaySuite.</small>
+            </form>}
             {corporateWithdrawalStep === "idle" && <form className="financeEntryForm" onSubmit={prepareCorporateWithdrawal}><label><span>Valor a levantar da carteira corporativa (MZN)</span><input type="number" min="0.01" step="0.01" required value={corporateWithdrawal.amount} onChange={event => setCorporateWithdrawal(current => ({ ...current, amount: event.target.value }))} /></label><button className="primaryAction">Solicitar levantamento interno</button><small>Admin e Finanças devem confirmar com OTP; o segundo aprovador recebe o código.</small></form>}
             {corporateWithdrawalStep === "otp" && <form className="financeEntryForm" onSubmit={confirmCorporateWithdrawal}><label><span>OTP do segundo aprovador</span><input inputMode="numeric" autoComplete="one-time-code" required value={corporateWithdrawal.otp} onChange={event => setCorporateWithdrawal(current => ({ ...current, otp: event.target.value }))} /></label><div className="financeActionRow"><button className="primaryAction">Confirmar e transferir para a carteira</button><button type="button" className="secondaryAction" onClick={resendCorporateWithdrawalOtp}>Enviar novo OTP</button></div></form>}
             {corporateWithdrawalStep === "done" && <button className="primaryAction" onClick={() => { setCorporateWithdrawalStep("idle"); setCorporateWithdrawal(current => ({ ...current, amount: "", withdrawalId: "", otp: "" })); }}>Novo pedido</button>}
