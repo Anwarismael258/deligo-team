@@ -28,7 +28,23 @@ export async function POST(request: NextRequest) {
     console.error("HQ_LOGIN_ACTOR_LOOKUP_FAILED", error instanceof Error ? error.message : "unknown");
     return NextResponse.json({ error: "Não foi possível validar o acesso corporativo. Contacte a Administração." }, { status: 503 });
   }
-  if (!actor || actor.status !== "active") return NextResponse.json({ error: actor?.status === "suspended" ? "Esta conta está suspensa." : "A conta não está associada a um funcionário activo. Contacte o Super Administrador." }, { status: 403 });
+  const actorStatus = String(actor?.status || "").toLowerCase();
+  // The first-access flow sets the Auth metadata flag to false only after the
+  // worker has verified OTP and created a personal password. If the separate
+  // activation update was interrupted, finish that state transition here.
+  // Never activate an invited account while it still has the bootstrap flag.
+  if (actorStatus === "invited" && payload.user?.user_metadata?.must_set_password === false && authUserId) {
+    try {
+      const activated = await hqRest(`employees?id=eq.${encodeURIComponent(String((actor as { employee_id?: string }).employee_id))}&status=eq.invited`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "active", last_login_at: new Date().toISOString() }),
+      }) as Array<Record<string, unknown>>;
+      if (activated?.length) actor = { ...actor, status: "active" };
+    } catch (error) {
+      console.error("HQ_LOGIN_ACTIVATION_FAILED", error instanceof Error ? error.message : "unknown");
+    }
+  }
+  if (!actor || String(actor.status || "").toLowerCase() !== "active") return NextResponse.json({ error: actorStatus === "suspended" ? "Esta conta está suspensa." : "Conclua o primeiro acesso por OTP e defina a sua senha pessoal antes de entrar." }, { status: 403 });
   const response = NextResponse.json({ user: { email: payload.user?.email, ...payload.user?.user_metadata, hq_role: (actor as { role?: string }).role } });
   const secure = request.nextUrl.protocol === "https:";
   response.cookies.set("hq_access_token", payload.access_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: payload.expires_in || 3600 });

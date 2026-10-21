@@ -3,3 +3,4 @@ const employee=fs.readFileSync('app/api/employees/route.ts','utf8');const login=
 test('novos trabalhadores usam OTP e não senha padrão',()=>{assert.match(employee,/auth_method: "phone_otp"/);assert.match(employee,/phone_confirm: false/);assert.doesNotMatch(employee,/HQ_TEST_DEFAULT_PASSWORD/);});
 test('fluxo OTP existe para solicitar e verificar telefone',()=>{assert.match(fs.readFileSync('app/api/auth/otp/request/route.ts','utf8'),/auth\/v1\/otp/);assert.match(otp,/grant_type=otp/);});
 test('login informa política de primeiro acesso',()=>{assert.match(login,/OTP/);assert.match(login,/primeiro acesso/i);});
+test('login conclui ativação apenas depois da senha pessoal',()=>{const passwordLogin=fs.readFileSync('app/api/auth/login/route.ts','utf8');assert.match(passwordLogin,/must_set_password\s*===\s*false/);assert.match(passwordLogin,/status: "active"/);assert.match(passwordLogin,/Conclua o primeiro acesso por OTP/);});
