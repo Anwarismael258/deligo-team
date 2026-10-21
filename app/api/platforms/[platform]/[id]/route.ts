@@ -57,8 +57,17 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
   // Resolve the subject first so the detail view never silently loses identity/media.
   let resolvedId = initialId;
   let sourceKyc: Record<string, unknown>[] = [];
-  if (platform === "deligo" && !profile) {
-    sourceKyc = await read(platform, `kyc_submissions?id=eq.${encoded}&select=*&limit=1`) as Record<string, unknown>[];
+  if (platform === "deligo") {
+    // Depending on the originating app, the Central card can carry either
+    // the KYC submission id or the person's profile/user id. Look up both so
+    // an approved DeliGo Eats case always opens its real profile and media.
+    const lookup = await Promise.all([
+      read(platform, `kyc_submissions?id=eq.${encoded}&select=*&limit=50`),
+      read(platform, `kyc_submissions?user_id=eq.${encoded}&select=*&limit=50`),
+      read(platform, `kyc_submissions?profile_id=eq.${encoded}&select=*&limit=50`),
+      read(platform, `kyc_submissions?owner_id=eq.${encoded}&select=*&limit=50`),
+    ]);
+    sourceKyc = lookup.flat().filter((row, index, all) => all.findIndex(item => String(item.id || "") === String(row.id || "")) === index) as Record<string, unknown>[];
     const subject = sourceKyc[0];
     const candidate = subject?.user_id || subject?.profile_id || subject?.owner_id || subject?.submitted_by;
     if (candidate) {
@@ -66,6 +75,9 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
       const resolvedProfile = await read(platform, `profiles?id=eq.${encodeURIComponent(resolvedId)}&select=*&limit=1`);
       if (resolvedProfile[0]) profile = resolvedProfile[0];
     }
+    // A KYC submission can be the only profile record available to the HQ.
+    // Keep it as a fallback identity so the gallery still renders all files.
+    if (!profile && subject) profile = { ...subject, id: resolvedId };
   }
   const subjectEncoded = encodeURIComponent(resolvedId);
   const [kyc, wallets, orders, disputes, activity] = await Promise.all([
