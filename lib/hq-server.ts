@@ -90,7 +90,7 @@ export async function requireCorporatePermission(permission:string,platform?:str
 export async function hqRpc(name: string, body: Record<string, unknown> = {}) {
   const serviceKey = hqServiceKey();
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
-  const response = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, { method: "POST", headers: privilegedHeaders(serviceKey), body: JSON.stringify(body), cache: "no-store" });
+  const response = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, { method: "POST", headers: privilegedHeaders(serviceKey), body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(5000) });
   if (!response.ok) throw new Error((await response.text()) || "HQ_RPC_FAILED");
   return response.json();
 }
@@ -102,6 +102,7 @@ export async function stagingRest(path: string, init: RequestInit = {}) {
     ...init,
     headers: { ...privilegedHeaders(serviceKey), Prefer: "return=representation", ...(init.headers || {}) },
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error((await response.text()) || "STAGING_REST_FAILED");
   if (response.status === 204) return null;
@@ -115,6 +116,7 @@ export async function hqRest(path: string, init: RequestInit = {}) {
     ...init,
     headers: { ...privilegedHeaders(serviceKey, { "Accept-Profile": "hq", "Content-Profile": "hq" }), Prefer: "return=representation", ...(init.headers || {}) },
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error((await response.text()) || "HQ_REST_FAILED");
   return response.status === 204 ? null : response.json();

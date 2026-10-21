@@ -1,5 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hqRpc, supabaseUrl } from "@/lib/hq-server";
+import { hqRest, hqRpc, supabaseUrl } from "@/lib/hq-server";
+
+type LoginActor = { employee_id?: string; role?: string; requested_role?: string; status?: string; name?: string; employee_code?: string };
+
+async function lookupActor(authUserId: string | undefined, phone: string): Promise<LoginActor | null> {
+  if (!authUserId) return null;
+  try {
+    const rpc = await hqRpc("hq_actor_context_for_login_v1", { p_auth_user_id: authUserId, p_phone_e164: phone });
+    const actor = (Array.isArray(rpc) ? rpc[0] : rpc) as LoginActor | null;
+    if (actor) return actor;
+  } catch (error) {
+    console.error("HQ_LOGIN_ACTOR_RPC_FAILED", error instanceof Error ? error.message : "unknown");
+  }
+
+  // Keep password login usable if the optional login RPC is unavailable or
+  // slow. PostgREST still applies the service-role boundary and the employee
+  // row must be active/invited and match the authenticated identity/phone.
+  try {
+    const fields = "id,employee_code,display_name,status,role,requested_role,auth_user_id,phone_e164";
+    const byAuth = await hqRest(`employees?auth_user_id=eq.${encodeURIComponent(authUserId)}&status=in.(active,invited)&select=${fields}&limit=1`) as Array<Record<string, unknown>>;
+    const row = byAuth?.[0] || (await hqRest(`employees?phone_e164=eq.${encodeURIComponent(phone)}&status=in.(active,invited)&select=${fields}&limit=1`) as Array<Record<string, unknown>>)?.[0];
+    if (!row) return null;
+    return {
+      employee_id: String(row.id), employee_code: String(row.employee_code || ""),
+      name: String(row.display_name || ""), role: String(row.role || row.requested_role || ""),
+      requested_role: row.requested_role ? String(row.requested_role) : undefined,
+      status: String(row.status || ""),
+    };
+  } catch (error) {
+    console.error("HQ_LOGIN_ACTOR_REST_FALLBACK_FAILED", error instanceof Error ? error.message : "unknown");
+    return null;
+  }
+}
 
 export async function POST(request: NextRequest) {
   const anonKey = process.env.SUPABASE_ANON_KEY;
@@ -10,24 +42,23 @@ export async function POST(request: NextRequest) {
   const normalizedPhone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
   if (!/^\+258\d{9}$/.test(normalizedPhone)) return NextResponse.json({ error: "Introduza um número moçambicano válido." }, { status: 400 });
 
-  const authResponse = await fetch(`${supabaseUrl()}/auth/v1/token?grant_type=password`, {
-    method: "POST", headers: { apikey: anonKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ phone: normalizedPhone, password }), cache: "no-store",
-  });
+  let authResponse: Response;
+  try {
+    authResponse = await fetch(`${supabaseUrl()}/auth/v1/token?grant_type=password`, {
+      method: "POST", headers: { apikey: anonKey, "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: normalizedPhone, password }), cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+    });
+  } catch (error) {
+    console.error("HQ_LOGIN_AUTH_REQUEST_FAILED", error instanceof Error ? error.message : "unknown");
+    return NextResponse.json({ error: "Não foi possível contactar o serviço de autenticação. Tente novamente." }, { status: 503 });
+  }
   const payload = await authResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; user?: { email?: string; user_metadata?: Record<string, unknown> }; error_description?: string; msg?: string };
   if (!authResponse.ok || !payload.access_token || !payload.refresh_token) {
     return NextResponse.json({ error: "Telefone ou palavra-passe inválidos." }, { status: 401 });
   }
   const authUserId = (payload as { user?: { id?: string } }).user?.id;
-  let actor: { status?: string } | null = null;
-  try {
-    actor = authUserId
-      ? await hqRpc("hq_actor_context_for_login_v1", { p_auth_user_id: authUserId, p_phone_e164: normalizedPhone })
-      : null;
-  } catch (error) {
-    console.error("HQ_LOGIN_ACTOR_LOOKUP_FAILED", error instanceof Error ? error.message : "unknown");
-    return NextResponse.json({ error: "Não foi possível validar o acesso corporativo. Contacte a Administração." }, { status: 503 });
-  }
+  let actor: LoginActor | null = await lookupActor(authUserId, normalizedPhone);
   const actorStatus = String(actor?.status || "").toLowerCase();
   // The first-access flow sets the Auth metadata flag to false only after the
   // worker has verified OTP and created a personal password. If the separate
