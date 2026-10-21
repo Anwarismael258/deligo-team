@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { paysuiteRequest } from "../../../../../lib/paysuite";
 
+const PAYSUITE_FEE_RATE = 0.03;
+
 type CreateBody = {
   platform?: string;
   order_id?: string;
@@ -52,7 +54,9 @@ export async function POST(request: NextRequest) {
   const providerId = String(provider.id || provider.payment_id || "");
   if (!checkoutUrl || !providerId) return NextResponse.json({ error: "Resposta PaySuite sem checkout válido." }, { status: 502 });
 
-  const inserted = await fetch(`${url}/rest/v1/payment_transactions`, { method: "POST", headers: { ...jsonHeaders(serviceKey), Prefer: "return=representation" }, body: JSON.stringify({ initiator_user_id: user.id, transaction_type: body?.order_id ? "payment" : "topup", status: "pending", funds_status: "none", amount_minor: Math.round(amount * 100), provider: "paysuite", provider_reference: providerId, external_reference: idempotency, platform_slug: platform, method, metadata: { checkout_url: checkoutUrl, order_id: body?.order_id || null, wallet_id: body?.wallet_id || null, currency, customer_phone: phone } }) });
+  const amountMinor = Math.round(amount * 100);
+  const providerFeeMinor = Math.round(amountMinor * PAYSUITE_FEE_RATE);
+  const inserted = await fetch(`${url}/rest/v1/payment_transactions`, { method: "POST", headers: { ...jsonHeaders(serviceKey), Prefer: "return=representation" }, body: JSON.stringify({ initiator_user_id: user.id, transaction_type: body?.order_id ? "payment" : "topup", status: "pending", funds_status: "none", amount_minor: amountMinor, fee_minor: providerFeeMinor, provider: "paysuite", provider_reference: providerId, external_reference: idempotency, platform_slug: platform, method, metadata: { checkout_url: checkoutUrl, order_id: body?.order_id || null, wallet_id: body?.wallet_id || null, currency, customer_phone: phone, gross_amount_minor: amountMinor, provider_fee_minor: providerFeeMinor, net_amount_minor: amountMinor - providerFeeMinor } }) });
   if (!inserted.ok) return NextResponse.json({ error: "Pagamento criado no provedor, mas não foi guardado na Central." }, { status: 503 });
   const saved = (await inserted.json() as Array<Record<string, unknown>>)[0];
   return NextResponse.json({ payment_id: saved?.id, status: "pending", checkout_url: checkoutUrl, provider_id: providerId });

@@ -33,6 +33,7 @@ async function paymentsRest(path: string, init: RequestInit = {}) {
 
 type Wallet = Record<string, unknown> & { id: string; available_balance_minor: number; metadata: Record<string, unknown> };
 type PreparedPayout = { payout: Record<string, unknown>; wallet: Wallet; amountMinor: number; netMinor: number; reference: string; reserved: boolean };
+const PAYSUITE_FEE_RATE = 0.03;
 
 function isPaySuiteWallet(wallet: Record<string, unknown>) {
   const metadata = (wallet.metadata && typeof wallet.metadata === "object" ? wallet.metadata : {}) as Record<string, unknown>;
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
 
     try {
       for (const allocation of allocations) {
-        const feeMinor = Math.round(allocation.amountMinor * 0.03);
+        const feeMinor = Math.round(allocation.amountMinor * PAYSUITE_FEE_RATE);
         const netMinor = allocation.amountMinor - feeMinor;
         if (netMinor <= 0) throw new Error("O valor líquido após a taxa PaySuite deve ser positivo.");
         const idempotencyKey = `employee-payout-${actor.authUserId}-${crypto.randomUUID()}`;
