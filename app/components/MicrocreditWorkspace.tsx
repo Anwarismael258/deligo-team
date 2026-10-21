@@ -2,7 +2,6 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-const pageSize = 40;
 const statuses = [["pendente", "Pendente"], ["em_analise", "Em análise"], ["aprovado", "Aprovado"], ["recusado", "Recusado"], ["desembolsado", "Desembolsado"], ["pago", "Pago"], ["cancelado", "Cancelado"]];
 const intakeActions: Record<string, string[]> = { pendente: ["em_analise", "recusado", "cancelado"], em_analise: ["recusado", "cancelado"] };
 const money = (v: unknown) => `${Number(v || 0).toLocaleString("pt-MZ", { maximumFractionDigits: 2 })} MT`;

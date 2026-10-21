@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   const status = request.nextUrl.searchParams.get("status");
   const page = Math.max(0, Number.parseInt(request.nextUrl.searchParams.get("page") || "0", 10) || 0);
   const search = (request.nextUrl.searchParams.get("q") || "").replace(/[^\p{L}\p{N} +\-]/gu, "").trim().slice(0, 120);
-  const query = new URLSearchParams({ select: columns, order: "created_at.desc,id", limit: String(pageSize), offset: String(page * pageSize) });
+  const query = new URLSearchParams({ select: columns, order: "created_at.desc,id.asc", limit: String(pageSize), offset: String(page * pageSize) });
   if (status && status !== "todos") query.set("status", `eq.${status}`);
   if (search) query.set("or", `(full_name.ilike.*${search}*,reference.ilike.*${search}*,phone.ilike.*${search}*,bi_number.ilike.*${search}*,nuit.ilike.*${search}*)`);
   try {
