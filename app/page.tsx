@@ -34,6 +34,8 @@ const nav = [
   ["▣", "Triunfal Microcrédito"],
   ["✉", "Caixa de Entrada"],
   ["↗", "Marketing"],
+  ["▦", "Site Institucional"],
+  ["▣", "Vagas"],
   ["⌖", "Operações de Campo"],
   ["◌", "Apoio ao Cliente"],
   ["▤", "Relatórios"],
@@ -42,7 +44,7 @@ const nav = [
 ];
 const navGroups: Array<[string,string[]]> = [
   ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças","Triunfal Microcrédito","Caixa de Entrada"]],
-  ["OPERAÇÕES", ["Marketing","Operações de Campo","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
+  ["OPERAÇÕES", ["Marketing","Site Institucional","Vagas","Operações de Campo","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
 
 const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : label;
@@ -52,7 +54,7 @@ const moduleIcons: Record<string, LucideIcon> = {
   "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Triunfal Microcrédito": WalletCards, "Caixa de Entrada": Mail, "Contabilidade": Coins,
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
   "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Operações de Campo": Route,
-  "Apoio ao Cliente": Headphones, "Avaliações & Reputação": Star, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
+  "Apoio ao Cliente": Headphones, "Site Institucional": Megaphone, "Vagas": ClipboardCheck, "Avaliações & Reputação": Star, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
   "Projectos e Tarefas": ClipboardCheck, "Apoio Interno": CircleHelp, "Centro de Notificações": Bell, "Minhas Tarefas": ListTodo, "Aprovações": CheckCircle2,
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
 };
@@ -81,6 +83,8 @@ const moduleDetails: Record<string, string[]> = {
   "Compras": ["Pedidos de compra", "Aprovações", "Fornecedores", "Facturas", "Pagamentos"],
   "Património": ["Equipamentos", "Atribuições", "Manutenção", "Devoluções", "Inventário"],
   "Marketing": ["Campanhas", "Conteúdos", "Promoções", "Leads", "Análises"],
+  "Site Institucional": ["Notícias", "Revisão", "Publicações", "Media"],
+  "Vagas": ["Rascunhos", "Publicadas", "Candidaturas", "Prazos"],
   "Operações de Campo": ["Tarefas", "Visitas", "Verificações", "Localização", "Relatórios"],
   "Apoio ao Cliente": ["Tickets", "Chat", "Reclamações", "Incidentes", "Histórico"],
   "Avaliações & Reputação": ["Visão Geral", "Avaliações", "Denúncias", "Restaurantes", "Pratos", "Entregas", "Alertas", "Relatórios"],
@@ -112,6 +116,8 @@ const modulePresentation: Record<string, { description: string; action: string; 
   "Compras": { description: "Executa o ciclo controlado do pedido de compra até à factura e pagamento.", action: "Novo pedido", primary: "Pedidos de compra", secondary: "Aprovações pendentes", visual: "Ciclo de aquisição", status: "Fluxo de compras", color: "#b77931" },
   "Património": { description: "Controla equipamentos, veículos, cartões SIM, atribuições e devoluções.", action: "Registar activo", primary: "Activos", secondary: "Devoluções pendentes", visual: "Estado do património", status: "Inventário corporativo", color: "#667085" },
   "Marketing": { description: "Planeia campanhas, conteúdos, promoções, leads e desempenho de comunicação.", action: "Nova campanha", primary: "Campanhas", secondary: "Conteúdos pendentes", visual: "Desempenho de campanhas", status: "Canais de marketing", color: "#d14f6f" },
+  "Site Institucional": { description: "Cria e publica notícias institucionais com revisão, aprovação e auditoria.", action: "Nova notícia", primary: "Notícias", secondary: "Em revisão", visual: "Publicações institucionais", status: "CMS controlado", color: "#b64f77" },
+  "Vagas": { description: "Gere oportunidades de emprego e publica apenas vagas aprovadas no site institucional.", action: "Nova vaga", primary: "Vagas", secondary: "Candidaturas", visual: "Recrutamento institucional", status: "Carreiras", color: "#466bba" },
   "Operações de Campo": { description: "Coordena equipas no terreno, visitas, verificações e relatórios operacionais.", action: "Nova missão", primary: "Missões operacionais", secondary: "Visitas pendentes", visual: "Execução no terreno", status: "Operações de Campo", color: "#2b8a7b" },
   "Apoio ao Cliente": { description: "Centraliza tickets, reclamações, conversas e histórico de atendimento.", action: "Novo ticket", primary: "Tickets", secondary: "Por responder", visual: "Qualidade do atendimento", status: "Canais de suporte", color: "#4b7bec" },
   "Avaliações & Reputação": { description: "Supervisiona a qualidade de restaurantes, pratos e entregas em todas as plataformas.", action: "Rever avaliações", primary: "Avaliações", secondary: "Denúncias pendentes", visual: "Reputação do ecossistema", status: "Qualidade e moderação", color: "#d18b22" },
@@ -146,6 +152,8 @@ const routeByModule: Record<string, string> = {
   "Compras": "/compras",
   "Património": "/patrimonio",
   "Marketing": "/marketing",
+  "Site Institucional": "/marketing/conteudos",
+  "Vagas": "/marketing/vagas",
   "Operações de Campo": "/field",
   "Apoio ao Cliente": "/apoio-cliente",
   "Avaliações & Reputação": "/operacoes/avaliacoes-reputacao",
@@ -194,7 +202,7 @@ const personas = {
     initials: "IT",
     modules: ["Visão geral", "Plataformas", "Tecnologia / IT", "Património", "Projectos e Tarefas", "Apoio Interno", "Relatórios", "Registo de Auditoria"],
   },
-  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Plataformas", "Marketing", "Projectos e Tarefas"] },
+  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Plataformas", "Marketing", "Site Institucional", "Vagas", "Projectos e Tarefas"] },
   field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Plataformas", "Operações de Campo", "Projectos e Tarefas"] },
   support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Plataformas", "Apoio ao Cliente", "Projectos e Tarefas"] },
   hr: { name: "Recursos Humanos", role: "Recursos Humanos", initials: "RH", modules: ["Visão geral", "Pessoas", "Recursos Humanos", "Projectos e Tarefas", "Relatórios"] },
@@ -757,7 +765,7 @@ if(active==="Operações de Campo")void refreshField();
     } catch { setHomologationNotice("Não foi possível contactar a homologação. Tente novamente."); }
   };
   const navigate = (label: string) => {
-    if (label === "Avaliações & Reputação") {
+    if (["Avaliações & Reputação", "Site Institucional", "Vagas"].includes(label)) {
       window.location.assign(routeByModule[label]);
       return;
     }
