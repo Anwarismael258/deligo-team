@@ -1,14 +1,14 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deligoTriunfalGovernance } from "@/lib/governance";
-import { corporateActor, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   const accessToken = (await cookies()).get("hq_access_token")?.value;
   if (!accessToken) return NextResponse.json({ error: "Sessão corporativa necessária." }, { status: 401 });
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = hqServiceKey();
   if (!serviceKey) {
     return NextResponse.json({ error: "A integração corporativa não está configurada neste ambiente." }, { status: 503 });
   }
@@ -16,11 +16,16 @@ export async function GET() {
   try {
     const actor = await corporateActor();
     if (!actor) return NextResponse.json({ error: "Sessão inválida, suspensa ou expirada." }, { status: 401 });
-    const rpcHeaders = {
-        apikey: serviceKey,
-        Authorization: `Bearer ${serviceKey}`,
-        "Content-Type": "application/json",
-      };
+    const rpcHeaders: Record<string, string> = {
+      apikey: serviceKey,
+      "Content-Type": "application/json",
+    };
+    // Supabase secret keys authenticate through `apikey`; they must not be
+    // echoed as a JWT in Authorization. Legacy service-role JWTs still need
+    // the bearer header for older projects.
+    if (!serviceKey.startsWith("sb_secret_")) {
+      rpcHeaders.Authorization = `Bearer ${serviceKey}`;
+    }
     const authorizationResponse = fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_authorization_v1`, { method: "POST", headers: rpcHeaders, body: JSON.stringify({ p_employee_id: (actor as { employee_id: string }).employee_id }), cache: "no-store", signal: AbortSignal.timeout(12_000) });
     const [dashboardResponse, modulesResponse, mestre24Response, platformStatusResponse, authorization] = await Promise.all([
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_dashboard_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
@@ -35,8 +40,11 @@ export async function GET() {
     }
     const canViewDeligoFinance = ["SUPER_ADMIN", "FINANCE", "FINANCE_DIRECTOR"].includes(actor.role) && (["SUPER_ADMIN","FINANCE"].includes(actor.role) || Boolean(authorization?.is_super_admin) || (Array.isArray(authorization?.permissions) && authorization.permissions.includes("finance.view") && Array.isArray(authorization?.platform_slugs) && authorization.platform_slugs.includes("deligo")));
     const deligoFinanceResponse = canViewDeligoFinance ? fetch(`${supabaseUrl()}/rest/v1/rpc/hq_deligo_finance_summary_v1`, { method: "POST", headers: rpcHeaders, body: JSON.stringify({ p_actor_auth_user_id: actor.authUserId, p_from: null, p_to: null }), cache: "no-store", signal: AbortSignal.timeout(12_000) }) : null;
-    const anonKey = process.env.SUPABASE_ANON_KEY;
-    const canonicalFinanceResponse = canViewDeligoFinance && anonKey ? fetch(`${supabaseUrl()}/rest/v1/rpc/admin_canonical_finance_summary_v1`, { method: "POST", headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }) : null;
+    // The canonical finance function intentionally remains admin-only at the
+    // database boundary. This route has already checked the actor's Central
+    // role, so Finance can read the same confirmed total through the private
+    // server-side service channel without weakening the public RLS boundary.
+    const canonicalFinanceResponse = canViewDeligoFinance ? fetch(`${supabaseUrl()}/rest/v1/rpc/admin_canonical_finance_summary_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }) : null;
     const executiveResponse = ["SUPER_ADMIN","FINANCE"].includes(actor.role) ? await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_executive_governance_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store" }) : null;
     const [dashboard, modules, mestre24, executive, platformStatuses, financeResponses, activeOrders, pendingKyc, openSupport, eventTickets, accountControls, openIncidents] = await Promise.all([
       dashboardResponse.json(), modulesResponse.json(), mestre24Response.json(), executiveResponse?.ok ? executiveResponse.json() : Promise.resolve(null),
