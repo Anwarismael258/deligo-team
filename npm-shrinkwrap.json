@@ -13,6 +13,7 @@
         "leaflet": "^1.9.4",
         "lucide-react": "^1.28.0",
         "next": "16.2.6",
+        "nodemailer": "^7.0.6",
         "react": "19.2.6",
         "react-dom": "19.2.6"
       },
@@ -20,6 +21,7 @@
         "@cloudflare/vite-plugin": "1.37.1",
         "@tailwindcss/postcss": "4.2.1",
         "@types/node": "22.19.19",
+        "@types/nodemailer": "^6.4.16",
         "@types/react": "19.2.14",
         "@types/react-dom": "19.2.3",
         "@vitejs/plugin-react": "6.0.2",
@@ -3149,6 +3151,16 @@
         "undici-types": "~6.21.0"
       }
     },
+    "node_modules/@types/nodemailer": {
+      "version": "6.4.16",
+      "resolved": "https://registry.npmjs.org/@types/nodemailer/-/nodemailer-6.4.16.tgz",
+      "integrity": "sha512-uz6hN6Pp0upXMcilM61CoKyjT7sskBoOWpptkjjJp8jIMlTdc3xG01U7proKkXzruMS4hS0zqtHNkNPFB20rKQ==",
+      "dev": true,
+      "license": "MIT",
+      "dependencies": {
+        "@types/node": "*"
+      }
+    },
     "node_modules/@types/react": {
       "version": "19.2.14",
       "resolved": "https://registry.npmjs.org/@types/react/-/react-19.2.14.tgz",
@@ -4669,7 +4681,6 @@
       "integrity": "sha512-NsUOpDZosz7nyI+qEIl05yaiXOWaXH2oTeM+XBWtiSWZtb5rzcIsl1AST/HzM2jzUn76eFuyrkn83E6iSBRUvw==",
       "dev": true,
       "license": "MIT",
-      "peer": true,
       "peerDependencies": {
         "srvx": ">=0.11.5"
       },
@@ -8553,6 +8564,15 @@
       "integrity": "sha512-5WUyunoPMsvvEhS8AxHtRzP+oA8UCkJ7YRxatWKjngndhDGLiqEVAQKWjFAiAiuL8zMRGzGSJxFnLetoa43qGQ==",
       "dev": true,
       "license": "MIT"
+    },
+    "node_modules/nodemailer": {
+      "version": "7.0.6",
+      "resolved": "https://registry.npmjs.org/nodemailer/-/nodemailer-7.0.6.tgz",
+      "integrity": "sha512-F44uVzgwo49xboqbFgBGkRaiMgtoBrBEWCVincJPK9+S9Adkzt/wXCLKbf7dxucmxfTI5gHGB+bEmdyzN6QKjw==",
+      "license": "MIT-0",
+      "engines": {
+        "node": ">=6.0.0"
+      }
     },
     "node_modules/object-assign": {
       "version": "4.1.1",
