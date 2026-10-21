@@ -13,6 +13,7 @@ async function rest(key:string,path:string,init:RequestInit={}){const response=a
 async function coreRest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...coreHeaders(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
 async function history(key:string,campaignId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"marketing_history",{method:"POST",body:JSON.stringify({campaign_id:campaignId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
 function canAccessPlatform(c:{authorization:{isSuperAdmin:boolean;platformIds:string[]}},platformId:unknown){return c.authorization.isSuperAdmin||c.authorization.platformIds.includes(String(platformId||""))}
+// Publication remains governed in HQ; this queue is the hand-off consumed by connected apps.
 async function enqueueGlobalBroadcast(c:NonNullable<Awaited<ReturnType<typeof context>>>,campaign:Record<string,unknown>){
   const existing=await coreRest(c.key,`marketing_campaigns?metadata->>hq_campaign_id=eq.${encodeURIComponent(String(campaign.id))}&select=id&limit=1`).catch(()=>[]);
   if(Array.isArray(existing)&&existing[0]?.id){
