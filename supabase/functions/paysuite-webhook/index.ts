@@ -28,6 +28,12 @@ async function validSignature(raw: string, supplied: string, secret: string) {
 function eventData(payload: Record<string, unknown>) {
   return payload.data && typeof payload.data === "object" ? payload.data as Record<string, unknown> : payload;
 }
+function paysuiteProviderFee(data: Record<string, unknown>, grossAmount: number) {
+  const explicit = [data.provider_fee, data.providerFee, data.fee, data.taxa, data.transaction_fee, data.transactionFee]
+    .map(value => Number(value))
+    .find(value => Number.isFinite(value) && value >= 0 && value <= grossAmount);
+  return Number((explicit ?? grossAmount * 0.03).toFixed(2));
+}
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS" || req.method === "GET" || req.method === "HEAD") return new Response("OK", { status: 200 });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
@@ -78,22 +84,24 @@ Deno.serve(async (req) => {
           })
           .eq("user_id", cycle.professional_user_id);
         if (profileError) throw profileError;
-        // Mestre24 subscriptions are corporate revenue in full: there is no
-        // partner split for the subscription fee. Upsert the canonical HQ
-        // event so the corporate-revenue trigger credits CORPORATE_MZN. The
-        // source_record_id makes retries idempotent.
+        // Mestre24 subscriptions are corporate revenue before the PaySuite
+        // provider fee. The Central wallet receives the net amount, while
+        // gross_amount and provider_fee remain available for reconciliation.
+        const grossAmount = Number(cycle.amount || 0);
+        const providerFee = paysuiteProviderFee(data, grossAmount);
+        const netCorporateAmount = Number(Math.max(grossAmount - providerFee, 0).toFixed(2));
         const { error: financeError } = await admin.rpc("hq_ingest_platform_financial_event_v1", {
           p_platform_slug: "mestre24",
           p_source_app: "mestre24.subscriptions",
           p_transaction_type: "professional_subscription",
-          p_gross_amount: Number(cycle.amount || 0),
+          p_gross_amount: grossAmount,
           p_payment_status: "confirmed",
           p_source_record_id: `mestre24:subscription:${cycle.id}`,
           p_entity_type: "subscription_cycle",
           p_entity_id: cycle.id,
           p_user_id: cycle.professional_user_id,
-          p_platform_fee: Number(cycle.amount || 0),
-          p_provider_fee: 0,
+          p_platform_fee: netCorporateAmount,
+          p_provider_fee: providerFee,
           p_partner_amount: 0,
           p_currency: "MZN",
           p_payment_method: String(cycle.provider || "mpesa"),
@@ -102,6 +110,10 @@ Deno.serve(async (req) => {
             provider: cycle.provider,
             provider_reference: reference,
             payment_event: event,
+            gross_amount: grossAmount,
+            provider_fee: providerFee,
+            net_corporate_amount: netCorporateAmount,
+            accounting_basis: "gross_less_paysuite_fee",
           },
           p_occurred_at: startsAt,
         });
