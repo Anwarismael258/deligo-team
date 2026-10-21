@@ -17,6 +17,17 @@ function privilegedHeaders(serviceKey: string, extra: Record<string, string> = {
   return headers;
 }
 
+function actorContext(value: unknown): Record<string, unknown> | null {
+  let candidate = Array.isArray(value) ? value[0] : value;
+  if (typeof candidate === "string") {
+    try { candidate = JSON.parse(candidate) as unknown; } catch { return null; }
+  }
+  if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) return null;
+  const record = candidate as Record<string, unknown>;
+  const status = typeof record.status === "string" ? record.status.toLowerCase() : "";
+  return status ? { ...record, status } : null;
+}
+
 export async function corporateActor() {
   const anonKey = process.env.SUPABASE_ANON_KEY;
   const serviceKey = hqServiceKey();
@@ -27,7 +38,7 @@ export async function corporateActor() {
   const user = await identity.json() as { id: string; phone?: string | null };
   let context: Record<string, unknown> | null = null;
   try {
-    context = await hqRpc("hq_actor_context_v1", { p_auth_user_id: user.id }) as Record<string, unknown> | null;
+    context = actorContext(await hqRpc("hq_actor_context_v1", { p_auth_user_id: user.id }));
   } catch {
     context = null;
   }
@@ -36,7 +47,7 @@ export async function corporateActor() {
   // which covers older employee rows whose auth_user_id was not backfilled.
   if (!context && user.phone) {
     try {
-      context = await hqRpc("hq_actor_context_for_login_v1", { p_auth_user_id: user.id, p_phone_e164: user.phone }) as Record<string, unknown> | null;
+      context = actorContext(await hqRpc("hq_actor_context_for_login_v1", { p_auth_user_id: user.id, p_phone_e164: user.phone }));
     } catch {
       context = null;
     }
