@@ -62,9 +62,38 @@ export async function GET() {
     const corporateRevenue = canViewDeligoFinance
       ? await fetch(`${supabaseUrl()}/rest/v1/rpc/corporate_revenue_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
       : null;
-    const financialBreakdown = canViewDeligoFinance
-      ? await fetch(`${supabaseUrl()}/rest/v1/rpc/financial_platform_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
-      : null;
+    const financialBreakdown = canViewDeligoFinance ? await (async () => {
+      const rpc = await fetch(`${supabaseUrl()}/rest/v1/rpc/financial_platform_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null);
+      if (rpc) return rpc;
+      const profileRest = (schema: string, path: string) => fetch(`${supabaseUrl()}/rest/v1/${path}`, { headers: { ...rpcHeaders, "Accept-Profile": schema, "Content-Profile": schema }, cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : []).catch(() => []);
+      const [platformRows, appRows, eventRows, walletRows] = await Promise.all([
+        profileRest("hq", "platforms?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
+        profileRest("core", "apps?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
+        profileRest("hq", "platform_financial_events?select=platform_id,gross_amount,platform_fee,provider_fee,currency,payment_status&currency=eq.MZN&payment_status=eq.confirmed&limit=10000"),
+        profileRest("payments", "wallet_accounts?select=app_id,owner_user_id,account_type,available_balance_minor,pending_balance_minor,currency_code,status&currency_code=eq.MZN&status=in.(active,suspended)&limit=10000"),
+      ]) as [Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>];
+      const appsBySlug = new Map(appRows.map(row => [String(row.slug), row]));
+      const platformById = new Map(platformRows.map(row => [String(row.id), row]));
+      const excluded = new Set(["platform", "system", "escrow"]);
+      const platforms = ["deligo", "mestre24", "sarca", "comunhao", "taomoz"].map(slug => {
+        const app = appsBySlug.get(slug);
+        const platform = [...platformById.values()].find(row => String(row.slug) === slug);
+        const platformId = String(platform?.id || "");
+        const events = eventRows.filter(row => String(row.platform_id || "") === platformId);
+        const wallets = walletRows.filter(row => String(row.app_id || "") === String(app?.id || "") && !excluded.has(String(row.account_type)));
+        const sum = (rows: Array<Record<string, unknown>>, key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
+        const walletAvailable = sum(wallets, "available_balance_minor") / 100;
+        const walletPending = sum(wallets, "pending_balance_minor") / 100;
+        return { slug, name: String(platform?.name || app?.name || slug), gross_confirmed: sum(events, "gross_amount"), central_revenue_confirmed: sum(events, "platform_fee"), provider_fees_confirmed: sum(events, "provider_fee"), wallet_available: walletAvailable, wallet_pending: walletPending, funds_total: walletAvailable + walletPending };
+      });
+      const globalWallets = walletRows.filter(row => !row.app_id && row.owner_user_id && !excluded.has(String(row.account_type)));
+      const sum = (rows: Array<Record<string, unknown>>, key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0) / 100;
+      const platformWalletAvailable = platforms.reduce((total, row) => total + row.wallet_available, 0);
+      const platformWalletPending = platforms.reduce((total, row) => total + row.wallet_pending, 0);
+      const corporateWallet = Number((corporateRevenue as Record<string, unknown> | null)?.corporate_wallet_available || 0);
+      const centralRevenue = platforms.reduce((total, row) => total + row.central_revenue_confirmed, 0);
+      return { currency: "MZN", source: "hq.platform_financial_events + payments.wallet_accounts + hq.logical_wallets", platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), user_wallets_available: platformWalletAvailable + sum(globalWallets, "available_balance_minor"), user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), total_funds_controlled_available: corporateWallet + platformWalletAvailable + sum(globalWallets, "available_balance_minor"), total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), legacy_revenue_included: false };
+    })() : null;
     // The DeliGo app keeps the canonical user wallets in public.wallets.
     // Keep this separate from corporate profit: this is an informational total
     // for user wallets, never the corporate wallet or corporate revenue.
