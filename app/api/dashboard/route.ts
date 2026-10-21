@@ -60,8 +60,8 @@ export async function GET() {
       ? await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_corporate_revenue_summary_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
       : null;
     // The DeliGo app keeps the canonical user wallets in public.wallets.
-    // Keep this separate from corporate profit: the overview card is a wallet
-    // indicator, while the Finance screen shows corporate profit.
+    // Keep this separate from corporate profit: this is an informational total
+    // for user wallets, never the corporate wallet or corporate revenue.
     const deligoWalletRows = canViewDeligoFinance
       ? await stagingRest("wallets?select=balance,currency&currency=eq.MZN&limit=10000").catch(() => null)
       : null;
@@ -70,8 +70,8 @@ export async function GET() {
       : null;
     const financeSummary = canonicalFinance || legacyDeligoFinance;
     const summaryWithWallet = financeSummary
-      ? { ...financeSummary, ...(deligoWalletTotal == null ? {} : { corporate_wallet_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) }
-      : (deligoWalletTotal == null && !corporateRevenue ? null : { ...(deligoWalletTotal == null ? {} : { corporate_wallet_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) });
+      ? { ...financeSummary, ...(deligoWalletTotal == null ? {} : { user_wallets_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) }
+      : (deligoWalletTotal == null && !corporateRevenue ? null : { ...(deligoWalletTotal == null ? {} : { user_wallets_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) });
     const deligoFinance = summaryWithWallet
       ? { summary: summaryWithWallet, legacy: legacyDeligoFinance }
       : null;
