@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { corporateActor, supabaseUrl } from "@/lib/hq-server";
 
-const allowed = new Set(["SUPER_ADMIN", "EXECUTIVE", "OPERATIONS", "TECHNOLOGY", "CUSTOMER_SUPPORT", "COMPLIANCE", "SUPERVISOR"]);
+const allowed = new Set(["SUPER_ADMIN", "FINANCE", "EXECUTIVE", "OPERATIONS", "TECHNOLOGY", "CUSTOMER_SUPPORT", "COMPLIANCE", "SUPERVISOR"]);
 const headers = (key: string) => ({ apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": "hq", "Content-Type": "application/json" });
 
 async function rest(key: string, path: string) {

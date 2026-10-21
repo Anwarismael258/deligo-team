@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
   if (!authResponse.ok) return NextResponse.json({ error: "O número já existe ou não pôde ser criado." }, { status: 409 });
   const authUser = await authResponse.json() as { id: string };
   try {
-    const employee = await hqRpc("hq_create_employee_v1", { p_actor_auth_user_id: actor.authUserId, p_auth_user_id: authUser.id, p_display_name: input.name, p_phone_e164: phone, p_job_title: input.jobTitle, p_department_code: input.department, p_requested_role_code: input.role, p_activate: actor.role === "SUPER_ADMIN" && Boolean(input.activate) });
+    const employee = await hqRpc("hq_create_employee_v1", { p_actor_auth_user_id: actor.authUserId, p_auth_user_id: authUser.id, p_display_name: input.name, p_phone_e164: phone, p_job_title: input.jobTitle, p_department_code: input.department, p_requested_role_code: input.role, p_activate: ["SUPER_ADMIN", "FINANCE"].includes(actor.role) && Boolean(input.activate) });
     return NextResponse.json({ employee }, { status: 201 });
   } catch (error) {
     await fetch(`${supabaseUrl()}/auth/v1/admin/users/${authUser.id}`, { method: "DELETE", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } });

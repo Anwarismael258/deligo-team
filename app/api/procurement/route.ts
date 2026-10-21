@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRpc, supabaseUrl } from "@/lib/hq-server";
 const entity="10000000-0000-0000-0000-000000000001";
-const readRoles=new Set(["SUPER_ADMIN","PROCUREMENT","FINANCE","ACCOUNTING"]),writeRoles=new Set(["SUPER_ADMIN","PROCUREMENT"]);
+const readRoles=new Set(["SUPER_ADMIN","PROCUREMENT","FINANCE","ACCOUNTING"]),writeRoles=new Set(["SUPER_ADMIN","FINANCE","PROCUREMENT"]);
 const resources=["suppliers","purchase_requests","purchase_request_items","supplier_quotes","purchase_orders","goods_receipts","procurement_invoices","procurement_history","budgets","departments","approval_requests"];
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 async function ctx(){const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;return actor&&key&&readRoles.has(actor.role)?{actor,key}:null}

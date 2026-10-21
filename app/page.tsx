@@ -454,7 +454,8 @@ export function HQApp() {
   const [homologationResult, setHomologationResult] = useState<Array<{ code?: string; created?: boolean }>>([]);
   const personaBase=personas[persona];
   const currentPersona={...personaBase,name:sessionUser?.name||personaBase.name,role:sessionUser?.job_title||personaBase.role,initials:(sessionUser?.name||personaBase.name).split(/\s+/).slice(0,2).map(part=>part[0]).join("").toUpperCase()};
-  const canCreateEmployee = ["SUPER_ADMIN", "SUPERVISOR", "FINANCE"].includes(sessionRole);
+  const isFullAdmin = Boolean(sessionUser?.is_super_admin || sessionUser?.hq_role === "FINANCE" || sessionRole === "FINANCE");
+  const canCreateEmployee = isFullAdmin || sessionRole === "SUPERVISOR";
   const isAccountScreen = active==="Meu Perfil";
   const activePresentation = modulePresentation[active];
   const hasPermission=(code:string)=>Boolean(sessionUser?.is_super_admin||sessionUser?.permissions?.includes(code));
@@ -490,7 +491,10 @@ export function HQApp() {
       if (!response.ok) { window.location.replace("/login"); return; }
       const session = await response.json() as { user?: SessionUser };
       const sessionPersona = session.user?.hq_role && personaByRole[session.user.hq_role as keyof typeof personaByRole];
-      setSessionRole(session.user?.hq_role || "");
+      // FINANCE has the same effective Central capabilities as SUPER_ADMIN.
+      // Keep the real role in sessionUser.hq_role for server/API decisions,
+      // while the legacy UI gates use this effective role for presentation.
+      setSessionRole(session.user?.is_super_admin || session.user?.hq_role === "FINANCE" ? "SUPER_ADMIN" : session.user?.hq_role || "");
       setSessionUser(session.user||null);
       if (sessionPersona) setPersona(sessionPersona);
     }).catch(() => window.location.replace("/login"));
@@ -545,14 +549,14 @@ export function HQApp() {
   }, [active, sessionUser?.id]);
 
   useEffect(() => {
-    if (!sessionRole || sessionRole === "SUPER_ADMIN") return;
+    if (!sessionRole || isFullAdmin) return;
     const universallyAllowed = ["Meu Perfil", "DefiniÃ§ões", "SeguranÃ§a"];
     if (!visibleNav.some(([,label])=>label===active) && !universallyAllowed.includes(active)) {
       setActive("VisÃ£o geral");
       setSubArea("");
       window.history.replaceState({}, "", "/");
     }
-  }, [active, sessionRole, sessionUser]);
+  }, [active, sessionRole, sessionUser, isFullAdmin]);
 
   useEffect(() => {
     if (!["Pessoas","Recursos Humanos"].includes(active)) return;
@@ -1036,7 +1040,7 @@ if(active==="Operações de Campo")void refreshField();
                 <label><span>Nome completo</span><input name="name" required /></label><label><span>Telefone</span><input name="phone" placeholder="84 999 0020" required /></label><label><span>Cargo</span><input name="jobTitle" required /></label>
                 <label><span>Departamento</span><select name="department" required>{[["ACCOUNTING","Contabilidade"],["HR","Recursos Humanos"],["LEGAL","Jurídico"],["OPERATIONS","Operações"],["MARKETING","Marketing"],["FIELD","Field"],["SUPPORT","Suporte"],["ACQUISITION","Aquisição"],["AMBASSADORS","Embaixadores"],["PROCUREMENT","Compras"],["ASSETS","Património"]].map(([v,l])=><option value={v} key={v}>{l}</option>)}</select></label>
                 <label><span>Role único</span><select name="role" required>{["ACCOUNTING","HUMAN_RESOURCES","LEGAL","OPERATIONS","CUSTOMER_SUPPORT","MARKETING","FIELD","PARTNER_ACQUISITION","AMBASSADOR","PROCUREMENT","ASSETS_LOGISTICS"].map(role=><option key={role}>{role}</option>)}</select></label>
-                {sessionRole==="SUPER_ADMIN"&&<label className="activateCheck"><input name="activate" type="checkbox"/><span>Activar imediatamente</span></label>}<button className="primaryAction" type="submit">Guardar cadastro</button>
+                {isFullAdmin&&<label className="activateCheck"><input name="activate" type="checkbox"/><span>Activar imediatamente</span></label>}<button className="primaryAction" type="submit">Guardar cadastro</button>
               </form>}
               {editingEmployee && <form className="employeeForm" onSubmit={updateEmployee}>
                 <label><span>Nome completo</span><input name="name" defaultValue={editingEmployee.name} required /></label><label><span>Número registado</span><input value={editingEmployee.phone} readOnly aria-readonly="true" /></label><label><span>Cargo</span><input name="jobTitle" defaultValue={editingEmployee.job_title} required /></label>
@@ -1056,7 +1060,7 @@ if(active==="Operações de Campo")void refreshField();
               <label><span>Cargo</span><select name="jobTitle" required><option value="Diretora Financeira">Diretora Financeira</option><option value="Agente de Marketing">Agente de Marketing</option><option value="Agente de Operações de Campo">Agente de Operações de Campo</option><option value="Agente de Apoio ao Cliente">Agente de Apoio ao Cliente</option><option value="Supervisor">Supervisor</option></select></label>
               <label><span>Departamento</span><select name="department" required><option value="FINANCE">Finanças</option><option value="MARKETING">Marketing</option><option value="FIELD">Operações de Campo</option><option value="SUPPORT">Apoio ao Cliente</option><option value="OPERATIONS">Operações</option></select></label>
               <label><span>Função de acesso</span><select name="role" required><option value="FINANCE">Finance</option><option value="MARKETING">Marketing</option><option value="FIELD">Operações de Campo</option><option value="CUSTOMER_SUPPORT">Apoio ao Cliente</option><option value="SUPERVISOR">Supervisor</option></select></label>
-              {sessionRole==="SUPER_ADMIN"&&<label className="activateCheck"><input name="activate" type="checkbox"/><span>Activar imediatamente</span></label>}
+              {isFullAdmin&&<label className="activateCheck"><input name="activate" type="checkbox"/><span>Activar imediatamente</span></label>}
               <button className="primaryAction" type="submit">Guardar trabalhador</button>
             </form>}
             {employeeNotice&&<div className="safeNotice"><b>Estado</b><span>{employeeNotice}</span></div>}<div className="peopleSearchBar"><input value={employeeSearch} onChange={event=>setEmployeeSearch(event.target.value)} placeholder="Pesquisar por nome, código interno ou função"/><select value={employeeDepartmentFilter} onChange={event=>setEmployeeDepartmentFilter(event.target.value)} aria-label="Filtrar por departamento"><option value="all">Todos os departamentos</option>{employeeDepartments.map(department=><option value={department} key={department}>{department}</option>)}</select><select value={employeeStatusFilter} onChange={event=>setEmployeeStatusFilter(event.target.value)} aria-label="Filtrar por estado"><option value="all">Todos os estados</option><option value="active">Activos</option><option value="invited">Convidados</option><option value="suspended">Suspensos</option><option value="offboarded">Arquivados</option></select><b>{shownEmployees.length} resultados</b></div><div className="peopleInspectorGrid">{shownEmployees.map(employee=><button key={employee.id} onClick={()=>setSelectedEmployee(employee)}><strong>{employee.name}</strong><span>{employee.employee_code} · {employee.department}</span><small>{employee.job_title} · {employee.role||employee.requested_role||"Pendente"} · {employee.status}</small></button>)}</div>{selectedEmployee&&<div className="employeeDetail"><div className="employeeDetailHead"><div><span>PERFIL PROFISSIONAL</span><h3>{selectedEmployee.name}</h3><p>{selectedEmployee.employee_code} · {selectedEmployee.job_title} · {selectedEmployee.department}</p></div><button onClick={()=>setSelectedEmployee(null)}>Fechar</button></div><div className="employeeDetailGrid"><article><span>Estado</span><strong>{selectedEmployee.status}</strong></article><article><span>Função</span><strong>{selectedEmployee.role||selectedEmployee.requested_role||"Pendente"}</strong></article><article><span>Último acesso</span><strong>{selectedEmployee.last_login_at?new Date(selectedEmployee.last_login_at).toLocaleString("pt-MZ"):"Sem acesso"}</strong></article><article><span>Permissões específicas</span><strong>{employeePermissions.filter(item=>item.employee_id===selectedEmployee.id).length}</strong></article></div><div className="employeeTimeline"><h4>Histórico e acessos</h4>{employeeHistory.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.action.replaceAll("_"," ")}</b><span>{new Date(item.created_at).toLocaleString("pt-MZ")}</span></p>)}{employeeAccess.filter(item=>item.employee_id===selectedEmployee.id).slice(0,5).map(item=><p key={item.id}><b>{item.event_type.replaceAll("_"," ")}</b><span>{new Date(item.occurred_at).toLocaleString("pt-MZ")}</span></p>)}{!employeeHistory.some(item=>item.employee_id===selectedEmployee.id)&&!employeeAccess.some(item=>item.employee_id===selectedEmployee.id)&&<div className="peopleEmpty">Sem alterações ou acessos registados.</div>}</div></div>}</section>}

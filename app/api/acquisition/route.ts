@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRpc, supabaseUrl } from "@/lib/hq-server";
 
 const entity = "10000000-0000-0000-0000-000000000001";
-const readers = new Set(["SUPER_ADMIN", "PARTNER_ACQUISITION", "FIELD", "OPERATIONS", "SUPERVISOR"]);
-const writers = new Set(["SUPER_ADMIN", "PARTNER_ACQUISITION", "OPERATIONS", "SUPERVISOR"]);
+const readers = new Set(["SUPER_ADMIN", "FINANCE", "PARTNER_ACQUISITION", "FIELD", "OPERATIONS", "SUPERVISOR"]);
+const writers = new Set(["SUPER_ADMIN", "FINANCE", "PARTNER_ACQUISITION", "OPERATIONS", "SUPERVISOR"]);
 const platforms: Record<string, string> = {
   deligo: "20000000-0000-0000-0000-000000000001",
   comunhao: "20000000-0000-0000-0000-000000000002",

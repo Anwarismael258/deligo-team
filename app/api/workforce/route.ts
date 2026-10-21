@@ -2,7 +2,7 @@ import {NextRequest,NextResponse} from "next/server";
 import {corporateActor,hqRpc,supabaseUrl} from "@/lib/hq-server";
 
 const entity="10000000-0000-0000-0000-000000000001";
-const allowed=new Set(["SUPER_ADMIN","HUMAN_RESOURCES"]);
+const allowed=new Set(["SUPER_ADMIN","FINANCE","HUMAN_RESOURCES"]);
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 async function context(){const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;return actor&&key&&allowed.has(actor.role)?{actor,key}:null}
 async function rest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}

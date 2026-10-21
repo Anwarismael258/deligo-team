@@ -9,9 +9,9 @@ type Module = "marketing" | "support" | "field";
 type Row = Record<string, unknown>;
 
 const access: Record<Module, string[]> = {
-  marketing: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "MARKETING"],
-  support: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "CUSTOMER_SUPPORT"],
-  field: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "FIELD"],
+  marketing: ["SUPER_ADMIN", "FINANCE", "SUPERVISOR", "OPERATIONS", "MARKETING"],
+  support: ["SUPER_ADMIN", "FINANCE", "SUPERVISOR", "OPERATIONS", "CUSTOMER_SUPPORT"],
+  field: ["SUPER_ADMIN", "FINANCE", "SUPERVISOR", "OPERATIONS", "FIELD"],
 };
 
 const mediaKeys = ["photo_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "bi_url", "nuit_url", "proof_url", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "identity_document", "selfie_path", "photos", "documents", "document_references", "kyc_documents", "files", "attachments"];
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
     collections.verifications.push(...collections.mestre24Professionals);
   }
   if (collections.verifications) collections.verifications = await Promise.all(collections.verifications.map(withSignedKycMedia));
-  return NextResponse.json({ module: requestedModule, collections, checkedAt: new Date().toISOString(), permissions: { canDecideKyc: ["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS"].includes(actor.role) } }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ module: requestedModule, collections, checkedAt: new Date().toISOString(), permissions: { canDecideKyc: ["SUPER_ADMIN", "FINANCE", "SUPERVISOR", "OPERATIONS"].includes(actor.role) } }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -163,7 +163,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (body.module === "field" && body.entity === "kyc" && ["approve", "reject", "correction"].includes(body.action || "")) {
-    if (!['SUPER_ADMIN', 'SUPERVISOR', 'OPERATIONS'].includes(actor.role)) return NextResponse.json({ error: "A decisão KYC exige Operações ou Supervisor." }, { status: 403 });
+    if (!['SUPER_ADMIN', 'FINANCE', 'SUPERVISOR', 'OPERATIONS'].includes(actor.role)) return NextResponse.json({ error: "A decisão KYC exige Admin, Finanças, Operações ou Supervisor." }, { status: 403 });
     if (["reject", "correction"].includes(body.action || "") && (body.reason || "").trim().length < 6) return NextResponse.json({ error: "Indique um motivo com pelo menos 6 caracteres." }, { status: 400 });
     const label = body.platform || "";
     const platform: PlatformBackend | null = label === "DeliGo" ? "deligo" : label === "SARCA" ? "sarca" : label === "TaoMoz" ? "taomoz" : label === "Mestre24" ? "mestre24" : label.includes("Comun") ? "comunhao" : null;

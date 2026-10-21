@@ -4,7 +4,7 @@ import { sendInboxEmail } from "@/lib/nominalia-mail";
 
 export async function POST(request: NextRequest) {
   const actor = await corporateActor();
-  if (!actor || actor.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Apenas o administrador pode enviar email." }, { status: 403 });
+  if (!actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return NextResponse.json({ error: "Apenas o Administrador ou Finanças podem enviar email." }, { status: 403 });
   const body = await request.json() as { id?: string };
   if (!body.id) return NextResponse.json({ error: "Mensagem inválida." }, { status: 400 });
   try {

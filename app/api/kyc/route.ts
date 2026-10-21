@@ -4,7 +4,7 @@ import { listPlatformStorageObjects, signPlatformPath, type PlatformBackend } fr
 
 export const dynamic = "force-dynamic";
 
-const roles = new Set(["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS", "FIELD", "COMPLIANCE", "LEGAL"]);
+const roles = new Set(["SUPER_ADMIN", "FINANCE", "SUPERVISOR", "OPERATIONS", "FIELD", "COMPLIANCE", "LEGAL"]);
 const platforms = new Set<PlatformBackend>(["deligo", "sarca", "taomoz", "comunhao", "mestre24"]);
 
 const permitted = (authorization: NonNullable<Awaited<ReturnType<typeof corporateAuthorization>>>) =>
