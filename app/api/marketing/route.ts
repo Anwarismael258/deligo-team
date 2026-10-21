@@ -7,10 +7,35 @@ const readRoles = new Set(["SUPER_ADMIN","MARKETING","FINANCE","OPERATIONS","SUP
 const writeRoles = new Set(["SUPER_ADMIN","MARKETING"]);
 const resources = ["marketing_campaigns","campaign_platforms","marketing_channels","marketing_content_calendar","marketing_promotions","marketing_creatives","marketing_leads","marketing_metrics","marketing_history","platforms","approval_requests"];
 const headers=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
+const coreHeaders=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"core","Content-Profile":"core","Content-Type":"application/json",Prefer:"return=representation"});
 async function context(){const authorization=await corporateAuthorization(),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;return actor&&key&&readRoles.has(actor.role)?{actor,key,authorization}:null}
 async function rest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
+async function coreRest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...coreHeaders(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
 async function history(key:string,campaignId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"marketing_history",{method:"POST",body:JSON.stringify({campaign_id:campaignId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
 function canAccessPlatform(c:{authorization:{isSuperAdmin:boolean;platformIds:string[]}},platformId:unknown){return c.authorization.isSuperAdmin||c.authorization.platformIds.includes(String(platformId||""))}
+async function enqueueGlobalBroadcast(c:NonNullable<Awaited<ReturnType<typeof context>>>,campaign:Record<string,unknown>){
+  const existing=await coreRest(c.key,`marketing_campaigns?metadata->>hq_campaign_id=eq.${encodeURIComponent(String(campaign.id))}&select=id&limit=1`).catch(()=>[]);
+  if(Array.isArray(existing)&&existing[0]?.id){
+    const queued=await coreRest(c.key,`marketing_deliveries?campaign_id=eq.${existing[0].id}&status=eq.queued&select=id&limit=10000`).catch(()=>[]);
+    return {coreCampaignId:existing[0].id,appCount:null,deliveryCount:Array.isArray(queued)?queued.length:0,reused:true};
+  }
+  const apps=await coreRest(c.key,"apps?is_active=eq.true&is_public=eq.true&select=id,slug&order=slug.asc&limit=100");
+  if(!Array.isArray(apps)||!apps.length)throw new Error("NO_PUBLIC_APPS");
+  const coreCampaign=(await coreRest(c.key,"marketing_campaigns",{method:"POST",body:JSON.stringify({
+    name:String(campaign.title||"Campanha global"),
+    description:String(campaign.objective||"Publicação global da Central"),
+    campaign_type:"in_app",status:"approved",created_by:c.actor.authUserId,approved_by:c.actor.authUserId,
+    content:{title:String(campaign.title||""),objective:String(campaign.objective||""),hq_campaign_id:String(campaign.id),published_at:new Date().toISOString()},
+    audience_rules:{scope:"all_active_app_members"},metadata:{source:"hq_marketing",hq_campaign_id:String(campaign.id),platforms:apps.map((app:Record<string,unknown>)=>app.slug)}
+  })}))?.[0];
+  if(!coreCampaign?.id)throw new Error("CORE_CAMPAIGN_CREATE_FAILED");
+  await coreRest(c.key,"marketing_campaign_apps",{method:"POST",body:JSON.stringify(apps.map((app:Record<string,unknown>)=>({campaign_id:coreCampaign.id,app_id:app.id,app_content:{title:campaign.title,objective:campaign.objective}})))});
+  const appIds=apps.map((app:Record<string,unknown>)=>String(app.id));
+  const memberships=await coreRest(c.key,`user_app_memberships?membership_status=eq.active&app_id=in.(${appIds.join(",")})&select=user_id,app_id&limit=10000`).catch(()=>[]);
+  const deliveries=(Array.isArray(memberships)?memberships:[]).map((membership:Record<string,unknown>)=>({campaign_id:coreCampaign.id,app_id:membership.app_id,recipient_user_id:membership.user_id,channel:"in_app",status:"queued",provider:"core_in_app",metadata:{hq_campaign_id:String(campaign.id)}}));
+  if(deliveries.length)await coreRest(c.key,"marketing_deliveries",{method:"POST",body:JSON.stringify(deliveries)});
+  return {coreCampaignId:coreCampaign.id,appCount:apps.length,deliveryCount:deliveries.length,reused:false};
+}
 
 export async function GET(){
   const c=await context();if(!c)return NextResponse.json({error:"Acesso reservado a Marketing e gestão autorizada."},{status:403});
@@ -64,6 +89,12 @@ export async function PATCH(request:NextRequest){
       await rest(c.key,`approval_requests?id=eq.${campaign.approval_request_id}`,{method:"PATCH",body:JSON.stringify({status:"approved",completed_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
       await rest(c.key,`marketing_campaigns?id=eq.${campaign.id}`,{method:"PATCH",body:JSON.stringify({status:"approved"})});
       await history(c.key,campaign.id,"approved","Campanha aprovada para publicação",c.actor.employee_id);return NextResponse.json({ok:true});
+    }
+    if(body.action==="broadcast"){
+      if(campaign.status!=="published")return NextResponse.json({error:"A campanha precisa estar publicada antes da distribuição global."},{status:409});
+      const delivery=await enqueueGlobalBroadcast(c,campaign);
+      await history(c.key,campaign.id,"broadcast_queued","Distribuição global colocada na fila das aplicações",c.actor.employee_id,delivery);
+      return NextResponse.json({ok:true,delivery});
     }
     const next:Record<string,string>={publish:"published",pause:"paused",complete:"completed",archive:"archived"};const status=next[body.action];if(!status)return NextResponse.json({error:"Ação inválida."},{status:400});
     await rest(c.key,`marketing_campaigns?id=eq.${campaign.id}`,{method:"PATCH",body:JSON.stringify({status})});
