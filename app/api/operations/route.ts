@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, hqRpc, stagingRest } from "@/lib/hq-server";
+import { corporateActor, hqRest, hqRpc, stagingRest } from "@/lib/hq-server";
 import { buildPlatformDecision, type PlatformDecision } from "@/lib/platform-decisions";
 import { platformFunction, platformRest, platformRpc, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
 
@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     ]);
     collections = { requests, campaigns, events };
   } else {
-    const [deligoKyc, deligoProfiles, sarcaDrivers, comunhaoChurches, taomozSellerKyc, taomozSellers, mestre24Kyc, mestre24Profiles, restaurants, couriers, notes] = await Promise.all([
+    const [deligoKyc, deligoProfiles, sarcaDrivers, comunhaoChurches, taomozSellerKyc, taomozSellers, mestre24Kyc, mestre24Profiles, mestre24HqCases, restaurants, couriers, notes] = await Promise.all([
       getRows("kyc_submissions?select=*&order=updated_at.desc&limit=250"),
       getRows("profiles?select=id,full_name,phone,role,account_status&order=updated_at.desc&limit=500"),
       getRows("driver_profiles?select=*&order=updated_at.desc&limit=250"),
@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
       getRows("seller_profiles?select=*&order=updated_at.desc&limit=250"),
       platformRest("mestre24", "kyc_verifications?select=*&order=created_at.desc&limit=250").catch(() => []) as Promise<Row[]>,
       platformRest("mestre24", "professional_profiles?select=user_id,headline,verification_status,subscription_status,visible_in_marketplace,created_at,updated_at&order=updated_at.desc&limit=250").catch(() => []) as Promise<Row[]>,
+      hqRest("platform_kyc_cases?select=*,platforms!inner(slug,name,platform_code)&platforms.slug=eq.mestre24&order=submitted_at.desc&limit=250").catch(() => []) as Promise<Row[]>,
       getRows("restaurants?select=*&order=created_at.desc&limit=120"),
       getRows("couriers?select=*&order=created_at.desc&limit=120"),
       getRows("field_internal_notes?select=*&order=created_at.desc&limit=100"),
@@ -111,7 +112,23 @@ export async function GET(request: NextRequest) {
     const sellerByProfile = new Map(taomozSellers.map((row) => [String(row.profile_id || ""), row]));
     const taomozKyc = taomozSellerKyc.map((row) => ({ ...sellerByProfile.get(String(row.profile_id || "")), ...row }));
     const mestre24ByUser = new Map(mestre24Profiles.map((row) => [String(row.user_id || ""), row]));
-    const mestre24Verification = mestre24Kyc.map((row) => ({ ...mestre24ByUser.get(String(row.professional_user_id || "")), ...row }));
+    const mestre24DirectVerification = mestre24Kyc.map((row) => ({ ...mestre24ByUser.get(String(row.professional_user_id || "")), ...row }));
+    // Mestre24 submissions are mirrored into the HQ control table by the
+    // database trigger. Read that canonical queue as well, because the
+    // platform schema may be protected by RLS and the Central must still
+    // receive every submitted/approved case.
+    const mestre24Verification = mestre24HqCases.length
+      ? mestre24HqCases.map((row) => ({
+        ...row,
+        id: row.id,
+        user_id: row.subject_user_id,
+        applicant_name: row.subject_name || "Profissional Mestre24",
+        entity_reference: row.source_record_id || row.subject_user_id || row.id,
+        _hq_case_id: row.id,
+        _platform: "Mestre24",
+        _subject_type: row.subject_type || "Profissional",
+      }))
+      : mestre24DirectVerification;
     collections = {
       verifications: [...deligoKycTagged, ...tag(sarcaDrivers, "SARCA", "Condutor"), ...tag(comunhaoChurches, "Comunhão", "Igreja"), ...tag(taomozKyc, "TaoMoz", "Vendedor")],
       deligoKyc: deligoKycTagged, sarcaDrivers: tag(sarcaDrivers, "SARCA", "Condutor"), comunhaoChurches: tag(comunhaoChurches, "Comunhão", "Igreja"), taomozSellers: tag(taomozKyc, "TaoMoz", "Vendedor"), restaurants, couriers, notes,
