@@ -25,6 +25,21 @@ const headers = (platform: PlatformBackend, authenticatedWrite = false) => {
 
 const storageBuckets: Record<PlatformBackend, string[]> = { deligo: ["kyc"], comunhao: ["church-application-branding", "profile-media"], sarca: ["driver-kyc", "profile-media"], taomoz: ["kyc-documents"], mestre24: ["mestre24-kyc", "mestre24-portfolio"] };
 
+export type PlatformStorageObject = { name: string; id?: string; created_at?: string; updated_at?: string; metadata?: Record<string, unknown> | null };
+
+export async function listPlatformStorageObjects(platform: PlatformBackend, bucket: string, prefix: string) {
+  if (!storageBuckets[platform].includes(bucket)) throw new Error("PLATFORM_STORAGE_BUCKET_NOT_ALLOWED");
+  const response = await fetch(`${backendUrl(platform)}/storage/v1/object/list/${encodeURIComponent(bucket)}`, {
+    method: "POST",
+    headers: headers(platform),
+    body: JSON.stringify({ prefix, limit: 100, offset: 0, sortBy: { column: "created_at", order: "asc" } }),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error((await response.text()) || `PLATFORM_${platform.toUpperCase()}_STORAGE_LIST_FAILED`);
+  const result = await response.json() as unknown;
+  return Array.isArray(result) ? result.filter((item): item is PlatformStorageObject => Boolean(item && typeof item === "object" && typeof (item as PlatformStorageObject).name === "string")) : [];
+}
+
 export async function signPlatformPath(platform: PlatformBackend, path: string) {
   if (!path || /^https?:\/\//i.test(path)) return path;
   for (const bucket of storageBuckets[platform]) {

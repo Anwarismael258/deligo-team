@@ -599,12 +599,22 @@ export function HQApp() {
       const platformName=String(platformRecord.name||row.platform_name||row._platform||"Plataforma");
       const documents=Array.isArray(row.document_references)?row.document_references.map((document:unknown)=>typeof document==="string"?document:String((document as FinanceRecord)?.signed_url||(document as FinanceRecord)?.url||"")).filter(isUrl):[];
       const isMestre24=String(row.source_schema||"").toLowerCase()==="mestre24"||platformName.toLowerCase().includes("mestre");
-      return {id:`hq-${String(row.id)}`,hq_case_id:String(row.id),applicant_name:isMestre24&&row.subject_name==="identity_document"?"Profissional Mestre24":row.subject_name||"Utilizador",entity_type:row.subject_type||"KYC",entity_reference:row.source_record_id||row.subject_user_id||row.id,platform_id:row.platform_id||platformRecord.id,platform_name:platformName,status:row.status||"submitted",document_count:documents.length,document_references:documents,aggregate:true};
+      return {id:`hq-${String(row.id)}`,hq_case_id:String(row.id),subject_user_id:row.subject_user_id,applicant_name:isMestre24&&row.subject_name==="identity_document"?"Profissional Mestre24":row.subject_name||"Utilizador",entity_type:row.subject_type||"KYC",entity_reference:row.source_record_id||row.subject_user_id||row.id,platform_id:row.platform_id||platformRecord.id,platform_name:platformName,status:row.status||"submitted",document_count:documents.length,document_references:documents,aggregate:true};
     }):[];
     const aggregate=Array.isArray(operations.verifications)?operations.verifications.map((row:FinanceRecord)=>{const signedMedia=Array.isArray(row._kyc_media)?row._kyc_media.map((media:FinanceRecord)=>media.signed_url||media.url).filter(isUrl):[];const hqCaseId=String(row._hq_case_id||"");return {id:hqCaseId?`hq-${hqCaseId}`:`aggregate-${String(row.id)}`,hq_case_id:hqCaseId||undefined,applicant_name:row.applicant_name||row.full_name||row.name||"Utilizador",entity_type:row._subject_type||row.entity_type||"KYC",entity_reference:row.entity_reference||row.user_id||row.profile_id||row.id,platform_name:row._platform==="TaoMoz"?"DeliGo Market":row._platform||"Plataforma",status:row.status||row.kyc_status||row.verification_status||"pending",document_count:Number(row.document_count||0),document_references:Array.from(new Set([...mediaFromRow(row),...(Array.isArray(row.document_references)?row.document_references:[]),...signedMedia].filter(isUrl))),aggregate:true}}):[];
-    const canonicalIds=new Set(canonicalCases.map((row:FinanceRecord)=>String(row.entity_reference||row.id)));
+    const sameIdentity=(left:FinanceRecord,right:FinanceRecord)=>{
+      const leftKeys=[left.entity_reference,left.subject_user_id,left.user_id,left.profile_id].map(value=>String(value||"")).filter(Boolean);
+      const rightKeys=[right.entity_reference,right.subject_user_id,right.user_id,right.profile_id].map(value=>String(value||"")).filter(Boolean);
+      return leftKeys.some(key=>rightKeys.includes(key)) && String(left.platform_name||"").toLowerCase()===String(right.platform_name||"").toLowerCase();
+    };
+    const mergedCanonical=canonicalCases.map((row:FinanceRecord)=>{
+      const legacy=aggregate.filter((candidate:FinanceRecord)=>sameIdentity(row,candidate));
+      const documents=Array.from(new Set([...(Array.isArray(row.document_references)?row.document_references:[]),...legacy.flatMap(candidate=>Array.isArray(candidate.document_references)?candidate.document_references:[])].filter(isUrl)));
+      return {...row,document_count:documents.length,document_references:documents};
+    });
+    const canonicalIds=new Set(canonicalCases.map((row:FinanceRecord)=>[row.entity_reference,row.subject_user_id].filter(Boolean).map(value=>String(value)) ).flat());
     const aggregateWithoutCanonical=aggregate.filter((row:FinanceRecord)=>!canonicalIds.has(String(row.entity_reference||row.id)));
-    setFieldData({...field,field_kyc_cases:[...native,...canonicalCases,...aggregateWithoutCanonical]});
+    setFieldData({...field,field_kyc_cases:[...native,...mergedCanonical,...aggregateWithoutCanonical]});
   };
   useEffect(()=>{if(active!=="Operações de Campo"||!sessionUser?.id)return;refreshField().catch(()=>{setFieldData({});setFieldNotice("Não foi possível carregar Operações de Campo para este perfil.")})},[active,sessionUser?.id]);
   const refreshSupport=async()=>{const scope=platform==="Todas as plataformas"?"":`?platform=${encodeURIComponent(platformSlug(platform))}`,r=await fetch(`/api/support${scope}`,{cache:"no-store"});if(!r.ok)throw new Error();setSupportData((await r.json()).data||{})};

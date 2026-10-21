@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireCorporatePermission } from "@/lib/hq-server";
+import { requireCorporatePermission, stagingRest } from "@/lib/hq-server";
 import { platformRest, signPlatformPath } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
 const allowed = ["deligo", "comunhao", "sarca", "taomoz", "mestre24"] as const;
 type SupportedPlatform = (typeof allowed)[number];
 const isPlatform = (value: string): value is SupportedPlatform => allowed.includes(value as SupportedPlatform);
-const read = async (platform: SupportedPlatform, path: string) => { try { return await platformRest(platform, path); } catch { return []; } };
+const read = async (platform: SupportedPlatform, path: string) => {
+  try {
+    // DeliGo's operational records are held in the shared Central project;
+    // use that canonical public schema for profile/KYC detail pages. The
+    // platform gateway may point at a separate legacy project with no rows.
+    return platform === "deligo" ? await stagingRest(path) : await platformRest(platform, path);
+  } catch {
+    return [];
+  }
+};
 const mediaFields = ["photo_url", "avatar_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_documents", "files", "attachments", "identity_document"];
 const signRow = async (platform: SupportedPlatform, value: unknown) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateAuthorization, hqRest, hqRpc } from "@/lib/hq-server";
-import { signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
+import { listPlatformStorageObjects, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
 
@@ -10,12 +10,36 @@ const platforms = new Set<PlatformBackend>(["deligo", "sarca", "taomoz", "comunh
 const permitted = (authorization: NonNullable<Awaited<ReturnType<typeof corporateAuthorization>>>) =>
   authorization.isSuperAdmin || roles.has(authorization.actor.role);
 
+const storageListCache = new Map<string, Promise<Awaited<ReturnType<typeof listPlatformStorageObjects>>>>();
+
 async function withSignedDocuments(row: Record<string, unknown>) {
   const platform = ((row.platforms as { slug?: string } | null)?.slug || "") as PlatformBackend;
-  const documents = Array.isArray(row.document_references) ? row.document_references : [];
+  const documents = Array.isArray(row.document_references) ? [...row.document_references] : [];
   if (!platforms.has(platform)) return row;
+
+  // Mestre24 uploads the files before registering each document. If an older
+  // bridge only registered the first row, the remaining objects still exist
+  // in the private bucket. Include them in the central case so reviewers can
+  // inspect everything that was actually submitted.
+  if (platform === "mestre24" && typeof row.subject_user_id === "string") {
+    const prefix = `${row.subject_user_id}/`;
+    let listed = storageListCache.get(prefix);
+    if (!listed) {
+      listed = listPlatformStorageObjects("mestre24", "mestre24-kyc", prefix).catch(() => []);
+      storageListCache.set(prefix, listed);
+    }
+    const objects = await listed;
+    const known = new Set(documents.map((document) => typeof document === "string" ? document : String((document as Record<string, unknown>)?.path || "")));
+    for (const object of objects) {
+      // Storage list responses can return names relative to the requested
+      // prefix. Always rebuild the bucket path before signing the object.
+      const path = object.name.startsWith(prefix) ? object.name : `${prefix}${object.name}`;
+      if (!known.has(path)) documents.push({ bucket: "mestre24-kyc", path, label: "Documento guardado no Mestre24" });
+    }
+  }
+
   const signed = await Promise.all(documents.map(async (document) => {
-    const item = document as Record<string, unknown>;
+    const item = typeof document === "string" ? { path: document } : { ...(document as Record<string, unknown>) };
     const path = typeof item.path === "string" ? item.path : "";
     return { ...item, signed_url: path ? await signPlatformPath(platform, path) : null };
   }));
