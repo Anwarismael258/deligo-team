@@ -16,55 +16,128 @@ async function paymentsRest(path: string, init: RequestInit = {}) {
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_NOT_CONFIGURED");
   const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
     ...init,
-    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=representation", "Content-Profile": "payments", "Accept-Profile": "payments", ...(init.headers || {}) },
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+      "Content-Profile": "payments",
+      "Accept-Profile": "payments",
+      ...(init.headers || {}),
+    },
     cache: "no-store",
   });
   if (!response.ok) throw new Error((await response.text()) || "PAYMENTS_REST_FAILED");
   return response.status === 204 ? null : response.json();
 }
 
+type Wallet = Record<string, unknown> & { id: string; available_balance_minor: number; metadata: Record<string, unknown> };
+type PreparedPayout = { payout: Record<string, unknown>; wallet: Wallet; amountMinor: number; netMinor: number; reference: string; reserved: boolean };
+
+function isPaySuiteWallet(wallet: Record<string, unknown>) {
+  const metadata = (wallet.metadata && typeof wallet.metadata === "object" ? wallet.metadata : {}) as Record<string, unknown>;
+  return metadata.withdrawal_disabled !== true && metadata.provider_integration === "paysuite";
+}
+
 export async function POST(request: NextRequest) {
   const actor = await corporateActor();
   if (!actor) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+
   const body = await request.json().catch(() => null) as { walletId?: string; amount?: number; method?: string } | null;
   const amount = Number(body?.amount);
+  const method = body?.method == null ? "mpesa" : String(body.method);
   if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Indique um valor válido." }, { status: 400 });
-  if (!body?.walletId || !["mpesa", "emola"].includes(String(body.method))) return NextResponse.json({ error: "Carteira e método são obrigatórios." }, { status: 400 });
+  if (!["mpesa", "emola"].includes(method)) return NextResponse.json({ error: "Método de levantamento inválido." }, { status: 400 });
   if (process.env.PAYSUITE_ENABLED !== "true" || !process.env.PAYSUITE_API_TOKEN) return NextResponse.json({ error: "PaySuite ainda não está activa para levantamentos reais." }, { status: 503 });
+
   try {
-    const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone` ) as Array<{ personal_phone?: string | null }>;
+    const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Array<{ personal_phone?: string | null }>;
     const phone = normalizePhone(String(employeeProfiles?.[0]?.personal_phone || ""));
-    const wallets = await paymentsRest(`wallet_accounts?id=eq.${encodeURIComponent(body.walletId)}&owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&account_type=eq.user&status=eq.active&select=*`) as Array<Record<string, unknown>>;
-    const wallet = wallets?.[0];
-    if (!wallet) return NextResponse.json({ error: "Carteira pessoal não encontrada." }, { status: 404 });
-    const metadata = (wallet.metadata && typeof wallet.metadata === "object" ? wallet.metadata : {}) as Record<string, unknown>;
-    if (metadata.withdrawal_disabled === true || metadata.provider_integration !== "paysuite") return NextResponse.json({ error: "Esta carteira ainda não foi activada para PaySuite." }, { status: 409 });
-    const availableMinor = Number(wallet.available_balance_minor || 0);
+    const walletFilter = body?.walletId
+      ? `id=eq.${encodeURIComponent(body.walletId)}&owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`
+      : `owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`;
+    const wallets = await paymentsRest(`wallet_accounts?${walletFilter}&account_type=eq.user&status=eq.active&currency_code=eq.MZN&select=*`) as Wallet[];
+    const eligibleWallets = (Array.isArray(wallets) ? wallets : []).filter(isPaySuiteWallet).filter((wallet) => Number(wallet.available_balance_minor || 0) > 0);
+    const totalAvailableMinor = eligibleWallets.reduce((sum, wallet) => sum + Number(wallet.available_balance_minor || 0), 0);
     const requestedMinor = moneyMinor(amount);
-    if (requestedMinor > availableMinor) return NextResponse.json({ error: "Saldo disponível insuficiente." }, { status: 409 });
-    const feeMinor = Math.round(requestedMinor * 0.03);
-    const netMinor = requestedMinor - feeMinor;
-    if (netMinor <= 0) return NextResponse.json({ error: "O valor líquido após a taxa PaySuite deve ser positivo." }, { status: 400 });
-    const idempotencyKey = `employee-payout-${actor.authUserId}-${crypto.randomUUID()}`;
-    const reference = `DLGWD${crypto.randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()}`;
-    const [payout] = await paymentsRest("payout_requests", { method: "POST", body: JSON.stringify({ app_id: APP_ID, source_wallet_account_id: wallet.id, beneficiary_user_id: actor.authUserId, requested_by: actor.authUserId, amount_minor: requestedMinor, fee_minor: feeMinor, status: "pending", destination_phone: phone, method: body.method, idempotency_key: idempotencyKey, request_note: "Levantamento pessoal iniciado no perfil", metadata: { reference, provider: "paysuite", employee_id: actor.employee_id, gross_amount_minor: requestedMinor, net_amount_minor: netMinor } }) }) as Array<Record<string, unknown>>;
-    if (!payout?.id) throw new Error("PAYOUT_REQUEST_NOT_CREATED");
-    await hqRpc("reserve_paysuite_payout_v1", { p_payout_request_id: payout.id });
-    let provider: Record<string, unknown>;
+    if (!eligibleWallets.length) return NextResponse.json({ error: "Nenhuma carteira pessoal está activa para levantamento PaySuite. A carteira corporativa não entra neste botão." }, { status: 409 });
+    if (requestedMinor > totalAvailableMinor) return NextResponse.json({ error: "Saldo pessoal disponível insuficiente." }, { status: 409 });
+
+    let remainingMinor = requestedMinor;
+    const allocations = eligibleWallets.map((wallet) => {
+      const amountMinor = Math.min(Number(wallet.available_balance_minor || 0), remainingMinor);
+      remainingMinor -= amountMinor;
+      return { wallet, amountMinor };
+    }).filter((allocation) => allocation.amountMinor > 0);
+    const prepared: PreparedPayout[] = [];
+
     try {
-      provider = await paysuiteRequest<Record<string, unknown>>("/payouts", { method: "POST", body: JSON.stringify({ amount: (netMinor / 100).toFixed(2), currency: "MZN", reference, description: `Levantamento DeliGo Team - ${actor.name}`, beneficiary: { phone, holder: actor.name }, method: body.method, webhook_url: `${supabaseUrl()}/api/payments/paysuite/webhook` }) });
+      for (const allocation of allocations) {
+        const feeMinor = Math.round(allocation.amountMinor * 0.03);
+        const netMinor = allocation.amountMinor - feeMinor;
+        if (netMinor <= 0) throw new Error("O valor líquido após a taxa PaySuite deve ser positivo.");
+        const idempotencyKey = `employee-payout-${actor.authUserId}-${crypto.randomUUID()}`;
+        const reference = `DLGWD${crypto.randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()}`;
+        const [payout] = await paymentsRest("payout_requests", {
+          method: "POST",
+          body: JSON.stringify({
+            app_id: APP_ID,
+            source_wallet_account_id: allocation.wallet.id,
+            beneficiary_user_id: actor.authUserId,
+            requested_by: actor.authUserId,
+            amount_minor: allocation.amountMinor,
+            fee_minor: feeMinor,
+            status: "pending",
+            destination_phone: phone,
+            method,
+            idempotency_key: idempotencyKey,
+            request_note: "Levantamento pessoal unificado no perfil",
+            metadata: { reference, provider: "paysuite", employee_id: actor.employee_id, gross_amount_minor: allocation.amountMinor, net_amount_minor: netMinor, unified_withdrawal: true },
+          }),
+        }) as Array<Record<string, unknown>>;
+        if (!payout?.id) throw new Error("PAYOUT_REQUEST_NOT_CREATED");
+        const item: PreparedPayout = { payout, wallet: allocation.wallet, amountMinor: allocation.amountMinor, netMinor, reference, reserved: false };
+        prepared.push(item);
+        await hqRpc("reserve_paysuite_payout_v1", { p_payout_request_id: payout.id });
+        item.reserved = true;
+      }
     } catch (error) {
-      await hqRpc("fail_paysuite_payout_v1", { p_payout_request_id: payout.id, p_reason: error instanceof Error ? error.message : "PaySuite indisponível" });
-      return NextResponse.json({ error: "PaySuite não aceitou o pedido; o saldo reservado foi libertado." }, { status: 502 });
+      for (const item of prepared) {
+        if (item.reserved) {
+          await hqRpc("fail_paysuite_payout_v1", { p_payout_request_id: item.payout.id, p_reason: "Levantamento unificado não pôde ser preparado integralmente." }).catch(() => undefined);
+        } else {
+          await paymentsRest(`payout_requests?id=eq.${encodeURIComponent(String(item.payout.id))}`, { method: "PATCH", body: JSON.stringify({ status: "failed", rejection_reason: "Levantamento unificado não pôde ser preparado integralmente." }) }).catch(() => undefined);
+        }
+      }
+      throw error;
     }
-    const providerStatus = String(provider.status || provider.state || "pending").toLowerCase();
-    const providerReference = String(provider.id || provider.reference || reference);
-    if (["success", "successful", "completed", "complete", "paid"].includes(providerStatus)) {
-      await hqRpc("complete_paysuite_payout_v1", { p_payout_request_id: payout.id, p_provider_reference: providerReference });
-      await hqRest("audit_logs", { method: "POST", body: JSON.stringify({ actor_employee_id: actor.employee_id, action: "employee_paysuite_withdrawal_completed", module: "profile", target_type: "payout_request", target_id: payout.id, result: "success", metadata: { provider_reference: providerReference, amount_minor: requestedMinor } }) });
-      return NextResponse.json({ status: "paid", payoutId: payout.id, providerReference });
+
+    const results: Array<{ payoutId: unknown; status: string; providerReference?: string }> = [];
+    for (const item of prepared) {
+      try {
+        const provider = await paysuiteRequest<Record<string, unknown>>("/payouts", {
+          method: "POST",
+          body: JSON.stringify({ amount: (item.netMinor / 100).toFixed(2), currency: "MZN", reference: item.reference, description: `Levantamento DeliGo Team - ${actor.name}`, beneficiary: { phone, holder: actor.name }, method, webhook_url: `${supabaseUrl()}/api/payments/paysuite/webhook` }),
+        });
+        const providerStatus = String(provider.status || provider.state || "pending").toLowerCase();
+        const providerReference = String(provider.id || provider.reference || item.reference);
+        if (["success", "successful", "completed", "complete", "paid"].includes(providerStatus)) {
+          await hqRpc("complete_paysuite_payout_v1", { p_payout_request_id: item.payout.id, p_provider_reference: providerReference });
+          await hqRest("audit_logs", { method: "POST", body: JSON.stringify({ actor_employee_id: actor.employee_id, action: "employee_paysuite_withdrawal_completed", module: "profile", target_type: "payout_request", target_id: item.payout.id, result: "success", metadata: { provider_reference: providerReference, amount_minor: item.amountMinor, unified_withdrawal: true } }) });
+          results.push({ payoutId: item.payout.id, status: "paid", providerReference });
+        } else {
+          results.push({ payoutId: item.payout.id, status: "processing", providerReference });
+        }
+      } catch (error) {
+        await hqRpc("fail_paysuite_payout_v1", { p_payout_request_id: item.payout.id, p_reason: error instanceof Error ? error.message : "PaySuite indisponível" }).catch(() => undefined);
+        results.push({ payoutId: item.payout.id, status: "failed" });
+      }
     }
-    return NextResponse.json({ status: "processing", payoutId: payout.id, providerReference }, { status: 202 });
+
+    const hasFailed = results.some((result) => result.status === "failed");
+    const allPaid = results.every((result) => result.status === "paid");
+    const status = allPaid ? "paid" : hasFailed ? "partial" : "processing";
+    return NextResponse.json({ status, payoutId: results[0]?.payoutId, payoutIds: results.map((result) => result.payoutId), providerReference: results[0]?.providerReference, providerReferences: results.map((result) => result.providerReference).filter(Boolean), results }, { status: hasFailed ? 502 : allPaid ? 200 : 202 });
   } catch (error) {
     console.error("employee_paysuite_withdrawal_failed", error);
     return NextResponse.json({ error: "Não foi possível iniciar o levantamento. Nenhuma transferência foi confirmada." }, { status: 409 });

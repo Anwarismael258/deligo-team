@@ -1,14 +1,141 @@
-import {NextRequest,NextResponse} from "next/server";
-import {corporateActor,hqRest,hqServiceKey,stagingRest,supabaseUrl} from "@/lib/hq-server";
+import { NextRequest, NextResponse } from "next/server";
+import { corporateActor, hqRest, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
-function privilegedHeaders(key:string, profile:string) {
-  const result:Record<string,string> = {apikey:key,"Accept-Profile":profile,"Content-Profile":profile,"Content-Type":"application/json"};
+function privilegedHeaders(key: string, profile: string) {
+  const result: Record<string, string> = {
+    apikey: key,
+    "Accept-Profile": profile,
+    "Content-Profile": profile,
+    "Content-Type": "application/json",
+  };
   if (!key.startsWith("sb_secret_")) result.Authorization = `Bearer ${key}`;
   return result;
 }
 
-async function paymentsRest(k:string,p:string){const r=await fetch(`${supabaseUrl()}/rest/v1/${p}`,{headers:privilegedHeaders(k,"payments"),cache:"no-store"});if(!r.ok)throw new Error(await r.text());return r.json()}
-async function coreRest(k:string,p:string){const r=await fetch(`${supabaseUrl()}/rest/v1/${p}`,{headers:privilegedHeaders(k,"core"),cache:"no-store"});if(!r.ok)throw new Error(await r.text());return r.json()}
+async function paymentsRest(key: string, path: string) {
+  const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
+    headers: privilegedHeaders(key, "payments"),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
 
-export async function GET(){const actor=await corporateActor(),key=hqServiceKey();if(!actor||!key)return NextResponse.json({error:"Sessão inválida."},{status:401});const profile=(await hqRest(`employee_display_profiles?employee_id=eq.${actor.employee_id}&select=*`))?.[0]||null;const legacy=await stagingRest(`wallets?user_id=eq.${encodeURIComponent(actor.authUserId)}&select=id,balance,currency&limit=1`) as Array<Record<string,unknown>>;let wallets:Array<Record<string,unknown>>=[];if(legacy?.[0]){const wallet=legacy[0];wallets=[{id:wallet.id,platform_slug:"deligo",platform_name:"DeliGo",wallet_code:"DeliGo",account_type:"user",currency:wallet.currency,available_amount:Number(wallet.balance||0),pending_amount:0,reserved_amount:0,withdrawal_enabled:false}]}else{const [canonical,apps]=await Promise.all([paymentsRest(key,`wallet_accounts?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),coreRest(key,"apps?select=id,slug,name")]);const appById=new Map((Array.isArray(apps)?apps:[]).map((app:Record<string,unknown>)=>[String(app.id),app]));wallets=(Array.isArray(canonical)?canonical:[]).map((wallet:Record<string,unknown>)=>{const app=appById.get(String(wallet.app_id));return {id:wallet.id,platform_slug:app?.slug||null,platform_name:app?.name||null,wallet_code:wallet.account_code,account_type:wallet.account_type,currency:wallet.currency_code,available_amount:Number(wallet.available_balance_minor||0)/100,pending_amount:Number(wallet.pending_balance_minor||0)/100,reserved_amount:Number(wallet.reserved_balance_minor||0)/100,withdrawal_enabled:((wallet.metadata as Record<string,unknown>|undefined)?.withdrawal_disabled!==true)&&((wallet.metadata as Record<string,unknown>|undefined)?.provider_integration==="paysuite")}}).filter((wallet:Record<string,unknown>)=>wallet.platform_slug==="deligo")}return NextResponse.json({profile,wallets},{headers:{"Cache-Control":"private, no-store"}})}
-export async function PATCH(req:NextRequest){const actor=await corporateActor(),key=hqServiceKey();if(!actor||!key)return NextResponse.json({error:"Sessão inválida."},{status:401});try{const b=await req.json() as {avatar_url?:string|null;biography?:string|null;account_preferences?:Record<string,unknown>};const existing=(await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`))?.[0]||{};const record={avatar_url:String(b.avatar_url||"").trim()||null,biography:String(b.biography||"").trim()||null,personal_phone:existing.personal_phone||null,alternate_contact:existing.alternate_contact||null,account_preferences:b.account_preferences||existing.account_preferences||{}};let profile;if(existing.employee_id){profile=(await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}`,{method:"PATCH",body:JSON.stringify(record)}))?.[0]||null}else{profile=(await hqRest("employee_display_profiles",{method:"POST",body:JSON.stringify({employee_id:actor.employee_id,...record})}))?.[0]||null}if(!profile)throw new Error("Perfil não foi devolvido pelo backend");await hqRest("audit_logs",{method:"POST",body:JSON.stringify({actor_employee_id:actor.employee_id,action:"profile_self_service_updated",module:"profile",target_type:"employee_display_profile",target_id:actor.employee_id,result:"success",metadata:{fields:["avatar_url","biography","account_preferences"],protected_fields:["personal_phone","alternate_contact"]}})});return NextResponse.json({profile})}catch(error){console.error("profile update failed",error);return NextResponse.json({error:"Não foi possível guardar os dados pessoais permitidos."},{status:409})}}
+async function coreRest(key: string, path: string) {
+  const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
+    headers: privilegedHeaders(key, "core"),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json();
+}
+
+function mapCanonicalWallet(wallet: Record<string, unknown>, app?: Record<string, unknown>) {
+  const metadata = (wallet.metadata && typeof wallet.metadata === "object" ? wallet.metadata : {}) as Record<string, unknown>;
+  return {
+    id: wallet.id,
+    platform_slug: app?.slug || null,
+    platform_name: app?.name || null,
+    wallet_code: wallet.account_code,
+    account_type: wallet.account_type,
+    source_kind: "canonical",
+    currency: wallet.currency_code,
+    available_amount: Number(wallet.available_balance_minor || 0) / 100,
+    pending_amount: Number(wallet.pending_balance_minor || 0) / 100,
+    reserved_amount: Number(wallet.reserved_balance_minor || 0) / 100,
+    withdrawal_enabled: metadata.withdrawal_disabled !== true && metadata.provider_integration === "paysuite",
+  };
+}
+
+export async function GET() {
+  const actor = await corporateActor();
+  const key = hqServiceKey();
+  if (!actor || !key) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+
+  try {
+    const [profileRows, legacy, canonical, apps] = await Promise.all([
+      hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`),
+      stagingRest(`wallets?user_id=eq.${encodeURIComponent(actor.authUserId)}&select=id,balance,currency&limit=1`) as Promise<Array<Record<string, unknown>>>,
+      paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&account_type=eq.user&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
+      coreRest(key, "apps?select=id,slug,name"),
+    ]);
+    const profile = profileRows?.[0] || null;
+    const appById = new Map((Array.isArray(apps) ? apps : []).map((app: Record<string, unknown>) => [String(app.id), app]));
+    const canonicalWallets = (Array.isArray(canonical) ? canonical : [])
+      .map((wallet: Record<string, unknown>) => mapCanonicalWallet(wallet, appById.get(String(wallet.app_id))))
+      .filter((wallet: Record<string, unknown>) => String(wallet.currency || "MZN") === "MZN");
+
+    // The old DeliGo wallet is a display fallback until its balance is migrated
+    // into the canonical PaySuite wallet. Never add both representations.
+    const canonicalHasFunds = canonicalWallets.some((wallet: Record<string, unknown>) =>
+      Number(wallet.available_amount || 0) > 0 || Number(wallet.pending_amount || 0) > 0 || Number(wallet.reserved_amount || 0) > 0,
+    );
+    const wallets: Array<Record<string, unknown>> = [];
+    if (legacy?.[0] && !canonicalHasFunds) {
+      const wallet = legacy[0];
+      wallets.push({
+        id: wallet.id,
+        platform_slug: "deligo",
+        platform_name: "DeliGo",
+        wallet_code: "DeliGo",
+        account_type: "user",
+        source_kind: "legacy",
+        currency: wallet.currency,
+        available_amount: Number(wallet.balance || 0),
+        pending_amount: 0,
+        reserved_amount: 0,
+        withdrawal_enabled: false,
+      });
+    }
+    wallets.push(...canonicalWallets);
+
+    const unifiedAvailableAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
+    const unifiedPendingAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.pending_amount || 0), 0);
+    const unifiedReservedAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.reserved_amount || 0), 0);
+    const unifiedWithdrawableAmount = wallets
+      .filter((wallet) => wallet.withdrawal_enabled === true)
+      .reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
+
+    return NextResponse.json({
+      profile,
+      wallets,
+      unified_available_amount: unifiedAvailableAmount,
+      unified_pending_amount: unifiedPendingAmount,
+      unified_reserved_amount: unifiedReservedAmount,
+      unified_withdrawable_amount: unifiedWithdrawableAmount,
+      withdrawal_phone: profile?.personal_phone || null,
+    }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) {
+    console.error("profile load failed", error);
+    return NextResponse.json({ error: "Não foi possível carregar o perfil e as carteiras pessoais." }, { status: 502 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  const actor = await corporateActor();
+  const key = hqServiceKey();
+  if (!actor || !key) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+  try {
+    const body = await req.json() as { avatar_url?: string | null; biography?: string | null; account_preferences?: Record<string, unknown> };
+    const existing = (await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`))?.[0] || {};
+    const record = {
+      avatar_url: String(body.avatar_url || "").trim() || null,
+      biography: String(body.biography || "").trim() || null,
+      personal_phone: existing.personal_phone || null,
+      alternate_contact: existing.alternate_contact || null,
+      account_preferences: body.account_preferences || existing.account_preferences || {},
+    };
+    let profile;
+    if (existing.employee_id) {
+      profile = (await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}`, { method: "PATCH", body: JSON.stringify(record) }))?.[0] || null;
+    } else {
+      profile = (await hqRest("employee_display_profiles", { method: "POST", body: JSON.stringify({ employee_id: actor.employee_id, ...record }) }))?.[0] || null;
+    }
+    if (!profile) throw new Error("Perfil não foi devolvido pelo backend");
+    await hqRest("audit_logs", { method: "POST", body: JSON.stringify({ actor_employee_id: actor.employee_id, action: "profile_self_service_updated", module: "profile", target_type: "employee_display_profile", target_id: actor.employee_id, result: "success", metadata: { fields: ["avatar_url", "biography", "account_preferences"], protected_fields: ["personal_phone", "alternate_contact"] } }) });
+    return NextResponse.json({ profile });
+  } catch (error) {
+    console.error("profile update failed", error);
+    return NextResponse.json({ error: "Não foi possível guardar os dados pessoais permitidos." }, { status: 409 });
+  }
+}
