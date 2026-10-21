@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, hqRest, hqRpc } from "@/lib/hq-server";
+import { corporateActor, hqRpc } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,17 +11,22 @@ export async function GET() {
     return NextResponse.json({ error: "Apenas Admin ou Finanças podem transferir para trabalhadores." }, { status: 403 });
   }
   try {
-    const employees = await hqRest(
-      "employees?status=eq.active&auth_user_id=not.is.null&select=id,display_name,employee_code,job_title,role,phone_e164&order=display_name.asc"
-    ) as Array<Record<string, unknown>>;
+    // Use the same canonical directory as the People module. The direct REST
+    // query used to return an empty list when role/status are derived by the
+    // directory RPC rather than physical columns on hq.employees.
+    const directory = await hqRpc("hq_employee_directory_v1") as Array<Record<string, unknown>>;
+    const employees = (Array.isArray(directory) ? directory : [])
+      .filter((employee) => String(employee.status || "").toLowerCase() === "active" && Boolean(employee.auth_user_id))
+      .filter((employee) => String(employee.id) !== String(actor.employee_id))
+      .sort((left, right) => String(left.name || left.display_name || "").localeCompare(String(right.name || right.display_name || "")));
     return NextResponse.json({
-      employees: (employees || []).map((employee) => ({
+      employees: employees.map((employee) => ({
         id: employee.id,
-        name: employee.display_name || "Trabalhador",
+        name: employee.name || employee.display_name || "Trabalhador",
         employee_code: employee.employee_code,
         job_title: employee.job_title,
         role: employee.role,
-        phone: employee.phone_e164,
+        phone: employee.phone || employee.phone_e164,
       })),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {

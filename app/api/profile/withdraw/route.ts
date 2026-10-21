@@ -54,6 +54,12 @@ export async function POST(request: NextRequest) {
   try {
     const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Array<{ personal_phone?: string | null }>;
     const phone = normalizePhone(String(employeeProfiles?.[0]?.personal_phone || ""));
+    // The profile API can still show a real legacy DeliGo personal balance
+    // while the PaySuite account is empty. Reconcile only this authenticated
+    // worker's wallet, never corporate or unattributed payment aggregates.
+    await hqRpc("migrate_legacy_personal_wallet_to_paysuite_v1", { p_auth_user_id: actor.authUserId }).catch((error) => {
+      console.warn("legacy_personal_wallet_migration_skipped", error);
+    });
     const walletFilter = body?.walletId
       ? `id=eq.${encodeURIComponent(body.walletId)}&owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`
       : `owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`;
