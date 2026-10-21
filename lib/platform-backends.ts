@@ -4,12 +4,15 @@ export type PlatformBackend = "deligo" | "comunhao" | "sarca" | "taomoz" | "mest
 
 const backendUrl = (platform: PlatformBackend) => {
   const envName = { deligo: "DELIGO_SUPABASE_URL", comunhao: "COMUNHAO_SUPABASE_URL", sarca: "SARCA_SUPABASE_URL", taomoz: "TAOMOZ_SUPABASE_URL", mestre24: "MESTRE24_SUPABASE_URL" }[platform];
-  const url = process.env[envName]?.trim() || (platform === "deligo" ? process.env.SUPABASE_URL?.trim() : "");
+  // Mestre24 is currently hosted in the same Supabase project as the HQ.
+  // Keep platform-specific URLs supported, but do not hide the schema when
+  // its optional dedicated URL is not configured.
+  const url = process.env[envName]?.trim() || process.env.SUPABASE_URL?.trim() || "";
   if (!url) throw new Error(`PLATFORM_${platform.toUpperCase()}_URL_NOT_CONFIGURED`);
   return url.replace(/\/$/, "");
 };
 
-const platformKey = (platform: PlatformBackend) => process.env[`${platform.toUpperCase()}_SUPABASE_SERVICE_ROLE_KEY`] || process.env.SUPABASE_SERVICE_ROLE_KEY;
+const platformKey = (platform: PlatformBackend) => process.env[`${platform.toUpperCase()}_SUPABASE_SERVICE_ROLE_KEY`]?.trim() || process.env[`${platform.toUpperCase()}_SUPABASE_SECRET_KEY`]?.trim() || process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
 const headers = (platform: PlatformBackend, authenticatedWrite = false) => {
   const key = platformKey(platform);
@@ -26,7 +29,14 @@ export async function signPlatformPath(platform: PlatformBackend, path: string) 
   if (!path || /^https?:\/\//i.test(path)) return path;
   for (const bucket of storageBuckets[platform]) {
     const response = await fetch(`${backendUrl(platform)}/storage/v1/object/sign/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`, { method: "POST", headers: headers(platform), body: JSON.stringify({ expiresIn: 900 }), cache: "no-store" });
-    if (response.ok) { const result = await response.json() as { signedURL?: string }; if (result.signedURL) return result.signedURL.startsWith("http") ? result.signedURL : `${backendUrl(platform)}${result.signedURL}`; }
+    if (response.ok) {
+      const result = await response.json() as { signedURL?: string };
+      if (result.signedURL) {
+        if (result.signedURL.startsWith("http")) return result.signedURL;
+        const relative = result.signedURL.startsWith("/object/") ? `/storage/v1${result.signedURL}` : result.signedURL.startsWith("/storage/v1/") ? result.signedURL : `/${result.signedURL.replace(/^\//, "")}`;
+        return `${backendUrl(platform)}${relative}`;
+      }
+    }
   }
   return path;
 }
