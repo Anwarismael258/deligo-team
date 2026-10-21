@@ -476,6 +476,13 @@ export function HQApp() {
     if (!response.ok) { setFinanceNotice(data.error || "OTP inválido ou pedido expirado."); return; }
     setCorporateWithdrawalStep("done"); setFinanceNotice("Transferência interna confirmada para a carteira pessoal. O levantamento PaySuite continua separado.");
   };
+  const resendCorporateWithdrawalOtp = async () => {
+    setFinanceNotice("A solicitar novo OTP…");
+    const response = await fetch("/api/finance/corporate-withdrawal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ withdrawalId: corporateWithdrawal.withdrawalId }) });
+    const data = await response.json();
+    setFinanceNotice(response.ok ? "Novo OTP enviado ao segundo aprovador. Use-o imediatamente; o anterior foi substituído." : (data.error || "Não foi possível enviar um novo OTP."));
+    if (response.ok) setCorporateWithdrawal(current => ({ ...current, otp: "" }));
+  };
 
   useEffect(() => {
     fetch("/api/auth/session", { cache: "no-store" }).then(async (response) => {
@@ -920,7 +927,7 @@ if(active==="Operações de Campo")void refreshField();
           {active === "Finanças" && <section className="financeWorkspace">
             <div className="financeKpis"><article><span>Ganhos confirmados</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_ledger == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_ledger))}</strong><small>Fonte oficial reconciliada</small></article><article><span>Saldo corporativo disponível</span><strong>{dashboard?.deligoFinance?.summary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(dashboard.deligoFinance.summary.corporate_profit_withdrawable))}</strong><small>Carteira CORPORATE_MZN</small></article><article><span>Destino</span><strong>Carteira pessoal</strong><small>Transferência interna com dupla aprovação</small></article></div>
             {corporateWithdrawalStep === "idle" && <form className="financeEntryForm" onSubmit={prepareCorporateWithdrawal}><label><span>Valor a transferir para a minha carteira (MZN)</span><input type="number" min="0.01" step="0.01" required value={corporateWithdrawal.amount} onChange={event => setCorporateWithdrawal(current => ({ ...current, amount: event.target.value }))} /></label><button className="primaryAction">Solicitar transferência interna</button></form>}
-            {corporateWithdrawalStep === "otp" && <form className="financeEntryForm" onSubmit={confirmCorporateWithdrawal}><label><span>OTP do segundo aprovador</span><input inputMode="numeric" autoComplete="one-time-code" required value={corporateWithdrawal.otp} onChange={event => setCorporateWithdrawal(current => ({ ...current, otp: event.target.value }))} /></label><button className="primaryAction">Confirmar e transferir para a carteira</button></form>}
+            {corporateWithdrawalStep === "otp" && <form className="financeEntryForm" onSubmit={confirmCorporateWithdrawal}><label><span>OTP do segundo aprovador</span><input inputMode="numeric" autoComplete="one-time-code" required value={corporateWithdrawal.otp} onChange={event => setCorporateWithdrawal(current => ({ ...current, otp: event.target.value }))} /></label><div className="financeActionRow"><button className="primaryAction">Confirmar e transferir para a carteira</button><button type="button" className="secondaryAction" onClick={resendCorporateWithdrawalOtp}>Enviar novo OTP</button></div></form>}
             {corporateWithdrawalStep === "done" && <button className="primaryAction" onClick={() => { setCorporateWithdrawalStep("idle"); setCorporateWithdrawal(current => ({ ...current, amount: "", withdrawalId: "", otp: "" })); }}>Novo pedido</button>}
             {financeNotice && <div className="operationalNotice">{financeNotice}</div>}
               {false && <>

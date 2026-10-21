@@ -36,6 +36,10 @@ export async function POST(request: NextRequest) {
       const transferred = await authenticatedRpc("hq_transfer_approved_profit_v1", { p_withdrawal_id: body.withdrawalId });
       return NextResponse.json({ confirmed, transferred });
     }
+    if (body?.withdrawalId) {
+      const otp = await authenticatedRpc("hq_send_corporate_withdrawal_otp_v1", { p_withdrawal_id: body.withdrawalId });
+      return NextResponse.json({ otp, resent: true });
+    }
     const amount = Number(body?.amount);
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Informe um valor válido." }, { status: 400 });
     const [employees, profiles] = await Promise.all([
