@@ -28,7 +28,12 @@ export async function POST(request:NextRequest){
       // are not JWTs and must not be sent as Authorization: Bearer tokens.
       const employeeHeaders:Record<string,string>={apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq"};
       if(!serviceKey.startsWith("sb_secret_")) employeeHeaders.Authorization=`Bearer ${serviceKey}`;
-      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:{...employeeHeaders,"Content-Type":"application/json"},body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(2500)});
+      // The RPC lives in public; hq is only the data schema used by REST
+      // table requests. Sending Content-Profile:hq makes PostgREST look for
+      // this function in hq and turns a valid worker into a false 403.
+      const rpcHeaders:Record<string,string>={apikey:serviceKey,"Content-Type":"application/json"};
+      if(!serviceKey.startsWith("sb_secret_")) rpcHeaders.Authorization=`Bearer ${serviceKey}`;
+      const rpcResponse=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:rpcHeaders,body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(2500)});
       if(rpcResponse.ok){
         const rpcPayload=await rpcResponse.json();
         actor=(Array.isArray(rpcPayload)?rpcPayload[0]:rpcPayload) as Record<string,unknown>;
@@ -37,7 +42,7 @@ export async function POST(request:NextRequest){
       // OTP login working when a Vercel server key is stale or mismatched,
       // while still letting Postgres enforce the employee association.
       if(!actor && payload.access_token){
-        const sessionHeaders={apikey:anonKey,Authorization:`Bearer ${payload.access_token}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json"};
+        const sessionHeaders={apikey:anonKey,Authorization:`Bearer ${payload.access_token}`,"Content-Type":"application/json"};
         const sessionRpc=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:sessionHeaders,body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(4000)});
         if(sessionRpc.ok){
           const sessionPayload=await sessionRpc.json();
