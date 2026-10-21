@@ -24,8 +24,23 @@ export async function corporateActor() {
   if (!anonKey || !serviceKey || !token) return null;
   const identity = await fetch(`${supabaseUrl()}/auth/v1/user`, { headers: { apikey: anonKey, Authorization: `Bearer ${token}` }, cache: "no-store" });
   if (!identity.ok) return null;
-  const user = await identity.json() as { id: string };
-  const context = await hqRpc("hq_actor_context_v1", { p_auth_user_id: user.id });
+  const user = await identity.json() as { id: string; phone?: string | null };
+  let context: Record<string, unknown> | null = null;
+  try {
+    context = await hqRpc("hq_actor_context_v1", { p_auth_user_id: user.id }) as Record<string, unknown> | null;
+  } catch {
+    context = null;
+  }
+  // Keep the session lookup aligned with the OTP/password login path. The
+  // canonical login RPC also resolves an existing Auth identity by phone,
+  // which covers older employee rows whose auth_user_id was not backfilled.
+  if (!context && user.phone) {
+    try {
+      context = await hqRpc("hq_actor_context_for_login_v1", { p_auth_user_id: user.id, p_phone_e164: user.phone }) as Record<string, unknown> | null;
+    } catch {
+      context = null;
+    }
+  }
   if (!context || context.status !== "active") return null;
   return { authUserId: user.id, ...context } as { authUserId: string; employee_id: string; employee_code: string; name: string; role: string; status: string };
 }
