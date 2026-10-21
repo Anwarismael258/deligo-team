@@ -63,9 +63,9 @@ export async function GET() {
       ? await fetch(`${supabaseUrl()}/rest/v1/rpc/corporate_revenue_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
       : null;
     const financialBreakdown = canViewDeligoFinance ? await (async () => {
-      const rpc = await fetch(`${supabaseUrl()}/rest/v1/rpc/financial_platform_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null);
+      const rpc = await fetch(`${supabaseUrl()}/rest/v1/rpc/financial_platform_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(2_500) }).then(response => response.ok ? response.json() : null).catch(() => null);
       if (rpc) return rpc;
-      const profileRest = (schema: string, path: string) => fetch(`${supabaseUrl()}/rest/v1/${path}`, { headers: { ...rpcHeaders, "Accept-Profile": schema, "Content-Profile": schema }, cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : []).catch(() => []);
+      const profileRest = (schema: string, path: string) => fetch(`${supabaseUrl()}/rest/v1/${path}`, { headers: { ...rpcHeaders, "Accept-Profile": schema, "Content-Profile": schema }, cache: "no-store", signal: AbortSignal.timeout(4_000) }).then(response => response.ok ? response.json() : []).catch(() => []);
       const [platformRows, appRows, eventRows, walletRows] = await Promise.all([
         profileRest("hq", "platforms?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
         profileRest("core", "apps?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
