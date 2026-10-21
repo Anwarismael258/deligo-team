@@ -32,9 +32,15 @@ export async function corporateActor() {
   const anonKey = process.env.SUPABASE_ANON_KEY;
   const serviceKey = hqServiceKey();
   const token = (await cookies()).get("hq_access_token")?.value;
-  if (!anonKey || !serviceKey || !token) return null;
+  if (!anonKey || !serviceKey || !token) {
+    console.info("HQ_SESSION_ACTOR", { anonKey: Boolean(anonKey), serviceKey: Boolean(serviceKey), token: Boolean(token), reason: "missing-config-or-cookie" });
+    return null;
+  }
   const identity = await fetch(`${supabaseUrl()}/auth/v1/user`, { headers: { apikey: anonKey, Authorization: `Bearer ${token}` }, cache: "no-store" });
-  if (!identity.ok) return null;
+  if (!identity.ok) {
+    console.info("HQ_SESSION_ACTOR", { identityStatus: identity.status, reason: "auth-user-rejected" });
+    return null;
+  }
   const user = await identity.json() as { id: string; phone?: string | null };
   let context: Record<string, unknown> | null = null;
   try {
@@ -52,6 +58,7 @@ export async function corporateActor() {
       context = null;
     }
   }
+  console.info("HQ_SESSION_ACTOR", { identityStatus: "ok", phonePresent: Boolean(user.phone), primaryStatus: context?.status || null, actorRole: context?.role || null });
   if (!context || context.status !== "active") return null;
   return { authUserId: user.id, ...context } as { authUserId: string; employee_id: string; employee_code: string; name: string; role: string; status: string };
 }
