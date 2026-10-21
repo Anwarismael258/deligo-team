@@ -48,17 +48,26 @@ function mapCanonicalWallet(wallet: Record<string, unknown>, app?: Record<string
 }
 
 export async function GET() {
-  const actor = await corporateActor();
-  const key = hqServiceKey();
-  if (!actor || !key) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
-
   try {
-    const [profileRows, legacy, canonical, apps] = await Promise.all([
-      hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`),
+    const actor = await corporateActor();
+    const key = hqServiceKey();
+    if (!actor || !key) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+
+    // The employee profile is the primary resource. Wallet adapters are
+    // optional: a missing legacy table or a temporarily unavailable app
+    // schema must not make the profile page unusable.
+    const profileRows = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`);
+    const [legacyResult, canonicalResult, appsResult] = await Promise.allSettled([
       stagingRest(`wallets?user_id=eq.${encodeURIComponent(actor.authUserId)}&select=id,balance,currency&limit=1`) as Promise<Array<Record<string, unknown>>>,
       paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&account_type=eq.user&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
       coreRest(key, "apps?select=id,slug,name"),
     ]);
+    const legacy = legacyResult.status === "fulfilled" ? legacyResult.value : [];
+    const canonical = canonicalResult.status === "fulfilled" ? canonicalResult.value : [];
+    const apps = appsResult.status === "fulfilled" ? appsResult.value : [];
+    if (legacyResult.status === "rejected") console.warn("profile legacy wallet unavailable", legacyResult.reason);
+    if (canonicalResult.status === "rejected") console.warn("profile canonical wallets unavailable", canonicalResult.reason);
+    if (appsResult.status === "rejected") console.warn("profile app catalog unavailable", appsResult.reason);
     const profile = profileRows?.[0] || null;
     const appById = new Map((Array.isArray(apps) ? apps : []).map((app: Record<string, unknown>) => [String(app.id), app]));
     const canonicalWallets = (Array.isArray(canonical) ? canonical : [])
@@ -112,10 +121,10 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const actor = await corporateActor();
-  const key = hqServiceKey();
-  if (!actor || !key) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
   try {
+    const actor = await corporateActor();
+    const key = hqServiceKey();
+    if (!actor || !key) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
     const body = await req.json() as { avatar_url?: string | null; biography?: string | null; account_preferences?: Record<string, unknown> };
     const existing = (await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`))?.[0] || {};
     const record = {
