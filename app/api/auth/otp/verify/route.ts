@@ -79,5 +79,5 @@ export async function POST(request:NextRequest){
   }
   if(!actor)return NextResponse.json({error:"Este telefone não está associado a um trabalhador da Central."},{status:403});
   const response=NextResponse.json({ok:true,mustSetPassword:Boolean(payload.user?.user_metadata?.must_set_password),active:actor.status==="active",role:String(actor.role||actor.requested_role||"")});const secure=request.nextUrl.protocol==="https:";
-  response.cookies.set("hq_access_token",payload.access_token,{httpOnly:true,secure,sameSite:"strict",path:"/",maxAge:payload.expires_in||3600});response.cookies.set("hq_refresh_token",payload.refresh_token,{httpOnly:true,secure,sameSite:"strict",path:"/",maxAge:604800});return response;
+  response.cookies.set("hq_access_token",payload.access_token,{httpOnly:true,secure,sameSite:"lax",path:"/",maxAge:payload.expires_in||3600});response.cookies.set("hq_refresh_token",payload.refresh_token,{httpOnly:true,secure,sameSite:"lax",path:"/",maxAge:604800});return response;
 }

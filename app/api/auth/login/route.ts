@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   if (!actor || actor.status !== "active") return NextResponse.json({ error: actor?.status === "suspended" ? "Esta conta está suspensa." : "A conta não está associada a um funcionário activo. Contacte o Super Administrador." }, { status: 403 });
   const response = NextResponse.json({ user: { email: payload.user?.email, ...payload.user?.user_metadata, hq_role: (actor as { role?: string }).role } });
   const secure = request.nextUrl.protocol === "https:";
-  response.cookies.set("hq_access_token", payload.access_token, { httpOnly: true, secure, sameSite: "strict", path: "/", maxAge: payload.expires_in || 3600 });
-  response.cookies.set("hq_refresh_token", payload.refresh_token, { httpOnly: true, secure, sameSite: "strict", path: "/", maxAge: 60 * 60 * 24 * 7 });
+  response.cookies.set("hq_access_token", payload.access_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: payload.expires_in || 3600 });
+  response.cookies.set("hq_refresh_token", payload.refresh_token, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 7 });
   return response;
 }
