@@ -17,13 +17,24 @@ const read = async (platform: SupportedPlatform, path: string) => {
   }
 };
 const mediaFields = ["photo_url", "avatar_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_docs", "kyc_documents", "files", "attachments", "identity_document"];
+const mediaPathFields = new Set(["url", "path", "reference", "storage_path", "file_url", "document_url", "photo_url", "image_url"]);
+const signMediaValue = async (platform: SupportedPlatform, value: unknown): Promise<unknown> => {
+  if (typeof value === "string") return value ? await signPlatformPath(platform, value) : value;
+  if (Array.isArray(value)) return Promise.all(value.map(item => signMediaValue(platform, item)));
+  if (!value || typeof value !== "object") return value;
+  const object = { ...(value as Record<string, unknown>) };
+  for (const [key, item] of Object.entries(object)) {
+    if (mediaPathFields.has(key) && typeof item === "string" && item) object[key] = await signPlatformPath(platform, item);
+    else if (item && typeof item === "object") object[key] = await signMediaValue(platform, item);
+  }
+  return object;
+};
 const signRow = async (platform: SupportedPlatform, value: unknown) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const row = { ...(value as Record<string, unknown>) };
   for (const field of mediaFields) {
     const item = row[field];
-    if (typeof item === "string" && item) row[field] = await signPlatformPath(platform, item);
-    if (Array.isArray(item)) row[field] = await Promise.all(item.map(entry => typeof entry === "string" ? signPlatformPath(platform, entry) : entry));
+    if (item != null) row[field] = await signMediaValue(platform, item);
   }
   return row;
 };
