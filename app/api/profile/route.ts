@@ -57,13 +57,19 @@ export async function GET() {
     // optional: a missing legacy table or a temporarily unavailable app
     // schema must not make the profile page unusable.
     const profileRows = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`);
+    // A login token can belong to a legacy Auth identity while the employee
+    // record already points to the canonical identity used by DeliGo's
+    // personal wallet. Resolve the wallet owner from the employee record so
+    // the profile never displays an unrelated zero-balance legacy wallet.
+    const employeeRows = await hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id`);
+    const walletOwnerId = String(employeeRows?.[0]?.auth_user_id || actor.authUserId);
     const [legacyResult, canonicalResult, appsResult] = await Promise.allSettled([
-      stagingRest(`wallets?user_id=eq.${encodeURIComponent(actor.authUserId)}&select=id,balance,currency&limit=1`) as Promise<Array<Record<string, unknown>>>,
+      stagingRest(`wallets?user_id=eq.${encodeURIComponent(walletOwnerId)}&select=id,balance,currency&limit=1`) as Promise<Array<Record<string, unknown>>>,
       // A carteira pessoal é consolidada por utilizador, não por um único
       // account_type. O mesmo trabalhador pode ter contas pessoais de DeliGo,
       // SARCA, Mestre24, estafeta ou comerciante; a carteira CORPORATE_MZN
       // continua fora deste filtro porque não tem owner_user_id.
-      paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
+      paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(walletOwnerId)}&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
       coreRest(key, "apps?select=id,slug,name"),
     ]);
     const legacy = legacyResult.status === "fulfilled" ? legacyResult.value : [];
