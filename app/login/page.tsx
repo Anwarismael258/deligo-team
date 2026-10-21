@@ -105,7 +105,6 @@ export default function LoginPage() {
           {mode==="otp"&&!otpSent&&<div className="loginInfo"><strong>Primeiro acesso</strong><span>Não coloque uma senha agora. Enviaremos um código OTP para este telefone.</span></div>}
           {mode==="password"&&<div className="loginOptions">
             <label><input type="checkbox" /> <span>Confiar neste dispositivo</span></label>
-            <button type="button">Esqueceu a palavra-passe?</button>
           </div>}
           <button className="loginSubmit" type="submit" disabled={loading}>{loading ? (otpVerified ? "A guardar…" : "A validar…") : otpVerified?"Guardar senha":mode==="password"?"Entrar":otpSent?"Validar OTP":"Enviar OTP"} <span>→</span></button>
           {mode==="otp"&&otpSent&&!otpVerified&&<button type="button" className="loginAltAction" onClick={resendOtp} disabled={loading}>Enviar novo OTP</button>}
