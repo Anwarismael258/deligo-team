@@ -56,6 +56,9 @@ export async function GET() {
       stagingRest("order_disputes?select=*&status=not.in.(resolved,closed)&order=created_at.desc&limit=8").catch(() => []),
     ]) as [Record<string, unknown>, Record<string, unknown>, { platform: Record<string, unknown>; module: Record<string, unknown> }, unknown, Array<Record<string, unknown>>, [Record<string, unknown> | null, Record<string, unknown> | null], Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>];
     const [legacyDeligoFinance, canonicalFinance] = financeResponses as [Record<string, unknown> | null, Record<string, unknown> | null];
+    const corporateRevenue = canViewDeligoFinance
+      ? await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_corporate_revenue_summary_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
+      : null;
     // The DeliGo app keeps the canonical user wallets in public.wallets.
     // Keep this separate from corporate profit: the overview card is a wallet
     // indicator, while the Finance screen shows corporate profit.
@@ -67,8 +70,8 @@ export async function GET() {
       : null;
     const financeSummary = canonicalFinance || legacyDeligoFinance;
     const summaryWithWallet = financeSummary
-      ? { ...financeSummary, ...(deligoWalletTotal == null ? {} : { corporate_wallet_total: deligoWalletTotal }) }
-      : (deligoWalletTotal == null ? null : { corporate_wallet_total: deligoWalletTotal });
+      ? { ...financeSummary, ...(deligoWalletTotal == null ? {} : { corporate_wallet_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) }
+      : (deligoWalletTotal == null && !corporateRevenue ? null : { ...(deligoWalletTotal == null ? {} : { corporate_wallet_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) });
     const deligoFinance = summaryWithWallet
       ? { summary: summaryWithWallet, legacy: legacyDeligoFinance }
       : null;
