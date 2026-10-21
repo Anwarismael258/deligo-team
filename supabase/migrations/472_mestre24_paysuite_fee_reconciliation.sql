@@ -28,9 +28,9 @@ begin
   if v_raw is not null and v_raw ~ '^[0-9]+(\.[0-9]+)?$' then
     v_fee := v_raw::numeric;
   end if;
-  -- Current PaySuite subscription pricing charges 3% when the callback does
-  -- not include the separate fee transaction in its payload.
-  return round(least(greatest(coalesce(v_fee, p_gross_amount * 0.03), 0), p_gross_amount), 2);
+  -- The active Mestre24 plan is 50 MT and PaySuite records a 3 MT fee as a
+  -- separate transaction when the callback omits it.
+  return round(least(greatest(coalesce(v_fee, case when p_gross_amount = 50 then 3 else p_gross_amount * 0.03 end), 0), p_gross_amount), 2);
 end;
 $function$;
 

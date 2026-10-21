@@ -32,7 +32,10 @@ function paysuiteProviderFee(data: Record<string, unknown>, grossAmount: number)
   const explicit = [data.provider_fee, data.providerFee, data.fee, data.taxa, data.transaction_fee, data.transactionFee]
     .map(value => Number(value))
     .find(value => Number.isFinite(value) && value >= 0 && value <= grossAmount);
-  return Number((explicit ?? grossAmount * 0.03).toFixed(2));
+  // The active Mestre24 plan is 50 MT and PaySuite records a 3 MT fee as a
+  // separate transaction. Prefer the fee from the callback when available;
+  // this fallback keeps that known plan reconciliation correct.
+  return Number((explicit ?? (grossAmount === 50 ? 3 : grossAmount * 0.03)).toFixed(2));
 }
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS" || req.method === "GET" || req.method === "HEAD") return new Response("OK", { status: 200 });
