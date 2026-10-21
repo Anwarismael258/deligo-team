@@ -62,6 +62,9 @@ export async function GET() {
     const corporateRevenue = canViewDeligoFinance
       ? await fetch(`${supabaseUrl()}/rest/v1/rpc/corporate_revenue_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
       : null;
+    const financialBreakdown = canViewDeligoFinance
+      ? await fetch(`${supabaseUrl()}/rest/v1/rpc/financial_platform_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
+      : null;
     // The DeliGo app keeps the canonical user wallets in public.wallets.
     // Keep this separate from corporate profit: this is an informational total
     // for user wallets, never the corporate wallet or corporate revenue.
@@ -76,7 +79,7 @@ export async function GET() {
       ? { ...financeSummary, ...(deligoWalletTotal == null ? {} : { user_wallets_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) }
       : (deligoWalletTotal == null && !corporateRevenue ? null : { ...(deligoWalletTotal == null ? {} : { user_wallets_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) });
     const deligoFinance = summaryWithWallet
-      ? { summary: summaryWithWallet, legacy: legacyDeligoFinance }
+      ? { summary: summaryWithWallet, breakdown: financialBreakdown, legacy: legacyDeligoFinance }
       : null;
     const dashboardPlatforms = Array.isArray(dashboard.platforms) ? dashboard.platforms : [];
     const modulePlatforms = Array.isArray(modules.platforms) ? modules.platforms : [];
