@@ -28,6 +28,12 @@ function actorContext(value: unknown): Record<string, unknown> | null {
   return status ? { ...record, status } : null;
 }
 
+function normalizeMozPhone(value: string | null | undefined) {
+  const digits = String(value || "").replace(/\D/g, "");
+  const normalized = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
+  return /^\+258\d{9}$/.test(normalized) ? normalized : null;
+}
+
 export async function corporateActor() {
   const anonKey = process.env.SUPABASE_ANON_KEY;
   const serviceKey = hqServiceKey();
@@ -51,9 +57,10 @@ export async function corporateActor() {
   // Keep the session lookup aligned with the OTP/password login path. The
   // canonical login RPC also resolves an existing Auth identity by phone,
   // which covers older employee rows whose auth_user_id was not backfilled.
-  if (!context && user.phone) {
+  const normalizedPhone = normalizeMozPhone(user.phone);
+  if (!context && normalizedPhone) {
     try {
-      context = actorContext(await hqRpc("hq_actor_context_for_login_v1", { p_auth_user_id: user.id, p_phone_e164: user.phone }));
+      context = actorContext(await hqRpc("hq_actor_context_for_login_v1", { p_auth_user_id: user.id, p_phone_e164: normalizedPhone }));
     } catch {
       context = null;
     }
