@@ -22,7 +22,7 @@ export async function POST(request:NextRequest){
   let actor=null;
   if(payload.user?.id){
     try {
-      const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const serviceKey=process.env.SUPABASE_SECRET_KEY?.trim()||process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
       if(!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
       // Supabase's newer sb_secret_* keys authenticate through apikey. They
       // are not JWTs and must not be sent as Authorization: Bearer tokens.

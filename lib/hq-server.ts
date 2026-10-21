@@ -7,6 +7,10 @@ export const supabaseUrl = () => {
   return url.replace(/\/$/, "");
 };
 
+function hqServiceKey() {
+  return process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
+}
+
 function privilegedHeaders(serviceKey: string, extra: Record<string, string> = {}) {
   const headers: Record<string, string> = { apikey: serviceKey, "Content-Type": "application/json", ...extra };
   if (!serviceKey.startsWith("sb_secret_")) headers.Authorization = `Bearer ${serviceKey}`;
@@ -15,7 +19,7 @@ function privilegedHeaders(serviceKey: string, extra: Record<string, string> = {
 
 export async function corporateActor() {
   const anonKey = process.env.SUPABASE_ANON_KEY;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = hqServiceKey();
   const token = (await cookies()).get("hq_access_token")?.value;
   if (!anonKey || !serviceKey || !token) return null;
   const identity = await fetch(`${supabaseUrl()}/auth/v1/user`, { headers: { apikey: anonKey, Authorization: `Bearer ${token}` }, cache: "no-store" });
@@ -44,7 +48,7 @@ export async function requireCorporatePermission(permission:string,platform?:str
 }
 
 export async function hqRpc(name: string, body: Record<string, unknown> = {}) {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = hqServiceKey();
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
   const response = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, { method: "POST", headers: privilegedHeaders(serviceKey), body: JSON.stringify(body), cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || "HQ_RPC_FAILED");
@@ -52,7 +56,7 @@ export async function hqRpc(name: string, body: Record<string, unknown> = {}) {
 }
 
 export async function stagingRest(path: string, init: RequestInit = {}) {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = hqServiceKey();
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
   const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
     ...init,
@@ -65,7 +69,7 @@ export async function stagingRest(path: string, init: RequestInit = {}) {
 }
 
 export async function hqRest(path: string, init: RequestInit = {}) {
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = hqServiceKey();
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
   const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
     ...init,
