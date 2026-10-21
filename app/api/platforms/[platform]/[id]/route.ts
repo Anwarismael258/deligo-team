@@ -16,7 +16,7 @@ const read = async (platform: SupportedPlatform, path: string) => {
     return [];
   }
 };
-const mediaFields = ["photo_url", "avatar_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_documents", "files", "attachments", "identity_document"];
+const mediaFields = ["photo_url", "avatar_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_docs", "kyc_documents", "files", "attachments", "identity_document"];
 const signRow = async (platform: SupportedPlatform, value: unknown) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const row = { ...(value as Record<string, unknown>) };
