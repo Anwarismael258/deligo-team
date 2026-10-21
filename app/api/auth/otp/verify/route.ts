@@ -33,6 +33,17 @@ export async function POST(request:NextRequest){
         const rpcPayload=await rpcResponse.json();
         actor=(Array.isArray(rpcPayload)?rpcPayload[0]:rpcPayload) as Record<string,unknown>;
       }
+      // Fallback: the RPC is also granted to authenticated users. This keeps
+      // OTP login working when a Vercel server key is stale or mismatched,
+      // while still letting Postgres enforce the employee association.
+      if(!actor && payload.access_token){
+        const sessionHeaders={apikey:anonKey,Authorization:`Bearer ${payload.access_token}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json"};
+        const sessionRpc=await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_context_for_login_v1`,{method:"POST",headers:sessionHeaders,body:JSON.stringify({p_auth_user_id:payload.user.id,p_phone_e164:normalized}),cache:"no-store",signal:AbortSignal.timeout(4000)});
+        if(sessionRpc.ok){
+          const sessionPayload=await sessionRpc.json();
+          actor=(Array.isArray(sessionPayload)?sessionPayload[0]:sessionPayload) as Record<string,unknown>;
+        }
+      }
       if(actor) {
         // The security-definer RPC is the canonical HQ lookup. It also handles
         // an existing Auth identity without relying on REST schema exposure.
