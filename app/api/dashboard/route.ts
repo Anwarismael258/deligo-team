@@ -121,8 +121,8 @@ export async function GET() {
       const [platformRows, appRows, eventRows, walletRows] = await Promise.all([
         profileRest("hq", "platforms?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
         profileRest("core", "apps?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
-        profileRest("hq", "platform_financial_events?select=platform_id,gross_amount,platform_fee,provider_fee,currency,payment_status&currency=eq.MZN&payment_status=eq.confirmed&limit=10000"),
-        profileRest("payments", "wallet_accounts?select=app_id,owner_user_id,account_type,available_balance_minor,pending_balance_minor,currency_code,status&currency_code=eq.MZN&status=in.(active,suspended)&limit=10000"),
+        profileRest("hq", "platform_financial_events?select=platform_id,source_record_id,gross_amount,platform_fee,provider_fee,currency,payment_status,metadata&currency=eq.MZN&payment_status=eq.confirmed&limit=10000"),
+        profileRest("payments", "wallet_accounts?select=app_id,owner_user_id,account_type,account_code,available_balance_minor,pending_balance_minor,currency_code,status,metadata&currency_code=eq.MZN&status=in.(active,suspended)&limit=10000"),
       ]) as [Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>];
       const appsBySlug = new Map(appRows.map(row => [String(row.slug), row]));
       const platformById = new Map(platformRows.map(row => [String(row.id), row]));
@@ -131,10 +131,25 @@ export async function GET() {
         const app = appsBySlug.get(slug);
         const platform = [...platformById.values()].find(row => String(row.slug) === slug);
         const platformId = String(platform?.id || "");
-        const events = eventRows.filter(row => String(row.platform_id || "") === platformId);
+        const events = eventRows.filter(row => {
+          const item = row as Record<string, unknown>;
+          const metadata = item.metadata && typeof item.metadata === "object" ? item.metadata as Record<string, unknown> : {};
+          return String(item.platform_id || "") === platformId
+            && metadata.test_mode !== true
+            && metadata.fictitious !== true
+            && !String(item.source_record_id || "").startsWith("TEST-");
+        });
         // DeliGo Eats uses deligo.legacy_wallets as its canonical user-wallet ledger;
         // do not count the same people again from payments.wallet_accounts.
-        const wallets = slug === "deligo" ? [] : walletRows.filter(row => String(row.app_id || "") === String(app?.id || "") && !excluded.has(String(row.account_type)));
+        const wallets = slug === "deligo" ? [] : walletRows.filter(row => {
+          const item = row as Record<string, unknown>;
+          const metadata = item.metadata && typeof item.metadata === "object" ? item.metadata as Record<string, unknown> : {};
+          const accountCode = String(item.account_code || "");
+          const isTest = metadata.test_mode === true || metadata.fictitious === true || metadata.is_test_user === true
+            || String(metadata.provisioning_source || "").startsWith("ecosystem_test")
+            || accountCode.startsWith("TEST-");
+          return String(item.app_id || "") === String(app?.id || "") && !excluded.has(String(item.account_type)) && !isTest;
+        });
         const sum = (rows: Array<Record<string, unknown>>, key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
         const walletAvailable = sum(wallets, "available_balance_minor") / 100;
         const walletPending = sum(wallets, "pending_balance_minor") / 100;
@@ -142,7 +157,16 @@ export async function GET() {
         const canonicalPending = slug === "deligo" && deligoWalletPending != null ? deligoWalletPending : walletPending;
         return { slug, name: String(platform?.name || app?.name || slug), gross_confirmed: sum(events, "gross_amount"), central_revenue_confirmed: sum(events, "platform_fee"), provider_fees_confirmed: sum(events, "provider_fee"), wallet_available: canonicalAvailable, wallet_pending: canonicalPending, funds_total: canonicalAvailable + canonicalPending };
       });
-      const globalWallets = walletRows.filter(row => !row.app_id && row.owner_user_id && !excluded.has(String(row.account_type)));
+      const globalWallets = walletRows.filter(row => {
+        const item = row as Record<string, unknown>;
+        const metadata = item.metadata && typeof item.metadata === "object" ? item.metadata as Record<string, unknown> : {};
+        const accountCode = String(item.account_code || "");
+        const isTest = metadata.test_mode === true || metadata.fictitious === true || metadata.is_test_user === true
+          || metadata.internal_only === true
+          || String(metadata.provisioning_source || "").startsWith("ecosystem_test")
+          || accountCode.startsWith("TEST-");
+        return !item.app_id && item.owner_user_id && !excluded.has(String(item.account_type)) && !isTest;
+      });
       const sum = (rows: Array<Record<string, unknown>>, key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0) / 100;
       const platformWalletAvailable = platforms.reduce((total, row) => total + row.wallet_available, 0);
       const platformWalletPending = platforms.reduce((total, row) => total + row.wallet_pending, 0);
