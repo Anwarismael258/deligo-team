@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { dispatchMicrocreditPacket } from "@/lib/microcredit-packets";
 
 const staff = new Set(["SUPER_ADMIN", "FINANCE"]);
 const pageSize = 40;
@@ -71,11 +72,13 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const current = await actor();
   if (!current) return NextResponse.json({ error: "Sem acesso." }, { status: 403 });
-  const body = await request.json() as { id?: string; status?: string; note?: string };
+  const body = await request.json() as { id?: string; status?: string; note?: string; resend?: boolean };
   if (!body.id) return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
   if (body.note !== undefined && (body.note.trim().length < 1 || body.note.trim().length > 2000)) return NextResponse.json({ error: "A nota deve ter entre 1 e 2000 caracteres." }, { status: 400 });
   try {
     let application: Record<string, unknown> | undefined;
+    let delivery: unknown = null;
+    let deliveryWarning: string | null = null;
     if (body.status) {
       const currentRows = await stagingRest(`loan_applications?id=eq.${encodeURIComponent(body.id)}&select=id,status`) as Array<Record<string, unknown>>;
       const current = currentRows?.[0];
@@ -88,9 +91,23 @@ export async function PATCH(request: NextRequest) {
       }) as Array<Record<string, unknown>>;
       application = rows?.[0];
       if (!application) return NextResponse.json({ error: "O pedido mudou entretanto. Actualize antes de continuar." }, { status: 409 });
+      if (body.status === "aprovado") {
+        try {
+          delivery = await dispatchMicrocreditPacket(application, "confirmed");
+        } catch (error) {
+          deliveryWarning = error instanceof Error ? error.message.split(":")[0] : "MICROCREDIT_DISPATCH_FAILED";
+        }
+      }
+    }
+    if (body.resend) {
+      const rows = await stagingRest(`loan_applications?id=eq.${encodeURIComponent(body.id)}&limit=1`) as Array<Record<string, unknown>>;
+      application = rows?.[0];
+      if (!application || application.status !== "aprovado") return NextResponse.json({ error: "Só é possível reenviar a confirmação de um pedido aprovado." }, { status: 409 });
+      try { delivery = await dispatchMicrocreditPacket(application, "confirmed"); }
+      catch (error) { deliveryWarning = error instanceof Error ? error.message.split(":")[0] : "MICROCREDIT_DISPATCH_FAILED"; }
     }
     if (body.note?.trim()) await stagingRest("loan_application_notes", { method: "POST", body: JSON.stringify({ application_id: body.id, body: body.note.trim(), author_id: current.authUserId }) });
-    return NextResponse.json({ application });
+    return NextResponse.json({ application, delivery, deliveryWarning });
   } catch {
     return NextResponse.json({ error: "Não foi possível guardar a alteração." }, { status: 409 });
   }

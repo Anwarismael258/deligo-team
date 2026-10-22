@@ -42,7 +42,7 @@ export function MicrocreditWorkspace() {
     const r = await fetch("/api/microcredit", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: selected.id, ...body }) });
     const b = await r.json();
     if (!r.ok) { setNotice(b.error || "Não foi possível guardar."); return; }
-    await load(page); if (b.application) setSelected(b.application); setNote(""); setNotice("Alteração guardada.");
+    await load(page); if (b.application) setSelected(b.application); setNote(""); setNotice(b.deliveryWarning ? `Estado guardado, mas a entrega do PDF ficou pendente (${b.deliveryWarning}). Configure o WhatsApp e tente novamente.` : "Alteração guardada.");
   };
 
   return <section className="financeWorkspace">
