@@ -67,10 +67,26 @@ export async function GET() {
     // revenue and use available_balance when the column exists; this endpoint
     // only exposes available funds, never subscription revenue.
     const deligoWalletRows = canViewDeligoFinance
-      ? await stagingRest("legacy_wallets?select=balance,available_balance,pending_balance,currency,is_active&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => stagingRest("legacy_wallets?select=balance,currency,is_active&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => null))
+      ? await stagingRest("legacy_wallets?select=balance,available_balance,pending_balance,currency,is_active,user_id,owner_id&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => stagingRest("legacy_wallets?select=balance,currency,is_active,user_id,owner_id&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => null))
       : null;
+    const deligoProfileRows = canViewDeligoFinance
+      ? await stagingRest("profiles?select=id,user_id,is_test_user&limit=10000").catch(() => [])
+      : [];
+    const testUserIds = new Set(
+      Array.isArray(deligoProfileRows)
+        ? deligoProfileRows.filter(row => (row as Record<string, unknown>).is_test_user === true).flatMap(row => {
+          const item = row as Record<string, unknown>;
+          return [item.id, item.user_id].filter(Boolean).map(String);
+        })
+        : [],
+    );
+    const currentActorId = String(actor.authUserId || "");
     const activeDeligoWalletRows = Array.isArray(deligoWalletRows)
-      ? deligoWalletRows.filter(row => (row as Record<string, unknown>).is_active === true)
+      ? deligoWalletRows.filter(row => {
+        const item = row as Record<string, unknown>;
+        const ownerId = String(item.user_id || item.owner_id || "");
+        return item.is_active === true && ownerId !== currentActorId && !testUserIds.has(ownerId);
+      })
       : [];
     const deligoWalletAvailable = Array.isArray(deligoWalletRows)
       ? activeDeligoWalletRows.reduce((total, row) => {
