@@ -62,9 +62,45 @@ export async function GET() {
     const corporateRevenue = canViewDeligoFinance
       ? await fetch(`${supabaseUrl()}/rest/v1/rpc/corporate_revenue_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
       : null;
+    // DeliGo Eats still has canonical personal/customer/restaurant/courier
+    // wallets in public.wallets.  Keep those balances separate from corporate
+    // revenue and use available_balance when the column exists; this endpoint
+    // only exposes available funds, never subscription revenue.
+    const deligoWalletRows = canViewDeligoFinance
+      ? await stagingRest("wallets?select=balance,available_balance,pending_balance,currency,is_active&currency=eq.MZN&limit=10000").catch(() => stagingRest("wallets?select=balance,currency&currency=eq.MZN&limit=10000").catch(() => null))
+      : null;
+    const activeDeligoWalletRows = Array.isArray(deligoWalletRows)
+      ? deligoWalletRows.filter(row => (row as Record<string, unknown>).is_active !== false)
+      : [];
+    const deligoWalletAvailable = Array.isArray(deligoWalletRows)
+      ? activeDeligoWalletRows.reduce((total, row) => {
+        const item = row as Record<string, unknown>;
+        return total + Number(item.available_balance ?? item.balance ?? 0);
+      }, 0)
+      : null;
+    const deligoWalletPending = Array.isArray(deligoWalletRows)
+      ? activeDeligoWalletRows.reduce((total, row) => total + Number((row as Record<string, unknown>).pending_balance || 0), 0)
+      : null;
     const financialBreakdown = canViewDeligoFinance ? await (async () => {
       const rpc = await fetch(`${supabaseUrl()}/rest/v1/rpc/financial_platform_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(2_500) }).then(response => response.ok ? response.json() : null).catch(() => null);
-      if (rpc) return rpc;
+      const normalize = (value: Record<string, unknown>) => {
+        const sourcePlatforms = Array.isArray(value.platforms) ? value.platforms as Array<Record<string, unknown>> : [];
+        const platforms = sourcePlatforms.some(row => String(row.slug) === "deligo")
+          ? sourcePlatforms.map(row => {
+            if (String(row.slug) !== "deligo" || deligoWalletAvailable == null) return row;
+            const available = deligoWalletAvailable;
+            const pending = deligoWalletPending ?? Number(row.wallet_pending || 0);
+            return { ...row, wallet_available: available, wallet_pending: pending, funds_total: available + pending };
+          })
+          : deligoWalletAvailable == null
+            ? sourcePlatforms
+            : [...sourcePlatforms, { slug: "deligo", name: "DeliGo Eats", gross_confirmed: 0, central_revenue_confirmed: 0, provider_fees_confirmed: 0, wallet_available: deligoWalletAvailable, wallet_pending: deligoWalletPending ?? 0, funds_total: deligoWalletAvailable + (deligoWalletPending ?? 0) }];
+        const available = platforms.reduce((total, row) => total + Number(row.wallet_available || 0), 0) + Number(value.global_user_wallet_available || 0);
+        const pending = platforms.reduce((total, row) => total + Number(row.wallet_pending || 0), 0) + Number(value.global_user_wallet_pending || 0);
+        const corporate = Number(value.corporate_wallet_available || 0);
+        return { ...value, platforms, user_wallets_available: available, user_wallets_pending: pending, total_funds_controlled_available: corporate + available, total_funds_controlled_pending: pending };
+      };
+      if (rpc && typeof rpc === "object") return normalize(rpc as Record<string, unknown>);
       const profileRest = (schema: string, path: string) => fetch(`${supabaseUrl()}/rest/v1/${path}`, { headers: { ...rpcHeaders, "Accept-Profile": schema, "Content-Profile": schema }, cache: "no-store", signal: AbortSignal.timeout(4_000) }).then(response => response.ok ? response.json() : []).catch(() => []);
       const [platformRows, appRows, eventRows, walletRows] = await Promise.all([
         profileRest("hq", "platforms?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
@@ -80,11 +116,15 @@ export async function GET() {
         const platform = [...platformById.values()].find(row => String(row.slug) === slug);
         const platformId = String(platform?.id || "");
         const events = eventRows.filter(row => String(row.platform_id || "") === platformId);
-        const wallets = walletRows.filter(row => String(row.app_id || "") === String(app?.id || "") && !excluded.has(String(row.account_type)));
+        // DeliGo Eats uses public.wallets as its canonical user-wallet ledger;
+        // do not count the same people again from payments.wallet_accounts.
+        const wallets = slug === "deligo" ? [] : walletRows.filter(row => String(row.app_id || "") === String(app?.id || "") && !excluded.has(String(row.account_type)));
         const sum = (rows: Array<Record<string, unknown>>, key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
         const walletAvailable = sum(wallets, "available_balance_minor") / 100;
         const walletPending = sum(wallets, "pending_balance_minor") / 100;
-        return { slug, name: String(platform?.name || app?.name || slug), gross_confirmed: sum(events, "gross_amount"), central_revenue_confirmed: sum(events, "platform_fee"), provider_fees_confirmed: sum(events, "provider_fee"), wallet_available: walletAvailable, wallet_pending: walletPending, funds_total: walletAvailable + walletPending };
+        const canonicalAvailable = slug === "deligo" && deligoWalletAvailable != null ? deligoWalletAvailable : walletAvailable;
+        const canonicalPending = slug === "deligo" && deligoWalletPending != null ? deligoWalletPending : walletPending;
+        return { slug, name: String(platform?.name || app?.name || slug), gross_confirmed: sum(events, "gross_amount"), central_revenue_confirmed: sum(events, "platform_fee"), provider_fees_confirmed: sum(events, "provider_fee"), wallet_available: canonicalAvailable, wallet_pending: canonicalPending, funds_total: canonicalAvailable + canonicalPending };
       });
       const globalWallets = walletRows.filter(row => !row.app_id && row.owner_user_id && !excluded.has(String(row.account_type)));
       const sum = (rows: Array<Record<string, unknown>>, key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0) / 100;
@@ -92,17 +132,11 @@ export async function GET() {
       const platformWalletPending = platforms.reduce((total, row) => total + row.wallet_pending, 0);
       const corporateWallet = Number((corporateRevenue as Record<string, unknown> | null)?.corporate_wallet_available || 0);
       const centralRevenue = platforms.reduce((total, row) => total + row.central_revenue_confirmed, 0);
-      return { currency: "MZN", source: "hq.platform_financial_events + payments.wallet_accounts + hq.logical_wallets", platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), user_wallets_available: platformWalletAvailable + sum(globalWallets, "available_balance_minor"), user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), total_funds_controlled_available: corporateWallet + platformWalletAvailable + sum(globalWallets, "available_balance_minor"), total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), legacy_revenue_included: false };
+      return { currency: "MZN", source: "hq.platform_financial_events + public.wallets + payments.wallet_accounts + hq.logical_wallets", platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), user_wallets_available: platformWalletAvailable + sum(globalWallets, "available_balance_minor"), user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), total_funds_controlled_available: corporateWallet + platformWalletAvailable + sum(globalWallets, "available_balance_minor"), total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), legacy_revenue_included: false };
     })() : null;
-    // The DeliGo app keeps the canonical user wallets in public.wallets.
-    // Keep this separate from corporate profit: this is an informational total
-    // for user wallets, never the corporate wallet or corporate revenue.
-    const deligoWalletRows = canViewDeligoFinance
-      ? await stagingRest("wallets?select=balance,currency&currency=eq.MZN&limit=10000").catch(() => null)
-      : null;
-    const deligoWalletTotal = Array.isArray(deligoWalletRows)
-      ? deligoWalletRows.reduce((total, row) => total + Number((row as Record<string, unknown>).balance || 0), 0)
-      : null;
+    // Keep this separate from corporate profit: it is only an informational
+    // total for user wallets, never the corporate wallet or corporate revenue.
+    const deligoWalletTotal = deligoWalletAvailable;
     const financeSummary = canonicalFinance || legacyDeligoFinance;
     const summaryWithWallet = financeSummary
       ? { ...financeSummary, ...(deligoWalletTotal == null ? {} : { user_wallets_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) }
