@@ -63,7 +63,7 @@ export async function GET() {
     // the profile never displays an unrelated zero-balance legacy wallet.
     const employeeRows = await hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id`);
     const walletOwnerId = String(employeeRows?.[0]?.auth_user_id || actor.authUserId);
-    const [legacyResult, canonicalResult, appsResult] = await Promise.allSettled([
+    const [legacyResult, canonicalResult, appsResult, hqEmployeeWalletResult] = await Promise.allSettled([
       stagingRest(`wallets?user_id=eq.${encodeURIComponent(walletOwnerId)}&select=id,balance,currency&limit=1`) as Promise<Array<Record<string, unknown>>>,
       // A carteira pessoal é consolidada por utilizador, não por um único
       // account_type. O mesmo trabalhador pode ter contas pessoais de DeliGo,
@@ -71,10 +71,12 @@ export async function GET() {
       // continua fora deste filtro porque não tem owner_user_id.
       paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(walletOwnerId)}&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
       coreRest(key, "apps?select=id,slug,name"),
+      hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=id,wallet_code,wallet_type,currency,available_amount,pending_amount,reserved_amount`),
     ]);
     const legacy = legacyResult.status === "fulfilled" ? legacyResult.value : [];
     const canonical = canonicalResult.status === "fulfilled" ? canonicalResult.value : [];
     const apps = appsResult.status === "fulfilled" ? appsResult.value : [];
+    const hqEmployeeWallets = hqEmployeeWalletResult.status === "fulfilled" ? hqEmployeeWalletResult.value : [];
     if (legacyResult.status === "rejected") console.warn("profile legacy wallet unavailable", legacyResult.reason);
     if (canonicalResult.status === "rejected") console.warn("profile canonical wallets unavailable", canonicalResult.reason);
     if (appsResult.status === "rejected") console.warn("profile app catalog unavailable", appsResult.reason);
@@ -84,13 +86,33 @@ export async function GET() {
       .map((wallet: Record<string, unknown>) => mapCanonicalWallet(wallet, appById.get(String(wallet.app_id))))
       .filter((wallet: Record<string, unknown>) => String(wallet.currency || "MZN") === "MZN");
 
+    const hqPersonalWallets = (Array.isArray(hqEmployeeWallets) ? hqEmployeeWallets : []).map((wallet: Record<string, unknown>) => ({
+      id: `hq-${String(wallet.id)}`,
+      platform_slug: null,
+      platform_name: "DeliGo Central",
+      wallet_code: wallet.wallet_code,
+      account_type: "employee",
+      source_kind: "hq_corporate_profit_transfer",
+      currency: wallet.currency || "MZN",
+      available_amount: Number(wallet.available_amount || 0),
+      pending_amount: Number(wallet.pending_amount || 0),
+      reserved_amount: Number(wallet.reserved_amount || 0),
+      withdrawal_enabled: false,
+    }));
+    const hqPersonalWalletHasFunds = hqPersonalWallets.some((wallet) =>
+      Number(wallet.available_amount || 0) > 0 || Number(wallet.pending_amount || 0) > 0 || Number(wallet.reserved_amount || 0) > 0,
+    );
+
     // The old DeliGo wallet is a display fallback until its balance is migrated
     // into the canonical PaySuite wallet. Never add both representations.
     const canonicalHasFunds = canonicalWallets.some((wallet: Record<string, unknown>) =>
       Number(wallet.available_amount || 0) > 0 || Number(wallet.pending_amount || 0) > 0 || Number(wallet.reserved_amount || 0) > 0,
     );
     const wallets: Array<Record<string, unknown>> = [];
-    if (legacy?.[0] && !canonicalHasFunds) {
+    // Once the corporate-profit transfer created the HQ employee wallet, it
+    // is the authoritative personal balance. Do not add the old DeliGo wallet
+    // on top of it, otherwise the profile shows an unrelated legacy amount.
+    if (legacy?.[0] && !canonicalHasFunds && !hqPersonalWalletHasFunds) {
       const wallet = legacy[0];
       wallets.push({
         id: wallet.id,
@@ -110,6 +132,7 @@ export async function GET() {
         withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
       });
     }
+    wallets.push(...hqPersonalWallets);
     wallets.push(...canonicalWallets);
 
     const unifiedAvailableAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
