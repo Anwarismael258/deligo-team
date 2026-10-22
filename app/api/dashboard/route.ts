@@ -70,7 +70,7 @@ export async function GET() {
       ? await stagingRest("legacy_wallets?select=balance,available_balance,pending_balance,currency,is_active&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => stagingRest("legacy_wallets?select=balance,currency,is_active&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => null))
       : null;
     const activeDeligoWalletRows = Array.isArray(deligoWalletRows)
-      ? deligoWalletRows.filter(row => (row as Record<string, unknown>).is_active !== false)
+      ? deligoWalletRows.filter(row => (row as Record<string, unknown>).is_active === true)
       : [];
     const deligoWalletAvailable = Array.isArray(deligoWalletRows)
       ? activeDeligoWalletRows.reduce((total, row) => {
