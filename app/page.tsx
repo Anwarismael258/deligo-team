@@ -49,6 +49,25 @@ const navGroups: Array<[string,string[]]> = [
 ];
 
 const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : label;
+const notificationModuleFor = (notification: FinanceRecord) => {
+  const source = String(notification.source_type || notification.type || "").toLowerCase();
+  const target = String(notification.target_url || "").toLowerCase();
+  if (target.startsWith("/utilizadores") || source.includes("user")) return "Utilizadores";
+  if (target.startsWith("/pessoas") || source.includes("employee")) return "Pessoas";
+  if (target.startsWith("/recursos-humanos") || source.startsWith("hr_")) return "Recursos Humanos";
+  if (target.startsWith("/financas") || source.includes("finance") || source.includes("withdrawal") || source.includes("payment")) return "Finanças";
+  if (target.startsWith("/microcredito") || source.includes("loan") || source.includes("microcredit")) return "Triunfal Microcrédito";
+  if (target.startsWith("/apoio-cliente") || source.includes("support") || source.includes("ticket") || source.includes("complaint")) return "Apoio ao Cliente";
+  if (target.startsWith("/marketing/vagas") || source.includes("vacancy") || source.includes("job")) return "Vagas";
+  if (target.startsWith("/marketing/conteudos") || source.includes("news") || source.includes("content")) return "Site Institucional";
+  if (target.startsWith("/marketing") || source.includes("marketing") || source.includes("campaign")) return "Marketing";
+  if (target.startsWith("/field") || source.includes("kyc") || source.includes("field")) return "Operações de Campo";
+  if (target.startsWith("/relatorios") || source.includes("report")) return "Relatórios";
+  if (target.startsWith("/projectos-tarefas") || target.startsWith("/minhas-tarefas") || source.includes("task") || source.includes("project")) return "Projectos e Tarefas";
+  if (target.startsWith("/notificacoes") || source.includes("notification") || source.includes("manual_communication")) return "Centro de Notificações";
+  if (target.startsWith("/")) return null;
+  return "Centro de Notificações";
+};
 
 const moduleIcons: Record<string, LucideIcon> = {
   "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Utilizadores": Users, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
@@ -495,6 +514,10 @@ export function HQApp() {
   const corporateLedgerNet=typeof corporateSummary?.corporate_ledger_net === "number" ? corporateSummary.corporate_ledger_net : null;
   const corporateLedgerOutflows=typeof corporateSummary?.corporate_ledger_outflows === "number" ? corporateSummary.corporate_ledger_outflows : null;
   const visibleNav = nav.filter(([, label]) => (currentPersona.modules.includes(label as never)||universalModules.has(label))&&!unpublishedModules.has(label)&&(!sessionUser||!modulePermission[label]||hasPermission(modulePermission[label])));
+  const unreadNotifications = notifications.filter(notification => !notification.read_at);
+  const unreadCountFor = (label: string) => label === "Centro de Notificações"
+    ? unreadNotifications.length
+    : unreadNotifications.filter(notification => notificationModuleFor(notification) === label).length;
   const sendNewWhatsapp=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);setWhatsappNotice("A enviar…");const response=await fetch("/api/support/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone"),message:form.get("message")})});const data=await response.json();setWhatsappNotice(response.ok?"Mensagem enviada pelo WhatsApp oficial.":data.error||"Não foi possível enviar.");if(response.ok)event.currentTarget.reset()};
   const withdrawOwnWallet=async()=>{const amount=Number(profileWithdrawal.amount.replace(",","."));if(!Number.isFinite(amount)||amount<=0){setProfileWalletNotice("Indique um montante válido para levantar.");return}if(amount>personalWithdrawableTotal){setProfileWalletNotice(`O montante não pode ultrapassar ${money(personalWithdrawableTotal)} disponíveis para levantamento.`);return}setProfileWithdrawal(current=>({...current,busy:true}));setProfileWalletNotice("A iniciar levantamento PaySuite para o número verificado do perfil…");try{const response=await fetch("/api/profile/withdraw",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount})});const data=await response.json();const reference=data.providerReferences?.join(", ")||data.providerReference||data.payoutIds?.join(", ")||data.payoutId;setProfileWalletNotice(response.ok?`Pedido PaySuite ${data.status === "paid" ? "concluído" : "em processamento"}. Referência: ${reference||"em processamento"}`:(data.error||"Levantamento não iniciado."));if(response.ok){setProfileWithdrawal(current=>({...current,amount:""}));const refresh=await fetch("/api/profile",{cache:"no-store"});const refreshed=await refresh.json();setOwnWallets(Array.isArray(refreshed.wallets)?refreshed.wallets:[])}}catch{setProfileWalletNotice("Não foi possível contactar o serviço de levantamento.")}finally{setProfileWithdrawal(current=>({...current,busy:false}))}};
 
@@ -591,8 +614,9 @@ export function HQApp() {
       setCommandResults(response.ok ? result.data || [] : []);
     } finally { setCommandLoading(false); }
   };
-  useEffect(()=>{if(!sessionUser)return;refreshNotifications().catch(()=>setNotifications([]));const timer=window.setInterval(()=>{void refreshNotifications().catch(()=>undefined)},10000);return()=>window.clearInterval(timer)},[sessionUser?.id]);
-  const markNotifications=async(id?:string)=>{const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(id?{id}:{all:true})});if(r.ok)await refreshNotifications()};
+  useEffect(()=>{if(!sessionUser)return;refreshNotifications().catch(()=>setNotifications([]));const timer=window.setInterval(()=>{void refreshNotifications().catch(()=>undefined)},5000);return()=>window.clearInterval(timer)},[sessionUser?.id]);
+  const markNotificationsByIds=async(ids:string[])=>{if(!ids.length)return;setNotifications(current=>current.map(notification=>ids.includes(String(notification.id))?{...notification,read_at:new Date().toISOString()}:notification));const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids})});if(r.ok)await refreshNotifications()};
+  const markNotifications=async(id?:string)=>{if(id){await markNotificationsByIds([id]);return}const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({all:true})});if(r.ok)await refreshNotifications()};
 
   useEffect(() => {
     if (!["Visão geral", "Mapa operacional"].includes(active) || !sessionUser) return;
@@ -905,6 +929,10 @@ if(active==="Operações de Campo")void refreshField();
     setMenuOpen(false);
     window.history.pushState({}, "", routeByModule[label] || "/");
     window.scrollTo({ top: 0, behavior: "smooth" });
+    const ids = label === "Centro de Notificações"
+      ? unreadNotifications.map(notification => String(notification.id))
+      : unreadNotifications.filter(notification => notificationModuleFor(notification) === label).map(notification => String(notification.id));
+    if (ids.length) void markNotificationsByIds(ids);
   };
   const handleSidebarTouchStart = (event: any) => {
     sidebarTouchStartX.current = event.touches?.[0]?.clientX ?? null;
@@ -983,8 +1011,8 @@ if(active==="Operações de Campo")void refreshField();
         </div>
         <nav>
           <button className={active === "Visão geral" ? "navItem active" : "navItem"} onClick={() => navigate("Visão geral")}><span><LayoutDashboard aria-hidden="true" /></span>Visão Geral</button>
-          {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span>{displayModuleLabel(label)}</button>)}</div> })}
-          <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span>Meu Perfil</button>
+          {navGroups.map(([group, labels]) => { const entries = visibleNav.filter(([, label]) => labels.includes(label)); if (!entries.length) return null; const collapsed = Boolean(collapsedGroups[group]); return <div className="navGroup" key={group}><button className="navLabel navGroupToggle" onClick={() => setCollapsedGroups(current => ({...current,[group]:!current[group]}))}>{group}<span>{collapsed ? "＋" : "−"}</span></button>{!collapsed&&entries.map(([icon, label]) => { const count=unreadCountFor(label); return <button key={label} className={active === label ? "navItem active" : "navItem"} onClick={() => navigate(label)}><span>{(() => { const Icon = moduleIcons[label]; return Icon ? <Icon aria-hidden="true" /> : icon; })()}</span><em>{displayModuleLabel(label)}</em>{count>0&&<b className="navBadge" aria-label={`${count} novas`}>{count>99?"99+":count}</b>}</button>})}</div> })}
+          <button className={active === "Meu Perfil" ? "navItem active" : "navItem"} onClick={() => navigate("Meu Perfil")}><span>♙</span><em>Meu Perfil</em></button>
         </nav>
         <div className="user">
           <div className="avatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Fotografia de perfil"/>:currentPersona.initials}</div>
@@ -1003,7 +1031,7 @@ if(active==="Operações de Campo")void refreshField();
             <select aria-label="Plataforma actual" value={platform} onChange={(e) => setPlatform(e.target.value)}>
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
-             <button className="iconButton" title="Notificações" aria-label={`Notificações${notifications.filter(n=>!n.read_at).length?`, ${notifications.filter(n=>!n.read_at).length} não lidas`:""}`} onClick={()=>setNotificationsOpen(!notificationsOpen)}><Bell aria-hidden="true" size={19} strokeWidth={2.2} />{notifications.some(n=>!n.read_at)&&<><i /><b className="notificationCount">{notifications.filter(n=>!n.read_at).length}</b></>}</button>
+             <button className="iconButton" title="Notificações" aria-label={`Notificações${unreadNotifications.length?`, ${unreadNotifications.length} não lidas`:""}`} onClick={()=>setNotificationsOpen(!notificationsOpen)}><Bell aria-hidden="true" size={19} strokeWidth={2.2} />{unreadNotifications.length>0&&<><i /><b className="notificationCount">{unreadNotifications.length>99?"99+":unreadNotifications.length}</b></>}</button>
             {notificationsOpen&&<div className="notificationMenu"><div><strong>Notificações</strong><button onClick={()=>void markNotifications()}>Marcar todas como lidas</button></div>{notifications.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);if(n.target_url)window.location.assign(String(n.target_url))}}><strong>{String(n.title)}</strong><span>{String(n.body)}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")}</small></button>)}{!notifications.length&&<p>Sem notificações.</p>}</div>}
             <button className="accountTrigger" onClick={() => setAccountOpen(!accountOpen)} aria-label="Abrir menu da conta">
               <div className="miniAvatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Fotografia de perfil"/>:currentPersona.initials}</div>
