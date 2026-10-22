@@ -85,7 +85,7 @@ export async function GET(request:NextRequest){
   }
   const readAtByTicket=new Map<string,string>();
   for(const event of (Array.isArray(events)?events:[]) as Array<{ticket_id:string;actor_employee_id?:string|null;event_type?:string;created_at:string}>){
-    if(event.event_type!=="hq_case_opened" || event.actor_employee_id!==current.actor.employee_id)continue;
+    if(event.event_type!=="hq_case_opened")continue;
     const previous=readAtByTicket.get(event.ticket_id);
     if(!previous || new Date(event.created_at).getTime()>new Date(previous).getTime())readAtByTicket.set(event.ticket_id,event.created_at);
   }
