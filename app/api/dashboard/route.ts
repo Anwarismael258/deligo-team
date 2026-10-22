@@ -72,6 +72,14 @@ export async function GET() {
     const deligoProfileRows = canViewDeligoFinance
       ? await stagingRest("profiles?select=id,user_id,is_test_user&limit=10000").catch(() => [])
       : [];
+    const knownDeligoUserIds = new Set(
+      Array.isArray(deligoProfileRows)
+        ? deligoProfileRows.flatMap(row => {
+          const item = row as Record<string, unknown>;
+          return [item.id, item.user_id].filter(Boolean).map(String);
+        })
+        : [],
+    );
     const testUserIds = new Set(
       Array.isArray(deligoProfileRows)
         ? deligoProfileRows.filter(row => (row as Record<string, unknown>).is_test_user === true).flatMap(row => {
@@ -85,7 +93,12 @@ export async function GET() {
       ? deligoWalletRows.filter(row => {
         const item = row as Record<string, unknown>;
         const ownerId = String(item.user_id || item.owner_id || "");
-        return item.is_active === true && ownerId !== currentActorId && !testUserIds.has(ownerId);
+        // Do not let orphaned/stale wallet rows inflate the Central total.
+        // A real user wallet must be linked to a current DeliGo profile.
+        return item.is_active === true
+          && ownerId !== currentActorId
+          && knownDeligoUserIds.has(ownerId)
+          && !testUserIds.has(ownerId);
       })
       : [];
     const deligoWalletAvailable = Array.isArray(deligoWalletRows)
