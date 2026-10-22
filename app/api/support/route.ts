@@ -63,7 +63,7 @@ export async function GET(request:NextRequest){
   const appCases=await safe(coreRest(current.key,"support_cases?select=*,app:apps(slug,name)&order=updated_at.desc&limit=600"),[]);
   const platformIdBySlug=platforms;
   const coreTickets=(Array.isArray(appCases)?appCases:[]).filter((item:{app?:{slug?:string}})=>{const slug=String(item.app?.slug||"");return (!requestedPlatform||slug===requestedPlatform)}).map((item:{id:string;case_number:number;app?:{slug?:string;name?:string};subject:string;description:string;status:string;priority:string;requester_name?:string;requester_phone?:string;requester_email?:string;requester_user_id?:string;category:string;assigned_user_id?:string;created_at:string;updated_at:string;source_channel?:string})=>({id:`core:${item.id}`,source:"app",ticket_number:`${String(item.app?.slug||"app").toUpperCase()}-${String(item.case_number).padStart(6,"0")}`,platform_id:platformIdBySlug[String(item.app?.slug||"")],platform_slug:item.app?.slug,platform_name:item.app?.name,subject:item.subject,description:item.description,status:item.status==="waiting_internal"?"escalated":item.status,priority:item.priority,ticket_type:"app_message",category:item.category,customer_name:item.requester_name,customer_contact:item.requester_phone||item.requester_email,customer_reference:item.requester_user_id,assigned_to:item.assigned_user_id,created_at:item.created_at,updated_at:item.updated_at,external_reference:item.source_channel,source_channel:item.source_channel||"app"}));
-  const allTickets=[...(Array.isArray(tickets)?tickets:[]),...coreTickets];
+  let allTickets=[...(Array.isArray(tickets)?tickets:[]),...coreTickets];
   const ids=(tickets||[]).map((row:{id:string})=>row.id),ticketFilter=ids.length?`ticket_id=in.(${ids.join(",")})`:"ticket_id=eq.00000000-0000-0000-0000-000000000000";
   const caseIds=(tickets||[]).map((row:{workflow_case_id?:string})=>row.workflow_case_id).filter(Boolean);
   const coreIds=coreTickets.map((row:{id:string})=>row.id.slice(5));
@@ -77,8 +77,15 @@ export async function GET(request:NextRequest){
     safe(rest(current.key,"employees?select=id,employee_code,name:display_name,job_title,status,department_id&limit=600"),[]),safe(rest(current.key,"platforms?select=id,slug,name&limit=20"),[]),safe(rest(current.key,"departments?select=id,code,name&active=eq.true&limit=100"),[]),
     safe(coreRest(current.key,`support_case_messages?select=*&${coreFilter}&order=created_at.asc&limit=1000`),[]),safe(coreRest(current.key,`support_case_events?select=*&${coreFilter}&order=created_at.desc&limit=1000`),[])
   ]);
-  const coreMessages=(Array.isArray(coreConversations)?coreConversations:[]).map((item:{id:string;case_id:string;author_type:string;body:string;is_internal:boolean;created_at:string})=>({id:`core-msg:${item.id}`,ticket_id:`core:${item.case_id}`,sender_type:item.author_type==="staff"?"agent":"customer",message:item.body,is_internal:item.is_internal,created_at:item.created_at}));
-  const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));
+  const readAtByCase=new Map<string,string>();
+  for(const event of (Array.isArray(coreEvents)?coreEvents:[]) as Array<{case_id:string;actor_user_id?:string|null;event_type?:string;created_at:string}>){
+    if(event.event_type!=="hq_case_opened" || event.actor_user_id!==current.actor.authUserId)continue;
+    const previous=readAtByCase.get(event.case_id);
+    if(!previous || new Date(event.created_at).getTime()>new Date(previous).getTime())readAtByCase.set(event.case_id,event.created_at);
+  }
+  const coreMessages=(Array.isArray(coreConversations)?coreConversations:[]).map((item:{id:string;case_id:string;author_type:string;body:string;is_internal:boolean;created_at:string})=>({id:`core-msg:${item.id}`,ticket_id:`core:${item.case_id}`,sender_type:item.author_type==="staff"?"agent":"customer",message:item.body,is_internal:item.is_internal,created_at:item.created_at,is_read:item.author_type!=="customer"||Boolean(readAtByCase.get(item.case_id)&&new Date(item.created_at).getTime()<=new Date(readAtByCase.get(item.case_id) as string).getTime())}));
+  allTickets=allTickets.map(ticket=>ticket.id.startsWith("core:")?{...ticket,last_read_at:readAtByCase.get(ticket.id.slice(5))||null}:ticket);
+  const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened").map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));
   return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...(Array.isArray(conversations)?conversations:[]),...coreMessages],support_attachments:attachments,support_escalations:escalations,support_department_assignments:assignments,support_history:[...(Array.isArray(events)?events:[]),...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments}},{headers:{"Cache-Control":"private, no-store"}});
 }
 
@@ -132,6 +139,10 @@ export async function PATCH(request:NextRequest){
   try{
     if(String(body.ticketId).startsWith("core:")){
       const caseId=String(body.ticketId).slice(5),coreCase=(await coreRest(current.key,`support_cases?id=eq.${caseId}&select=*`))?.[0];if(!coreCase)return NextResponse.json({error:"Caso do app não encontrado."},{status:404});
+      if(body.action==="mark_read"){
+        await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,actor_user_id:current.actor.authUserId,event_type:"hq_case_opened",metadata:{employee_id:current.actor.employee_id}})});
+        return NextResponse.json({ok:true,readAt:new Date().toISOString()});
+      }
       if(!canReplyToTicket(current,{category:coreCase.category,subject:coreCase.subject,description:coreCase.description}))return NextResponse.json({error:"O perfil Finance só pode atualizar atendimentos financeiros."},{status:403});
       const statusMap:Record<string,string>={assign:"assigned",analysis:"assigned",waiting_customer:"waiting_customer",resolve:"resolved",close:"closed",reopen:"open"};
       if(body.action==="escalate")return NextResponse.json({error:"Escalonamento de casos dos apps requer encaminhamento pelo departamento."},{status:409});
@@ -140,6 +151,10 @@ export async function PATCH(request:NextRequest){
       const updated=(await coreRest(current.key,`support_cases?id=eq.${caseId}`,{method:"PATCH",body:JSON.stringify({status:next,updated_at:new Date().toISOString(),metadata:{...(coreCase.metadata||{}),last_hq_employee_id:current.actor.employee_id,resolution:body.resolution||null}})}))?.[0];
       await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,event_type:`hq_${body.action}`,old_value:{status:coreCase.status},new_value:{status:next},metadata:{hq_employee_id:current.actor.employee_id,reason:body.reason||null}})});
       return NextResponse.json({ok:true,record:updated});
+    }
+    if(body.action==="mark_read"){
+      await rest(current.key,`support_conversations?ticket_id=eq.${encodeURIComponent(String(body.ticketId))}&sender_type=eq.customer`,{method:"PATCH",body:JSON.stringify({is_read:true})});
+      return NextResponse.json({ok:true});
     }
     const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(body.ticketId)}&select=*`))?.[0];if(!ticket)return NextResponse.json({error:"Ticket não encontrado."},{status:404});if(!canReplyToTicket(current,ticket))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
     const changes:Record<string,unknown>={};
