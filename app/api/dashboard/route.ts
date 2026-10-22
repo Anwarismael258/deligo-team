@@ -63,11 +63,11 @@ export async function GET() {
       ? await fetch(`${supabaseUrl()}/rest/v1/rpc/corporate_revenue_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
       : null;
     // DeliGo Eats still has canonical personal/customer/restaurant/courier
-    // wallets in public.wallets.  Keep those balances separate from corporate
+    // wallets in deligo.legacy_wallets. Keep those balances separate from corporate
     // revenue and use available_balance when the column exists; this endpoint
     // only exposes available funds, never subscription revenue.
     const deligoWalletRows = canViewDeligoFinance
-      ? await stagingRest("wallets?select=balance,available_balance,pending_balance,currency,is_active&currency=eq.MZN&limit=10000").catch(() => stagingRest("wallets?select=balance,currency&currency=eq.MZN&limit=10000").catch(() => null))
+      ? await stagingRest("legacy_wallets?select=balance,available_balance,pending_balance,currency,is_active&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => stagingRest("legacy_wallets?select=balance,currency,is_active&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => null))
       : null;
     const activeDeligoWalletRows = Array.isArray(deligoWalletRows)
       ? deligoWalletRows.filter(row => (row as Record<string, unknown>).is_active !== false)
@@ -116,7 +116,7 @@ export async function GET() {
         const platform = [...platformById.values()].find(row => String(row.slug) === slug);
         const platformId = String(platform?.id || "");
         const events = eventRows.filter(row => String(row.platform_id || "") === platformId);
-        // DeliGo Eats uses public.wallets as its canonical user-wallet ledger;
+        // DeliGo Eats uses deligo.legacy_wallets as its canonical user-wallet ledger;
         // do not count the same people again from payments.wallet_accounts.
         const wallets = slug === "deligo" ? [] : walletRows.filter(row => String(row.app_id || "") === String(app?.id || "") && !excluded.has(String(row.account_type)));
         const sum = (rows: Array<Record<string, unknown>>, key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0);
@@ -132,7 +132,7 @@ export async function GET() {
       const platformWalletPending = platforms.reduce((total, row) => total + row.wallet_pending, 0);
       const corporateWallet = Number((corporateRevenue as Record<string, unknown> | null)?.corporate_wallet_available || 0);
       const centralRevenue = platforms.reduce((total, row) => total + row.central_revenue_confirmed, 0);
-      return { currency: "MZN", source: "hq.platform_financial_events + public.wallets + payments.wallet_accounts + hq.logical_wallets", platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), user_wallets_available: platformWalletAvailable + sum(globalWallets, "available_balance_minor"), user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), total_funds_controlled_available: corporateWallet + platformWalletAvailable + sum(globalWallets, "available_balance_minor"), total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), legacy_revenue_included: false };
+      return { currency: "MZN", source: "hq.platform_financial_events + deligo.legacy_wallets + payments.wallet_accounts + hq.logical_wallets", platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), user_wallets_available: platformWalletAvailable + sum(globalWallets, "available_balance_minor"), user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), total_funds_controlled_available: corporateWallet + platformWalletAvailable + sum(globalWallets, "available_balance_minor"), total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), legacy_revenue_included: false };
     })() : null;
     // Keep this separate from corporate profit: it is only an informational
     // total for user wallets, never the corporate wallet or corporate revenue.
