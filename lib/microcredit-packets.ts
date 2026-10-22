@@ -67,7 +67,32 @@ async function uploadPdf(application: LoanApplication, kind: PacketKind) {
   return { path, url: signedUrl.startsWith("http") ? signedUrl : `${supabaseUrl()}${signedUrl}` };
 }
 
+async function sendViaLovableWhatsApp(to: string, url: string, filename: string, caption: string) {
+  const endpoint = process.env.LOVABLE_WHATSAPP_DISPATCH_URL?.trim();
+  if (!endpoint) return null;
+  const secret = process.env.LOVABLE_WHATSAPP_DISPATCH_SECRET?.trim();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (secret) headers.Authorization = `Bearer ${secret}`;
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      channel: "whatsapp",
+      recipient: to,
+      document_url: url,
+      filename,
+      caption,
+    }),
+    cache: "no-store",
+  });
+  const result = await response.json().catch(() => ({})) as { message_id?: string; id?: string; error?: string };
+  if (!response.ok) throw new Error(`LOVABLE_WHATSAPP_SEND_FAILED:${result.error || response.status}`);
+  return result.message_id || result.id || null;
+}
+
 async function sendWhatsAppDocument(to: string, url: string, filename: string, caption: string) {
+  const lovableMessageId = await sendViaLovableWhatsApp(to, url, filename, caption);
+  if (process.env.LOVABLE_WHATSAPP_DISPATCH_URL?.trim()) return lovableMessageId;
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER || process.env.WHATSAPP_PHONE_NUMBER_ID;
   if (!token || !phoneNumberId) throw new Error("WHATSAPP_OUTBOUND_NOT_CONFIGURED");
