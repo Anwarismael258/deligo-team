@@ -34,6 +34,7 @@ async function paymentsRest(path: string, init: RequestInit = {}) {
 type Wallet = Record<string, unknown> & { id: string; available_balance_minor: number; metadata: Record<string, unknown> };
 type PreparedPayout = { payout: Record<string, unknown>; wallet: Wallet; amountMinor: number; netMinor: number; reference: string; reserved: boolean };
 const PAYSUITE_FEE_RATE = 0.03;
+const paysuiteWebhookUrl = () => process.env.PAYSUITE_WEBHOOK_URL || process.env.APP_URL && `${process.env.APP_URL.replace(/\/$/, "")}/api/payments/paysuite/webhook` || process.env.NEXT_PUBLIC_APP_URL && `${process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "")}/api/payments/paysuite/webhook` || "https://www.deligoteam.online/api/payments/paysuite/webhook";
 
 function isPaySuiteWallet(wallet: Record<string, unknown>) {
   const metadata = (wallet.metadata && typeof wallet.metadata === "object" ? wallet.metadata : {}) as Record<string, unknown>;
@@ -54,6 +55,30 @@ export async function POST(request: NextRequest) {
   try {
     const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Array<{ personal_phone?: string | null }>;
     const phone = normalizePhone(String(employeeProfiles?.[0]?.personal_phone || ""));
+    const idempotencyKey = `employee-payout-${actor.authUserId}-${crypto.randomUUID()}`;
+    const hqWallets = await hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=wallet_code,available_amount&limit=10`) as Array<{ wallet_code?: string; available_amount?: number }>;
+    const hqAvailable = (Array.isArray(hqWallets) ? hqWallets : []).reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
+    if (hqAvailable >= amount) {
+      const prepared = await hqRpc("hq_prepare_employee_paysuite_payout_v1", { p_actor_auth_user_id: actor.authUserId, p_amount: amount, p_method: method, p_phone_number: phone, p_idempotency_key: idempotencyKey }) as Record<string, unknown>;
+      const payoutId = String(prepared.payout_request_id || "");
+      const reference = String(prepared.reference || "");
+      try {
+        const provider = await paysuiteRequest<Record<string, unknown>>("/payouts", {
+          method: "POST",
+          body: JSON.stringify({ amount: (amount * (1 - PAYSUITE_FEE_RATE)).toFixed(2), currency: "MZN", reference, description: `Levantamento DeliGo Team - ${actor.name}`, beneficiary: { phone, holder: actor.name }, method, webhook_url: paysuiteWebhookUrl() }),
+        });
+        const providerStatus = String(provider.status || provider.state || "pending").toLowerCase();
+        const providerReference = String(provider.id || provider.reference || reference);
+        if (["success", "successful", "completed", "complete", "paid"].includes(providerStatus)) {
+          await hqRpc("hq_complete_employee_paysuite_payout_v1", { p_payout_request_id: payoutId, p_provider_reference: providerReference });
+          return NextResponse.json({ status: "paid", payoutId, providerReference, source: "hq_employee_wallet" });
+        }
+        return NextResponse.json({ status: "processing", payoutId, providerReference, source: "hq_employee_wallet" }, { status: 202 });
+      } catch (error) {
+        await hqRpc("hq_fail_employee_paysuite_payout_v1", { p_payout_request_id: payoutId, p_reason: error instanceof Error ? error.message : "PaySuite indisponível" }).catch(() => undefined);
+        throw error;
+      }
+    }
     // The profile API can still show a real legacy DeliGo personal balance
     // while the PaySuite account is empty. Reconcile only this authenticated
     // worker's wallet, never corporate or unattributed payment aggregates.
@@ -85,7 +110,6 @@ export async function POST(request: NextRequest) {
         const feeMinor = Math.round(allocation.amountMinor * PAYSUITE_FEE_RATE);
         const netMinor = allocation.amountMinor - feeMinor;
         if (netMinor <= 0) throw new Error("O valor líquido após a taxa PaySuite deve ser positivo.");
-        const idempotencyKey = `employee-payout-${actor.authUserId}-${crypto.randomUUID()}`;
         const reference = `DLGWD${crypto.randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()}`;
         const [payout] = await paymentsRest("payout_requests", {
           method: "POST",
@@ -126,7 +150,7 @@ export async function POST(request: NextRequest) {
       try {
         const provider = await paysuiteRequest<Record<string, unknown>>("/payouts", {
           method: "POST",
-          body: JSON.stringify({ amount: (item.netMinor / 100).toFixed(2), currency: "MZN", reference: item.reference, description: `Levantamento DeliGo Team - ${actor.name}`, beneficiary: { phone, holder: actor.name }, method, webhook_url: `${supabaseUrl()}/api/payments/paysuite/webhook` }),
+          body: JSON.stringify({ amount: (item.netMinor / 100).toFixed(2), currency: "MZN", reference: item.reference, description: `Levantamento DeliGo Team - ${actor.name}`, beneficiary: { phone, holder: actor.name }, method, webhook_url: paysuiteWebhookUrl() }),
         });
         const providerStatus = String(provider.status || provider.state || "pending").toLowerCase();
         const providerReference = String(provider.id || provider.reference || item.reference);

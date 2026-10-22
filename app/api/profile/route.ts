@@ -97,7 +97,7 @@ export async function GET() {
       available_amount: Number(wallet.available_amount || 0),
       pending_amount: Number(wallet.pending_amount || 0),
       reserved_amount: Number(wallet.reserved_amount || 0),
-      withdrawal_enabled: false,
+      withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
     }));
     const hqPersonalWalletHasFunds = hqPersonalWallets.some((wallet) =>
       Number(wallet.available_amount || 0) > 0 || Number(wallet.pending_amount || 0) > 0 || Number(wallet.reserved_amount || 0) > 0,

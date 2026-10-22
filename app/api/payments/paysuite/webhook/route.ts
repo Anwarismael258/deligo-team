@@ -37,9 +37,22 @@ export async function POST(request: NextRequest) {
     const lookup = await fetch(`${url}/rest/v1/payout_requests?metadata->>reference=eq.${encodeURIComponent(reference)}&select=id,status&limit=1`, {
       headers: { apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": "payments", "Content-Profile": "payments" }, cache: "no-store",
     });
-    if (!lookup.ok) return NextResponse.json({ error: "Não foi possível localizar o pedido PaySuite." }, { status: 503 });
-    const [payout] = await lookup.json() as Array<{ id?: string }>;
-    if (!payout?.id) return NextResponse.json({ received: true, ignored: true, reason: "payout_not_found" });
+    const [payout] = lookup.ok ? await lookup.json() as Array<{ id?: string }> : [];
+    const hqLookup = !payout?.id ? await fetch(`${url}/rest/v1/payout_requests?metadata->>reference=eq.${encodeURIComponent(reference)}&select=id,status&limit=1`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": "hq", "Content-Profile": "hq" }, cache: "no-store",
+    }) : null;
+    const [hqPayout] = hqLookup?.ok ? await hqLookup.json() as Array<{ id?: string }> : [];
+    const payoutId = payout?.id || hqPayout?.id;
+    if (!payoutId) return NextResponse.json({ received: true, ignored: true, reason: "payout_not_found" });
+    if (hqPayout?.id) {
+      const rpcName = event.event === "payout.success" ? "hq_complete_employee_paysuite_payout_v1" : "hq_fail_employee_paysuite_payout_v1";
+      const rpcBody = event.event === "payout.success"
+        ? { p_payout_request_id: hqPayout.id, p_provider_reference: providerId }
+        : { p_payout_request_id: hqPayout.id, p_reason: String(data?.failure_reason || data?.message || "PaySuite rejeitou o payout") };
+      const payoutRpc = await fetch(`${url}/rest/v1/rpc/${rpcName}`, { method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify(rpcBody) });
+      if (!payoutRpc.ok) return NextResponse.json({ error: "Evento recebido, mas a carteira HQ não foi reconciliada." }, { status: 503 });
+      return NextResponse.json({ received: true, event: event.event, provider_id: providerId, payout: await payoutRpc.json().catch(() => null) });
+    }
     const rpcName = event.event === "payout.success" ? "complete_paysuite_payout_v1" : "fail_paysuite_payout_v1";
     const rpcBody = event.event === "payout.success"
       ? { p_payout_request_id: payout.id, p_provider_reference: providerId }
