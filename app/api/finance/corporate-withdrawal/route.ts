@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { corporateActor, hqRest } from "@/lib/hq-server";
+import { corporateActor, hqRest, hqRpc } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +42,18 @@ export async function POST(request: NextRequest) {
     }
     const amount = Number(body?.amount);
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Informe um valor válido." }, { status: 400 });
+    const financeSummary = await hqRpc("hq_deligo_finance_summary_v1", {
+      p_actor_auth_user_id: actor.authUserId,
+      p_from: null,
+      p_to: null,
+    }) as Record<string, unknown>;
+    const withdrawableRevenue = Number(financeSummary.corporate_profit_withdrawable ?? 0);
+    if (!Number.isFinite(withdrawableRevenue) || amount > withdrawableRevenue) {
+      return NextResponse.json({
+        error: `O valor ultrapassa a receita corporativa confirmada disponível (${withdrawableRevenue.toFixed(2)} MZN).`,
+        availableAmount: withdrawableRevenue,
+      }, { status: 409 });
+    }
     const [employees, profiles] = await Promise.all([
       hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=phone_e164`) as Promise<Array<{ phone_e164?: string | null }>>,
       hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Promise<Array<{ personal_phone?: string | null }>>,
