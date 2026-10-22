@@ -88,7 +88,6 @@ export async function GET() {
         })
         : [],
     );
-    const currentActorId = String(actor.authUserId || "");
     const activeDeligoWalletRows = Array.isArray(deligoWalletRows)
       ? deligoWalletRows.filter(row => {
         const item = row as Record<string, unknown>;
@@ -96,7 +95,6 @@ export async function GET() {
         // Do not let orphaned/stale wallet rows inflate the Central total.
         // A real user wallet must be linked to a current DeliGo profile.
         return item.is_active === true
-          && ownerId !== currentActorId
           && knownDeligoUserIds.has(ownerId)
           && !testUserIds.has(ownerId);
       })

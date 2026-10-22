@@ -309,6 +309,7 @@ export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
   const [active, setActive] = useState("Visão geral");
   const [menuOpen, setMenuOpen] = useState(false);
+  const sidebarTouchStartX = useRef<number | null>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string,boolean>>({});
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
@@ -854,6 +855,25 @@ if(active==="Operações de Campo")void refreshField();
       .then(setProfileDetail).catch(() => setProfileDetail(null));
   }, [selectedProfile]);
 
+  useEffect(() => {
+    if (!selectedProfile && !selectedPlatformRecord) return;
+    let startY: number | null = null;
+    const onPointerDown = (event: PointerEvent) => { startY = event.clientY; };
+    const onPointerUp = (event: PointerEvent) => {
+      if (startY != null && startY - event.clientY >= 70) {
+        if (selectedProfile) setSelectedProfile(null);
+        if (selectedPlatformRecord) setSelectedPlatformRecord(null);
+      }
+      startY = null;
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    return () => {
+      window.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointerup", onPointerUp);
+    };
+  }, [selectedProfile, selectedPlatformRecord]);
+
 
   useEffect(() => {
     if (active !== "Plataformas" || platform === "Todas as plataformas") { setPlatformSnapshot(null); return; }
@@ -885,6 +905,15 @@ if(active==="Operações de Campo")void refreshField();
     setMenuOpen(false);
     window.history.pushState({}, "", routeByModule[label] || "/");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const handleSidebarTouchStart = (event: any) => {
+    sidebarTouchStartX.current = event.touches?.[0]?.clientX ?? null;
+  };
+  const handleSidebarTouchEnd = (event: any) => {
+    const start = sidebarTouchStartX.current;
+    const end = event.changedTouches?.[0]?.clientX;
+    sidebarTouchStartX.current = null;
+    if (menuOpen && start != null && end != null && start - end >= 60) setMenuOpen(false);
   };
 
   const visibleCards = useMemo(
@@ -947,7 +976,7 @@ if(active==="Operações de Campo")void refreshField();
 
   return (
     <main className="shell">
-      <aside className={menuOpen ? "sidebar open" : "sidebar"}>
+      <aside className={menuOpen ? "sidebar open" : "sidebar"} onTouchStart={handleSidebarTouchStart} onTouchEnd={handleSidebarTouchEnd}>
         <div className="brand">
           <img className="brandmark logoImage" src="/deligo-icon.png" alt="DeliGo Triunfal" />
           <div><strong>DeliGo Triunfal</strong><span>Central Web</span></div>
