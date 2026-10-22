@@ -2,10 +2,12 @@ import {NextRequest,NextResponse} from "next/server";
 import {corporateAuthorization,stagingRest} from "@/lib/hq-server";
 
 export const dynamic="force-dynamic";
+const inboxRoles=new Set(["SUPER_ADMIN","FINANCE","FINANCE_DIRECTOR","SUPERVISOR","OPERATIONS_SUPERVISOR","SUPPORT_AGENT"]);
 
 export async function GET(request:NextRequest){
   const authorization=await corporateAuthorization();
   if(!authorization)return NextResponse.json({error:"Sessão necessária."},{status:401});
+  if(!inboxRoles.has(authorization.actor.role))return NextResponse.json({error:"Sem acesso ao feed operacional."},{status:403});
   const after=Math.max(0,Number(request.nextUrl.searchParams.get("after")||0));
   const scope=authorization.isSuperAdmin?"":authorization.platformIds.length
     ? `&or=(platform_id.is.null,platform_id.in.(${authorization.platformIds.join(",")}))`
