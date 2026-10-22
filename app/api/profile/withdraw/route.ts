@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, hqRest, hqRpc, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqRest, hqRpc, hqServiceKey, supabaseUrl } from "@/lib/hq-server";
 import { paysuiteRequest } from "@/lib/paysuite";
 
 const APP_ID = "7628e590-652b-4e93-9ff0-d258e351303c";
@@ -12,13 +12,13 @@ const normalizePhone = (value: string) => {
 };
 
 async function paymentsRest(path: string, init: RequestInit = {}) {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = hqServiceKey();
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_NOT_CONFIGURED");
+  const privileged = key.startsWith("sb_secret_") ? { apikey: key } : { apikey: key, Authorization: `Bearer ${key}` };
   const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
     ...init,
     headers: {
-      apikey: key,
-      Authorization: `Bearer ${key}`,
+      ...privileged,
       "Content-Type": "application/json",
       Prefer: "return=representation",
       "Content-Profile": "payments",

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
 const staff = new Set(["SUPER_ADMIN", "FINANCE"]);
 const pageSize = 40;
 const columns = "id,reference,full_name,bi_number,nuit,phone,wallet,email,employer,monthly_income,salary_day,amount,total_due,term_days,purpose,status,doc_folder,bi_front_path,bi_back_path,income_path,created_at,status_updated_at,status_updated_by";
 const intakeActions: Record<string, string[]> = {
   pendente: ["em_analise", "recusado", "cancelado"],
-  em_analise: ["recusado", "cancelado"],
+  em_analise: ["aprovado", "recusado", "cancelado"],
 };
 
 async function actor() {
@@ -15,22 +15,29 @@ async function actor() {
 }
 
 async function signedDocument(path: unknown, folder: unknown) {
-  if (typeof path !== "string" || !path.trim() || typeof folder !== "string" || !folder.trim()) return null;
-  const cleanFolder = folder.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  const cleanPath = path.trim().replace(/\\/g, "/");
-  if (!cleanFolder || !cleanPath.startsWith(`${cleanFolder}/`) || cleanPath.includes("..") || cleanPath.includes("://")) return null;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (typeof path !== "string" || !path.trim()) return null;
+  const cleanFolder = typeof folder === "string" ? folder.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "") : "";
+  let cleanPath = path.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  if (cleanPath.startsWith("loan-documents/")) cleanPath = cleanPath.slice("loan-documents/".length);
+  if (!cleanPath || cleanPath.includes("..") || cleanPath.includes("://") || cleanPath.includes("\\0")) return null;
+  if (!cleanPath.includes("/") && cleanFolder) cleanPath = `${cleanFolder}/${cleanPath}`;
+  if (cleanFolder && !cleanPath.startsWith(`${cleanFolder}/`)) return null;
+  const key = hqServiceKey();
   if (!key) return null;
-  const response = await fetch(`${supabaseUrl()}/storage/v1/object/sign/loan-documents/${cleanPath.split("/").map(encodeURIComponent).join("/")}`, {
-    method: "POST",
-    headers: { apikey: key, Authorization: key.startsWith("sb_secret_") ? `Bearer ${key}` : `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ expiresIn: 300 }),
-    cache: "no-store",
-  });
-  if (!response.ok) return null;
-  const body = await response.json() as { signedURL?: string };
-  if (!body.signedURL) return null;
-  return body.signedURL.startsWith("http") ? body.signedURL : `${supabaseUrl()}${body.signedURL}`;
+  try {
+    const headers: Record<string, string> = { apikey: key, "Content-Type": "application/json" };
+    if (!key.startsWith("sb_secret_")) headers.Authorization = `Bearer ${key}`;
+    const response = await fetch(`${supabaseUrl()}/storage/v1/object/sign/loan-documents/${cleanPath.split("/").map(encodeURIComponent).join("/")}`, {
+      method: "POST", headers, body: JSON.stringify({ expiresIn: 300 }), cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const body = await response.json() as { signedURL?: string; signedUrl?: string };
+    const signed = body.signedURL || body.signedUrl;
+    if (!signed) return null;
+    return signed.startsWith("http") ? signed : `${supabaseUrl()}${signed}`;
+  } catch {
+    return null;
+  }
 }
 
 export async function GET(request: NextRequest) {

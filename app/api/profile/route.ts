@@ -103,7 +103,11 @@ export async function GET() {
         available_amount: Number(wallet.balance || 0),
         pending_amount: 0,
         reserved_amount: 0,
-        withdrawal_enabled: false,
+        // The migration RPC moves this legacy balance into the canonical
+        // PaySuite wallet when the provider is configured. Keep the button
+        // actionable so the user can start that real migration instead of
+        // seeing a permanently disabled control for a valid old balance.
+        withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
       });
     }
     wallets.push(...canonicalWallets);
