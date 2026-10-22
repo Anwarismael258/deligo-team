@@ -83,10 +83,18 @@ export async function GET(request:NextRequest){
     const previous=readAtByCase.get(event.case_id);
     if(!previous || new Date(event.created_at).getTime()>new Date(previous).getTime())readAtByCase.set(event.case_id,event.created_at);
   }
+  const readAtByTicket=new Map<string,string>();
+  for(const event of (Array.isArray(events)?events:[]) as Array<{ticket_id:string;actor_employee_id?:string|null;event_type?:string;created_at:string}>){
+    if(event.event_type!=="hq_case_opened" || event.actor_employee_id!==current.actor.employee_id)continue;
+    const previous=readAtByTicket.get(event.ticket_id);
+    if(!previous || new Date(event.created_at).getTime()>new Date(previous).getTime())readAtByTicket.set(event.ticket_id,event.created_at);
+  }
+  const legacyMessages=(Array.isArray(conversations)?conversations:[]).map((item:Record<string,unknown>)=>({...item,is_read:item.sender_type!=="customer"||Boolean(readAtByTicket.get(String(item.ticket_id))&&new Date(String(item.created_at)).getTime()<=new Date(readAtByTicket.get(String(item.ticket_id)) as string).getTime())}));
   const coreMessages=(Array.isArray(coreConversations)?coreConversations:[]).map((item:{id:string;case_id:string;author_type:string;body:string;is_internal:boolean;created_at:string})=>({id:`core-msg:${item.id}`,ticket_id:`core:${item.case_id}`,sender_type:item.author_type==="staff"?"agent":"customer",message:item.body,is_internal:item.is_internal,created_at:item.created_at,is_read:item.author_type!=="customer"||Boolean(readAtByCase.get(item.case_id)&&new Date(item.created_at).getTime()<=new Date(readAtByCase.get(item.case_id) as string).getTime())}));
   allTickets=allTickets.map(ticket=>ticket.id.startsWith("core:")?{...ticket,last_read_at:readAtByCase.get(ticket.id.slice(5))||null}:ticket);
   const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened").map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));
-  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...(Array.isArray(conversations)?conversations:[]),...coreMessages],support_attachments:attachments,support_escalations:escalations,support_department_assignments:assignments,support_history:[...(Array.isArray(events)?events:[]),...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments}},{headers:{"Cache-Control":"private, no-store"}});
+  const legacyHistory=(Array.isArray(events)?events:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened");
+  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...legacyMessages,...coreMessages],support_attachments:attachments,support_escalations:escalations,support_department_assignments:assignments,support_history:[...legacyHistory,...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments}},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(request:NextRequest){
@@ -153,7 +161,7 @@ export async function PATCH(request:NextRequest){
       return NextResponse.json({ok:true,record:updated});
     }
     if(body.action==="mark_read"){
-      await rest(current.key,`support_conversations?ticket_id=eq.${encodeURIComponent(String(body.ticketId))}&sender_type=eq.customer`,{method:"PATCH",body:JSON.stringify({is_read:true})});
+      await history(current.key,String(body.ticketId),"hq_case_opened","Atendimento aberto pela Central",current.actor.employee_id,{employee_id:current.actor.employee_id});
       return NextResponse.json({ok:true});
     }
     const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(body.ticketId)}&select=*`))?.[0];if(!ticket)return NextResponse.json({error:"Ticket não encontrado."},{status:404});if(!canReplyToTicket(current,ticket))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
