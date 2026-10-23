@@ -3,8 +3,9 @@ import { expect, test } from "@playwright/test";
 test.describe("Central HQ local smoke", () => {
   test("renders the corporate login without external services", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByText("ACESSO CORPORATIVO")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Enviar OTP/ })).toBeVisible();
+    await expect(page.getByText("ACESSO CORPORATIVO", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Entrar →" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Primeiro acesso/ })).toBeVisible();
   });
 
   test("login remains readable on mobile without horizontal overflow", async ({ page }) => {
