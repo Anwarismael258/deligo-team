@@ -11,6 +11,8 @@ export type AnalyticsFilters = {
   department?: string;
   priority?: string;
   agent?: string;
+  channel?: string;
+  eventType?: string;
   location?: string;
   status?: string;
   timezone: "Africa/Maputo";

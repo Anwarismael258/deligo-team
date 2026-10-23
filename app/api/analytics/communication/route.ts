@@ -1,0 +1,60 @@
+import { NextRequest, NextResponse } from "next/server";
+import { corporateAuthorization, hqRest, stagingRest } from "@/lib/hq-server";
+
+export const dynamic = "force-dynamic";
+type Row = Record<string, unknown>;
+type Mode = "marketing" | "inbox" | "notifications";
+type Period = "last_7_days" | "last_30_days" | "last_90_days" | "custom";
+const dayMs = 86_400_000;
+const maputoDate = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Maputo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+const start = (date: string) => new Date(`${date}T00:00:00+02:00`);
+const dateOnly = (value: unknown) => typeof value === "string" ? value.slice(0, 10) : "";
+const validDate = (value: string | null) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
+function range(period: Period, from: string | null, to: string | null) { const today = maputoDate(new Date()); const end = period === "custom" ? to : today; const days = period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; if (period === "custom" && from && end) return { from, to: end, days: Math.max(1, Math.round((start(end).getTime() - start(from).getTime()) / dayMs) + 1) }; const endDate = start(end || today); return { from: maputoDate(new Date(endDate.getTime() - (days - 1) * dayMs)), to: end || today, days }; }
+const inRange = (value: unknown, current: { from: string; to: string }) => { const date = dateOnly(value); return Boolean(date && date >= current.from && date <= current.to); };
+const safe = async <T>(operation: Promise<T>, fallback: T) => { try { return await operation; } catch { return fallback; } };
+const countBy = (rows: Row[], key: (row: Row) => string) => { const counts = new Map<string, number>(); rows.forEach(row => { const label = key(row) || "Não indicado"; counts.set(label, (counts.get(label) || 0) + 1); }); return [...counts.entries()].map(([label, value]) => ({ label, value })); };
+const points = (current: { from: string; to: string }) => { const values: Array<{ date: string; value: number }> = []; for (let cursor = start(current.from); cursor <= start(current.to); cursor = new Date(cursor.getTime() + dayMs)) values.push({ date: maputoDate(cursor), value: 0 }); return values; };
+const addSeries = (series: Array<{ date: string; value: number }>, rows: Row[], dateKey: (row: Row) => unknown) => { const byDate = new Map(series.map(point => [point.date, point])); rows.forEach(row => { const point = byDate.get(dateOnly(dateKey(row))); if (point) point.value += 1; }); return series; };
+
+export async function GET(request: NextRequest) {
+  const authorization = await corporateAuthorization();
+  if (!authorization) return NextResponse.json({ error: "Sem sessão corporativa." }, { status: 401 });
+  const query = request.nextUrl.searchParams;
+  const mode = (query.get("mode") || "marketing") as Mode;
+  if (!["marketing", "inbox", "notifications"].includes(mode)) return NextResponse.json({ error: "Módulo de analytics inválido." }, { status: 400 });
+  const allowed = mode === "marketing" ? ["SUPER_ADMIN", "MARKETING", "FINANCE", "OPERATIONS", "SUPERVISOR"] : mode === "inbox" ? ["SUPER_ADMIN", "SUPERVISOR", "SUPPORT", "MARKETING", "FINANCE"] : ["SUPER_ADMIN", "SUPERVISOR", "SUPPORT", "MARKETING", "FINANCE", "OPERATIONS_SUPERVISOR"];
+  if (!authorization.isSuperAdmin && !allowed.includes(authorization.actor.role)) return NextResponse.json({ error: "Sem permissão para este dashboard." }, { status: 403 });
+  const periodParam = query.get("period") as Period | null;
+  const period: Period = ["last_7_days", "last_30_days", "last_90_days", "custom"].includes(String(periodParam)) ? periodParam as Period : "last_30_days";
+  const current = range(period, validDate(query.get("from")), validDate(query.get("to")));
+  const platform = query.get("platform")?.trim().toLowerCase() || "";
+  const channel = query.get("channel")?.trim().toLowerCase() || "";
+  const status = query.get("status")?.trim().toLowerCase() || "";
+  const eventType = query.get("event_type")?.trim().toLowerCase() || "";
+  const platforms = await safe(hqRest("platforms?select=id,slug,name&limit=100") as Promise<Row[]>, []);
+  const platformById = new Map(platforms.map(row => [String(row.id), String(row.slug || row.name || "").toLowerCase()]));
+  const matches = (row: Row) => { const rowPlatform = platformById.get(String(row.platform_id || "")) || String(row.platform_slug || row.platform || "").toLowerCase(); return (!platform || rowPlatform === platform) && (!status || String(row.status || "").toLowerCase() === status) && (!channel || String(row.channel || row.source_channel || row.provider || "").toLowerCase() === channel) && (!eventType || String(row.type || row.event_type || row.source_type || "").toLowerCase() === eventType); };
+  if (mode === "marketing") {
+    const [campaigns, leads, metrics, channels] = await Promise.all([
+      safe(hqRest("marketing_campaigns?select=id,title,status,created_at,updated_at&limit=1000") as Promise<Row[]>, []),
+      safe(hqRest("marketing_leads?select=*&limit=3000") as Promise<Row[]>, []),
+      safe(hqRest("marketing_metrics?select=*&limit=3000") as Promise<Row[]>, []),
+      safe(hqRest("marketing_channels?select=*&limit=1000") as Promise<Row[]>, []),
+    ]);
+    const currentCampaigns = campaigns.filter(row => inRange(row.created_at, current)); const currentLeads = leads.filter(row => inRange(row.created_at, current) && matches(row)); const currentMetrics = metrics.filter(row => inRange(row.metric_date || row.created_at, current) && matches(row)); const currentChannels = channels.filter(matches);
+    const converted = currentLeads.filter(row => ["converted", "won", "approved"].includes(String(row.status).toLowerCase())); const spend = currentMetrics.reduce((sum, row) => sum + Number(row.spend || 0), 0);
+    return NextResponse.json({ mode, period, timezone: "Africa/Maputo", range: current, data: { campaignsActive: currentCampaigns.filter(row => ["active", "published", "running"].includes(String(row.status).toLowerCase())).length, leadsCaptured: currentLeads.length, leadsConverted: converted.length, conversionRate: currentLeads.length ? Number((converted.length / currentLeads.length * 100).toFixed(2)) : null, investment: Number(spend.toFixed(2)), costPerLead: currentLeads.length ? Number((spend / currentLeads.length).toFixed(2)) : null, byStatus: countBy(currentCampaigns, row => String(row.status || "Não indicado")), byChannel: countBy([...currentLeads, ...currentChannels], row => String(row.channel || row.source_channel || "Não indicado")), byPlatform: countBy(currentLeads, row => platformById.get(String(row.platform_id || "")) || String(row.platform_slug || "Não indicado")), series: addSeries(points(current), currentLeads, row => row.created_at), filters: { platforms: [...new Set(platforms.map(row => String(row.slug || "")).filter(Boolean))], channels: [...new Set([...leads, ...channels].map(row => String(row.channel || row.source_channel || "")).filter(Boolean))] } }, sources: { campaigns: "hq.marketing_campaigns", leads: "hq.marketing_leads", metrics: "hq.marketing_metrics", channels: "hq.marketing_channels" }, limitations: ["Custo por aquisição e receita atribuída não são apresentados sem uma atribuição verificável.", "Conversões usam o estado do lead, sem inferir receita."] }, { headers: { "Cache-Control": "private, no-store" } });
+  }
+  if (mode === "inbox") {
+    const areas: Record<string, string[]> = { SUPER_ADMIN: ["geral", "comercial", "carreiras"], SUPERVISOR: ["geral", "comercial", "carreiras"], SUPPORT: ["geral"], MARKETING: ["comercial"], FINANCE: ["geral", "comercial", "carreiras"] };
+    const allowedAreas = areas[authorization.actor.role] || ["geral", "comercial", "carreiras"];
+    const [messages, replies] = await Promise.all([safe(stagingRest(`inbox_messages?select=id,area,status,assigned_to,created_at,updated_at,channel,platform_id&limit=3000`) as Promise<Row[]>, []), safe(stagingRest("inbox_replies?select=message_id,created_at,author_id&limit=6000") as Promise<Row[]>, [])]);
+    const currentMessages = messages.filter(row => allowedAreas.includes(String(row.area)) && inRange(row.created_at, current) && matches(row)); const currentReplies = replies.filter(row => inRange(row.created_at, current)); const replyIds = new Set(currentReplies.map(row => String(row.message_id)));
+    const open = currentMessages.filter(row => !["resolved", "closed", "archived"].includes(String(row.status).toLowerCase()));
+    return NextResponse.json({ mode, period, timezone: "Africa/Maputo", range: current, data: { messagesReceived: currentMessages.length, messagesSent: currentReplies.length, conversationsOpen: open.length, conversationsPending: currentMessages.filter(row => ["pending", "open", "in_analysis"].includes(String(row.status).toLowerCase())).length, conversationsAssigned: currentMessages.filter(row => Boolean(row.assigned_to)).length, conversationsWithoutResponse: currentMessages.filter(row => !replyIds.has(String(row.id))).length, byChannel: countBy(currentMessages, row => String(row.channel || "site")), byStatus: countBy(currentMessages, row => String(row.status || "Não indicado")), byPlatform: countBy(currentMessages, row => platformById.get(String(row.platform_id || "")) || "Não indicado"), series: addSeries(points(current), currentMessages, row => row.created_at), filters: { platforms: [...new Set(platforms.map(row => String(row.slug || "")).filter(Boolean))], channels: [...new Set(messages.map(row => String(row.channel || "site")).filter(Boolean))] } }, sources: { messages: "staging.inbox_messages", replies: "staging.inbox_replies" }, limitations: ["O tempo médio de resposta não é calculado sem uma relação verificável entre primeira resposta e mensagem.", "O conteúdo privado das mensagens não é devolvido ao dashboard."] }, { headers: { "Cache-Control": "private, no-store" } });
+  }
+  const notifications = await safe(hqRest(`notifications?employee_id=eq.${encodeURIComponent(authorization.actor.employee_id)}&select=id,type,status,read_at,created_at,platform_id,source_type,channel&limit=3000`) as Promise<Row[]>, []);
+  const currentNotifications = notifications.filter(row => inRange(row.created_at, current) && matches(row));
+  return NextResponse.json({ mode, period, timezone: "Africa/Maputo", range: current, data: { generated: currentNotifications.length, sent: currentNotifications.filter(row => ["sent", "delivered", "read"].includes(String(row.status).toLowerCase())).length, failed: currentNotifications.filter(row => ["failed", "error"].includes(String(row.status).toLowerCase())).length, pending: currentNotifications.filter(row => ["pending", "queued", "processing"].includes(String(row.status).toLowerCase())).length, read: currentNotifications.filter(row => Boolean(row.read_at) || String(row.status).toLowerCase() === "read").length, byType: countBy(currentNotifications, row => String(row.type || row.source_type || "Não indicado")), byStatus: countBy(currentNotifications, row => String(row.status || "created")), byChannel: countBy(currentNotifications, row => String(row.channel || "in_app")), byPlatform: countBy(currentNotifications, row => platformById.get(String(row.platform_id || "")) || "Não indicado"), series: addSeries(points(current), currentNotifications, row => row.created_at), filters: { platforms: [...new Set(platforms.map(row => String(row.slug || "")).filter(Boolean))] } }, sources: { notifications: "hq.notifications" }, limitations: ["A leitura é limitada às notificações do trabalhador autenticado.", "Entregue ao dispositivo só é distinguido quando o estado do fornecedor está registado."] }, { headers: { "Cache-Control": "private, no-store" } });
+}
