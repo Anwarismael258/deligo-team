@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import type { AnalyticsFilters, KPIResult } from "@/lib/analytics-contracts";
-import { AnalyticsDataTable } from "./AnalyticsDataTable";
 import { ChartContainer } from "./ChartContainer";
 import { DashboardFilters } from "./DashboardFilters";
 import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { KPIGrid } from "./KPIGrid";
 import { TrendIndicator } from "./TrendIndicator";
-import { AnalyticsBarChart, AnalyticsLineChart } from "./AnalyticsCharts";
+import { AnalyticsBarChart, AnalyticsDonutChart, AnalyticsLineChart } from "./AnalyticsCharts";
 
 type Mode = "users" | "team";
 type Point = { date: string; newUsers: number; memberships: number; tasksCreated: number; tasksCompleted: number };
@@ -70,14 +69,14 @@ export function UserTeamDashboard({ mode }: { mode: Mode }) {
         <ChartContainer title={mode === "users" ? "Distribuição por plataforma" : "Distribuição por departamento"} description="Contagens agregadas da fonte autorizada.">
           <AnalyticsBarChart data={breakdown} label={mode === "users" ? "Utilizadores" : "Tarefas"} />
         </ChartContainer>
-        <ChartContainer title={mode === "users" ? "Estados das contas" : "Tarefas por estado"} description="Sem inferir estados ausentes.">
-          <AnalyticsDataTable rows={(statusRows || []).map(item => ({ id: item.label, estado: labelize(item.label), total: item.value }))} columns={[{ key: "estado", label: "Estado" }, { key: "total", label: "Total" }]} empty="Nenhum estado devolvido pela fonte." />
+        <ChartContainer title={mode === "users" ? "Estados das contas" : "Tarefas por estado"} description="Estados confirmados pela fonte.">
+          <AnalyticsDonutChart data={(statusRows || []).map(item => ({ label: labelize(item.label), value: item.value }))} />
         </ChartContainer>
       </div>
       <ChartContainer title={mode === "users" ? "Evolução de novos registos" : "Evolução de tarefas concluídas"} description="Série diária real; Série histórica indisponível quando a fonte não devolve eventos verificáveis.">
         <AnalyticsLineChart data={(data?.series || []).map(point => ({ date: point.date, value: mode === "users" ? point.newUsers : point.tasksCompleted }))} label={mode === "users" ? "Novos utilizadores" : "Tarefas concluídas"} />
       </ChartContainer>
-      {mode === "users" && <ChartContainer title="Distribuição por tipo de utilizador" description="Papéis devolvidos pela associação de plataforma."><AnalyticsDataTable rows={(users?.byRole || []).map(item => ({ id: item.label, papel: item.label, total: item.value }))} columns={[{ key: "papel", label: "Papel" }, { key: "total", label: "Total" }]} empty="Nenhum papel devolvido pela fonte." /></ChartContainer>}
+      {mode === "users" && <ChartContainer title="Tipos de utilizador" description="Papéis confirmados pela associação de plataforma."><AnalyticsBarChart data={(users?.byRole || []).map(item => ({ label: labelize(item.label), value: item.value }))} label="Utilizadores" /></ChartContainer>}
       <div className="analyticsDataNote">{data?.limitations?.[0] || "Fonte actualizada no período seleccionado."}{team && <span> · Conclusões agregadas: <TrendIndicator changePercent={team.changePercent} /></span>}</div>
     </>}
   </section>;
