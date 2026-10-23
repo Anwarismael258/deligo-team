@@ -1,4 +1,4 @@
-export type AnalyticsUnit = "MZN" | "%" | "count" | "seconds";
+export type AnalyticsUnit = "MZN" | "%" | "count" | "seconds" | "minutes";
 export type AnalyticsPeriod = "today" | "last_7_days" | "last_30_days" | "last_90_days" | "this_year" | "custom";
 export type AnalyticsSourceStatus = "fresh" | "stale" | "unavailable";
 export type AnalyticsPermission = string;
@@ -9,6 +9,8 @@ export type AnalyticsFilters = {
   to?: string;
   platform?: string;
   department?: string;
+  priority?: string;
+  agent?: string;
   location?: string;
   status?: string;
   timezone: "Africa/Maputo";
