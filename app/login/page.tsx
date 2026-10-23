@@ -5,6 +5,8 @@ const routeForRole=(role?:string)=>({SUPER_ADMIN:"/",FINANCE:"/financas",FINANCE
 import loginStyles from "../globals.css?inline";
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+const loginVisibilityStyles = `.loginFormPanel{overflow:hidden;background:#f8f9fb!important;color:#17191e}.loginFormPanel:before{content:"";position:absolute;width:360px;height:360px;right:-170px;top:-150px;border-radius:50%;background:radial-gradient(circle,#ef4d441c 0,#f6a24d0c 42%,transparent 70%);animation:loginGlow 8s ease-in-out infinite alternate;pointer-events:none}.loginCard{position:relative;z-index:1}.loginHeading>span{font-size:10px!important;color:#c4282f!important;font-weight:800}.loginHeading h2{font-size:31px!important;line-height:1.12;color:#17191e!important;margin:10px 0 8px;animation:loginHeadingIn .55s ease-out both}.loginHeading p{font-size:12px!important;line-height:1.5;color:#555b66!important}.loginField>span{font-size:10px!important;font-weight:700;color:#30343b!important}.phoneInput,.passwordInput{height:46px;border-color:#cfd3da}.phoneInput input,.passwordInput input{font-size:12px;color:#17191e}.phoneInput input::placeholder,.passwordInput input::placeholder{color:#8b919b}.loginSubmit{height:45px;background:#c4282f!important;font-size:12px;font-weight:700;box-shadow:0 8px 20px #c4282f24}.loginSecurity{background:#fff;border:1px solid #e1e4e8}.loginSecurity strong,.loginSecurity span{font-size:9px;color:#30343b}.loginSecurity span{color:#626974}.loginFooter{color:#6f7680;z-index:1}@keyframes loginGlow{to{transform:translate(-18px,16px) scale(1.08)}}@keyframes loginHeadingIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.loginFormPanel:before,.loginHeading h2{animation:none}}`;
+
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [notice, setNotice] = useState("");
@@ -63,6 +65,7 @@ export default function LoginPage() {
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: loginStyles }} />
+      <style>{loginVisibilityStyles}</style>
       <main className="loginPage">
       <section className="loginBrandPanel">
         <div className="loginBrand">
