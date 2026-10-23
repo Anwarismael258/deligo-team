@@ -1,6 +1,5 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { EmptyState } from "./EmptyState";
 
 export type AnalyticsChartItem = { label: string; value: number };
@@ -16,49 +15,45 @@ function unavailable(title: string) {
   return <EmptyState title={title} description="A fonte autorizada não devolveu dados suficientes para desenhar este gráfico." />;
 }
 
+function ChartFrame({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="analyticsChartCanvas" aria-label={label} style={{ width: "100%", height: 240, minWidth: 0 }}>
+    <svg viewBox="0 0 720 240" role="img" aria-label={label} preserveAspectRatio="none" width="100%" height="240">{children}</svg>
+  </div>;
+}
+
+function Grid({ max, left = 54 }: { max: number; left?: number }) {
+  return <g aria-hidden="true">{[0, 1, 2, 3, 4].map(step => {
+    const y = 208 - step * 42;
+    return <g key={step}><line x1={left} x2={704} y1={y} y2={y} stroke="#eadfda" strokeDasharray="3 3" /><text x={left - 8} y={y + 4} textAnchor="end" fill="#777" fontSize="11">{formatNumber(max * step / 4)}</text></g>;
+  })}</g>;
+}
+
+function labelDate(value: string) { return value.length > 10 ? value.slice(5, 10) : value; }
+
 export function AnalyticsLineChart({ data, label = "Valor", secondaryLabel }: { data?: AnalyticsSeriesItem[]; label?: string; secondaryLabel?: string }) {
   if (!hasValues(data)) return unavailable("Série histórica indisponível");
-  return <div className="analyticsChartCanvas" aria-label={label} style={{ width: "100%", height: 240, minWidth: 0 }}>
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
-      <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eadfda" />
-        <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
-        <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={56} />
-        <Tooltip formatter={(value: unknown, name: unknown) => [typeof value === "number" ? formatNumber(value) : "Indisponível", String(name)]} />
-        <Line type="monotone" dataKey="value" name={label} stroke={red} strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 5 }} />
-        {secondaryLabel && <Line type="monotone" dataKey="secondary" name={secondaryLabel} stroke={orange} strokeWidth={2} dot={{ r: 2 }} />}
-      </LineChart>
-    </ResponsiveContainer>
-  </div>;
+  const items = data || [];
+  const max = Math.max(1, ...items.flatMap(item => [item.value, item.secondary || 0]));
+  const x = (index: number) => 54 + (index * 650) / Math.max(1, items.length - 1);
+  const y = (value: number) => 208 - (value / max) * 168;
+  const points = (key: "value" | "secondary") => items.map((item, index) => `${x(index)},${y(Number(item[key] || 0))}`).join(" ");
+  return <ChartFrame label={label}><Grid max={max} /><line x1="54" x2="704" y1="208" y2="208" stroke="#cfc5c0" /><polyline points={points("value")} fill="none" stroke={red} strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" />{items.map((item, index) => <circle key={`${item.date}-${index}`} cx={x(index)} cy={y(item.value)} r="4" fill={red} stroke="#fff" strokeWidth="2" />)}{secondaryLabel && <polyline points={points("secondary")} fill="none" stroke={orange} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />}{items.map((item, index) => <text key={`label-${item.date}-${index}`} x={x(index)} y="230" textAnchor="middle" fill="#555" fontSize="10">{labelDate(item.date)}</text>)}</ChartFrame>;
 }
 
 export function AnalyticsBarChart({ data, label = "Total" }: { data?: AnalyticsChartItem[]; label?: string }) {
   if (!hasValues(data)) return unavailable("Distribuição indisponível");
   const items = data || [];
-  return <div className="analyticsChartCanvas" aria-label={label} style={{ width: "100%", height: 240, minWidth: 0 }}>
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
-      <BarChart data={items} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eadfda" />
-        <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval={0} angle={items.length > 5 ? -25 : 0} textAnchor={items.length > 5 ? "end" : "middle"} height={items.length > 5 ? 58 : 30} />
-        <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={40} />
-        <Tooltip formatter={(value: unknown) => [typeof value === "number" ? formatNumber(value) : "Indisponível", label]} />
-        <Bar dataKey="value" name={label} fill={red} radius={[5, 5, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  </div>;
+  const max = Math.max(1, ...items.map(item => item.value));
+  const slot = 650 / Math.max(1, items.length);
+  const barWidth = Math.max(18, Math.min(72, slot * 0.62));
+  return <ChartFrame label={label}><Grid max={max} /><line x1="54" x2="704" y1="208" y2="208" stroke="#cfc5c0" />{items.map((item, index) => { const height = Math.max(2, (item.value / max) * 168); const center = 54 + slot * index + slot / 2; return <g key={`${item.label}-${index}`}><rect x={center - barWidth / 2} y={208 - height} width={barWidth} height={height} rx="5" fill={index % 2 ? orange : red} /><text x={center} y="224" textAnchor="middle" fill="#555" fontSize="10">{item.label.length > 14 ? `${item.label.slice(0, 12)}…` : item.label}</text><text x={center} y={Math.max(198 - height, 18)} textAnchor="middle" fill="#333" fontSize="10" fontWeight="700">{formatNumber(item.value)}</text></g>; })}</ChartFrame>;
 }
 
 export function AnalyticsDonutChart({ data }: { data?: AnalyticsChartItem[] }) {
   if (!hasValues(data)) return unavailable("Distribuição indisponível");
   const items = data || [];
-  return <div className="analyticsChartCanvas" aria-label="Distribuição" style={{ width: "100%", height: 240, minWidth: 0 }}>
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
-      <PieChart>
-        <Pie data={items} dataKey="value" nameKey="label" innerRadius="52%" outerRadius="78%" paddingAngle={2}>
-          {items.map((item, index) => <Cell key={`${item.label}-${index}`} fill={palette[index % palette.length]} />)}
-        </Pie>
-        <Tooltip formatter={(value: unknown) => [typeof value === "number" ? formatNumber(value) : "Indisponível", "Total"]} />
-      </PieChart>
-    </ResponsiveContainer>
-  </div>;
+  const total = items.reduce((sum, item) => sum + Math.max(0, item.value), 0) || 1;
+  const circumference = 2 * Math.PI * 66;
+  let offset = 0;
+  return <ChartFrame label="Distribuição"><g transform="translate(185 120) rotate(-90)"><circle r="66" fill="none" stroke="#f0ece9" strokeWidth="30" />{items.map((item, index) => { const length = (Math.max(0, item.value) / total) * circumference; const node = <circle key={`${item.label}-${index}`} r="66" fill="none" stroke={palette[index % palette.length]} strokeWidth="30" strokeDasharray={`${length} ${circumference - length}`} strokeDashoffset={-offset} />; offset += length; return node; })}</g><text x="185" y="116" textAnchor="middle" fill="#333" fontSize="18" fontWeight="700">{formatNumber(total)}</text><text x="185" y="133" textAnchor="middle" fill="#777" fontSize="10">Total</text>{items.slice(0, 6).map((item, index) => <g key={`legend-${item.label}-${index}`} transform={`translate(320 ${45 + index * 28})`}><rect width="12" height="12" rx="3" fill={palette[index % palette.length]} /><text x="20" y="10" fill="#444" fontSize="11">{item.label.length > 28 ? `${item.label.slice(0, 26)}…` : item.label}</text><text x="350" y="10" textAnchor="end" fill="#333" fontSize="11" fontWeight="700">{formatNumber(item.value)}</text></g>)}</ChartFrame>;
 }
