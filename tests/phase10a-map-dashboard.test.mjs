@@ -14,7 +14,8 @@ test("Centro de Mapas mostra métricas reais e usa o endpoint autenticado", () =
   assert.match(dashboard, /Distribuição por plataforma/);
   assert.match(route, /corporateActor/);
   assert.match(route, /Sessao corporativa necessaria/);
-  assert.match(analyticsRoute, /hq\.realtime_events/);
+  assert.match(analyticsRoute, /platform_events/);
+  assert.match(analyticsRoute, /deduplicado por id/);
   assert.match(analyticsRoute, /changePercent/);
 });
 
