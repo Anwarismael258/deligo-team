@@ -7,6 +7,7 @@ import { DataFreshnessIndicator } from "./DataFreshnessIndicator";
 import { EmptyState } from "./EmptyState";
 import { KPIGrid } from "./KPIGrid";
 import { TrendIndicator } from "./TrendIndicator";
+import { SystemHealthPanel } from "./SystemHealthPanel";
 import type { AnalyticsFilters, KPIResult } from "@/lib/analytics-contracts";
 
 type Platform = { slug: string; name: string; connected?: boolean; platform_status?: string; data_freshness?: string; metrics?: Array<{ key: string; label: string; value: number }> };
@@ -18,7 +19,8 @@ type ExecutiveDashboardData = {
   modules?: { platforms?: Array<{ slug: string; name: string; people?: unknown[] }> };
   deligoFinance?: { breakdown?: { central_revenue_confirmed?: number; gross_platform_volume_confirmed?: number; user_wallets_available?: number; total_funds_controlled_available?: number; platforms?: FinancePlatform[] } };
 };
-type CommandCenter = { checkedAt?: string; summary?: { operationsToday?: number; pendingKyc?: number; openSupport?: number; notificationWork?: number }; liveFeed?: Array<{ id: string | number; event_type?: string; entity_type?: string; occurred_at?: string; platforms?: { name?: string; platform_code?: string } }> };
+type PendingAction = { id: string; category?: string; priority?: string; responsible?: string; dueAt?: string | null; waitingSince?: string | null; origin?: string; status?: string; nextAction?: string; href?: string };
+type CommandCenter = { checkedAt?: string; summary?: { operationsToday?: number; pendingKyc?: number; openSupport?: number; notificationWork?: number }; pendingActions?: PendingAction[]; liveFeed?: Array<{ id: string | number; event_type?: string; entity_type?: string; occurred_at?: string; platforms?: { name?: string; platform_code?: string } }> };
 type HistoryPoint = { date: string; revenue: number; gmv: number; commissions: number; operations: number; cancellations: number };
 type HistoryData = { series: HistoryPoint[]; totals: Record<string, number>; comparison: Record<string, { current: number; previous: number; changePercent: number | null }>; range?: { from: string; to: string }; limitations?: string[] };
 
@@ -29,6 +31,7 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
   const [filters, setFilters] = useState<AnalyticsFilters>({ period: "last_30_days", timezone: "Africa/Maputo" });
   const [history, setHistory] = useState<HistoryData | null>(null);
   const [historyError, setHistoryError] = useState("");
+  const [feedCategory, setFeedCategory] = useState("");
   const breakdown = dashboard?.deligoFinance?.breakdown;
   const platformNames = (dashboard?.platforms || []).map((item) => item.name);
   const peopleCount = (dashboard?.modules?.platforms || []).reduce((sum, item) => sum + (Array.isArray(item.people) ? item.people.length : 0), 0);
@@ -62,12 +65,8 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     pendingAlerts == null ? "Alertas executivos sem fonte disponível." : `${pendingAlerts} alerta(s) operacional(is) requerem revisão.`,
     numberValue(breakdown?.central_revenue_confirmed) == null ? "Receita corporativa sem origem financeira disponível." : "Receita corporativa separada das carteiras de terceiros.",
   ];
-  const pendingActions = [
-    { label: "KYC pendente", count: numberValue(commandCenter?.summary?.pendingKyc), href: "/field", action: "Abrir Operações de Campo" },
-    { label: "Tickets abertos", count: numberValue(commandCenter?.summary?.openSupport), href: "/apoio-cliente", action: "Abrir Apoio ao Cliente" },
-    { label: "Trabalho de notificações", count: numberValue(commandCenter?.summary?.notificationWork), href: "/notificacoes", action: "Abrir Notificações" },
-  ];
-  const liveFeed = (commandCenter?.liveFeed || []).slice(0, 12);
+  const pendingActions = commandCenter?.pendingActions || [];
+  const liveFeed = (commandCenter?.liveFeed || []).filter(event => !feedCategory || String(event.event_type || "").toLowerCase().includes(feedCategory.toLowerCase())).slice(0, 12);
   return <section className="analyticsDashboardShell executiveOverviewDashboard">
     <DashboardHeader title="Visão executiva" description="Indicadores reais autorizados da Central HQ, separados por titularidade e fonte." updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} actions={<button className="primaryAction" type="button" onClick={onRefresh}>Actualizar dados</button>} />
     <DashboardFilters value={filters} onChange={setFilters} platforms={platformNames} />
@@ -89,11 +88,12 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     </div>
     <div className="analyticsExecutiveGrid">
       <ChartContainer title="Centro de ações pendentes" description="Contagens de fontes autorizadas; cada ligação mantém a operação no seu módulo e permissões originais.">
-        <div className="analyticsBarList">{pendingActions.map(item => <div className="analyticsBarRow" key={item.label}><div><strong>{item.label}</strong><small>{item.count == null ? "Indisponível" : `${item.count} pendente(s)`}</small></div><span><b>{item.count == null ? "—" : item.count}</b><a href={item.href}>{item.action}</a></span></div>)}</div>
+        {pendingActions.length ? <div className="analyticsBarList">{pendingActions.slice(0, 12).map(item => <div className="analyticsBarRow" key={`${item.category}-${item.id}`}><div><strong>{item.category || "Acção"} · {item.priority || "Prioridade não indicada"}</strong><small>{item.origin || "Origem não indicada"} · responsável: {item.responsible || "Não atribuído"} · estado: {item.status || "Não indicado"}</small></div><span><b>{item.waitingSince ? new Date(item.waitingSince).toLocaleDateString("pt-MZ") : "Sem data"}</b>{item.href && <a href={item.href}>{item.nextAction || "Abrir módulo"}</a>}</span></div>)}</div> : <EmptyState title="Sem ações pendentes" description="As fontes autorizadas não devolveram intervenção pendente." />}
       </ChartContainer>
       <ChartContainer title="Central de eventos ao vivo" description="Feed operacional deduplicado pelo Command Center; não substitui a auditoria nem confirma movimentos financeiros.">
-        {liveFeed.length ? <div className="analyticsBarList">{liveFeed.map(event => <div className="analyticsBarRow" key={String(event.id)}><div><strong>{event.event_type || "Evento operacional"}</strong><small>{event.entity_type || "Registo"} · {event.platforms?.name || event.platforms?.platform_code || "Plataforma não indicada"}</small></div><span><b>{event.occurred_at ? new Date(event.occurred_at).toLocaleString("pt-MZ") : "Data indisponível"}</b></span></div>)}</div> : <EmptyState title="Feed indisponível" description="O Command Center não devolveu eventos operacionais neste momento." />}
+        <label className="analyticsInlineFilter"><span>Categoria do evento</span><input value={feedCategory} onChange={event => setFeedCategory(event.target.value)} placeholder="Ex.: completed, created" /></label>{liveFeed.length ? <div className="analyticsBarList">{liveFeed.map(event => <div className="analyticsBarRow" key={String(event.id)}><div><strong>{event.event_type || "Evento operacional"}</strong><small>{event.entity_type || "Registo"} · {event.platforms?.name || event.platforms?.platform_code || "Plataforma não indicada"}</small></div><span><b>{event.occurred_at ? new Date(event.occurred_at).toLocaleString("pt-MZ") : "Data indisponível"}</b></span></div>)}</div> : <EmptyState title="Feed indisponível" description="O Command Center não devolveu eventos operacionais neste momento." />}
       </ChartContainer>
     </div>
+    <SystemHealthPanel platforms={dashboard?.platforms || []} commandCenterCheckedAt={commandCenter?.checkedAt} />
   </section>;
 }
