@@ -47,6 +47,7 @@ const nav = [
   ["▦", "Site Institucional"],
   ["▣", "Vagas"],
   ["⌖", "Operações de Campo"],
+  ["⌁", "Mapa operacional"],
   ["◌", "Apoio ao Cliente"],
   ["▤", "Relatórios"],
   ["☷", "Projectos e Tarefas"],
@@ -54,7 +55,7 @@ const nav = [
 ];
 const navGroups: Array<[string,string[]]> = [
   ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças","Triunfal Microcrédito","Caixa de Entrada"]],
-  ["OPERAÇÕES", ["Marketing","Site Institucional","Vagas","Operações de Campo","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
+  ["OPERAÇÕES", ["Marketing","Site Institucional","Vagas","Operações de Campo","Mapa operacional","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
 
 const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : label;
