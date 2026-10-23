@@ -55,12 +55,12 @@ function departmentFor(category:unknown,type:unknown){const value=`${String(cate
 
 
 export async function GET(request:NextRequest){
-  const requestedPlatform=request.nextUrl.searchParams.get("platform")||undefined,current=await context("support.viewTickets",requestedPlatform);if(!current)return NextResponse.json({error:"Acesso reservado ao atendimento e plataformas atribuídas."},{status:403});
+  const requestedPlatform=request.nextUrl.searchParams.get("platform")||undefined,requestedTicket=request.nextUrl.searchParams.get("ticket")||"",current=await context("support.viewTickets",requestedPlatform);if(!current)return NextResponse.json({error:"Acesso reservado ao atendimento e plataformas atribuídas."},{status:403});
   // Authorized support roles can see the shared queue across every connected platform.
   const requestedPlatformId=requestedPlatform?platforms[requestedPlatform]:null;
   const scope=requestedPlatformId?`&platform_id=eq.${requestedPlatformId}`:"";
-  const tickets=await safe(rest(current.key,`support_tickets?select=*&limit=600${scope}&order=updated_at.desc`),[]);
-  const appCases=await safe(coreRest(current.key,"support_cases?select=*,app:apps(slug,name)&order=updated_at.desc&limit=600"),[]);
+  const tickets=await safe(rest(current.key,`support_tickets?select=id,ticket_number,platform_id,platform_slug,platform_name,subject,description,status,priority,ticket_type,category,customer_name,customer_contact,customer_reference,assigned_to,created_at,updated_at,source_channel,external_reference,workflow_case_id&limit=300${scope}&order=updated_at.desc`),[]);
+  const appCases=await safe(coreRest(current.key,"support_cases?select=id,case_number,app:apps(slug,name),subject,description,status,priority,requester_name,requester_phone,requester_email,requester_user_id,category,assigned_user_id,created_at,updated_at,source_channel&order=updated_at.desc&limit=300"),[]);
   const platformIdBySlug=platforms;
   const coreTickets=(Array.isArray(appCases)?appCases:[]).filter((item:{app?:{slug?:string}})=>{const slug=String(item.app?.slug||"");return (!requestedPlatform||slug===requestedPlatform)}).map((item:{id:string;case_number:number;app?:{slug?:string;name?:string};subject:string;description:string;status:string;priority:string;requester_name?:string;requester_phone?:string;requester_email?:string;requester_user_id?:string;category:string;assigned_user_id?:string;created_at:string;updated_at:string;source_channel?:string})=>({id:`core:${item.id}`,source:"app",ticket_number:`${String(item.app?.slug||"app").toUpperCase()}-${String(item.case_number).padStart(6,"0")}`,platform_id:platformIdBySlug[String(item.app?.slug||"")],platform_slug:item.app?.slug,platform_name:item.app?.name,subject:item.subject,description:item.description,status:item.status==="waiting_internal"?"escalated":item.status,priority:item.priority,ticket_type:"app_message",category:item.category,customer_name:item.requester_name,customer_contact:item.requester_phone||item.requester_email,customer_reference:item.requester_user_id,assigned_to:item.assigned_user_id,created_at:item.created_at,updated_at:item.updated_at,external_reference:item.source_channel,source_channel:item.source_channel||"app"}));
   let allTickets=[...(Array.isArray(tickets)?tickets:[]),...coreTickets];
@@ -68,14 +68,16 @@ export async function GET(request:NextRequest){
   const caseIds=(tickets||[]).map((row:{workflow_case_id?:string})=>row.workflow_case_id).filter(Boolean);
   const coreIds=coreTickets.map((row:{id:string})=>row.id.slice(5));
   const coreFilter=coreIds.length?`case_id=in.(${coreIds.join(",")})`:"case_id=eq.00000000-0000-0000-0000-000000000000";
+  const legacyDetail=Boolean(requestedTicket)&&!requestedTicket.startsWith("core:")?requestedTicket:"";
+  const coreDetail=requestedTicket.startsWith("core:")?requestedTicket.slice(5):"";
   const [conversations,attachments,escalations,assignments,events,cases,steps,employees,platformRows,departments,coreConversations,coreEvents]=await Promise.all([
-    safe(rest(current.key,`support_conversations?select=*&${ticketFilter}&order=created_at.desc&limit=600`),[]),safe(rest(current.key,`support_attachments?select=*&${ticketFilter}&limit=600`),[]),
-    safe(rest(current.key,`support_escalations?select=*&${ticketFilter}&limit=600`),[]),safe(rest(current.key,`support_department_assignments?select=*&${ticketFilter}&order=created_at.desc&limit=600`),[]),
-    safe(rest(current.key,`support_history?select=*&${ticketFilter}&order=created_at.desc&limit=600`),[]),
-    caseIds.length?safe(rest(current.key,`workflow_cases?id=in.(${caseIds.join(",")})&select=*&limit=600`),[]):[],
-    caseIds.length?safe(rest(current.key,`workflow_steps?case_id=in.(${caseIds.join(",")})&select=*&order=step_order&limit=600`),[]):[],
-    safe(rest(current.key,"employees?select=id,employee_code,name:display_name,job_title,status,department_id&limit=600"),[]),safe(rest(current.key,"platforms?select=id,slug,name&limit=20"),[]),safe(rest(current.key,"departments?select=id,code,name&active=eq.true&limit=100"),[]),
-    safe(coreRest(current.key,`support_case_messages?select=*&${coreFilter}&order=created_at.asc&limit=1000`),[]),safe(coreRest(current.key,`support_case_events?select=*&${coreFilter}&order=created_at.desc&limit=1000`),[])
+    safe(rest(current.key,`support_conversations?select=id,ticket_id,sender_type,sender_employee_id,message,is_internal,created_at,external_message_id&${ticketFilter}&order=created_at.desc&limit=600`),[]),safe(legacyDetail?rest(current.key,`support_attachments?select=*&ticket_id=eq.${encodeURIComponent(legacyDetail)}&limit=100`):Promise.resolve([]),[]),
+    safe(legacyDetail?rest(current.key,`support_escalations?select=*&ticket_id=eq.${encodeURIComponent(legacyDetail)}&limit=100`):Promise.resolve([]),[]),safe(legacyDetail?rest(current.key,`support_department_assignments?select=*&ticket_id=eq.${encodeURIComponent(legacyDetail)}&order=created_at.desc&limit=100`):Promise.resolve([]),[]),
+    safe(legacyDetail?rest(current.key,`support_history?select=*&ticket_id=eq.${encodeURIComponent(legacyDetail)}&order=created_at.desc&limit=200`):Promise.resolve([]),[]),
+    legacyDetail&&caseIds.includes(legacyDetail)?safe(rest(current.key,`workflow_cases?id=eq.${encodeURIComponent(legacyDetail)}&select=*&limit=1`),[]):[],
+    legacyDetail&&caseIds.includes(legacyDetail)?safe(rest(current.key,`workflow_steps?case_id=eq.${encodeURIComponent(legacyDetail)}&select=*&order=step_order&limit=100`),[]):[],
+    safe(rest(current.key,"employees?select=id,employee_code,name:display_name,job_title,status,department_id&limit=300"),[]),safe(rest(current.key,"platforms?select=id,slug,name&limit=20"),[]),safe(rest(current.key,"departments?select=id,code,name&active=eq.true&limit=100"),[]),
+    safe(coreDetail?coreRest(current.key,`support_case_messages?select=*&case_id=eq.${encodeURIComponent(coreDetail)}&order=created_at.asc&limit=300`):Promise.resolve([]),[]),safe(coreDetail?coreRest(current.key,`support_case_events?select=*&case_id=eq.${encodeURIComponent(coreDetail)}&order=created_at.desc&limit=300`):Promise.resolve([]),[])
   ]);
   const readAtByCase=new Map<string,string>();
   for(const event of (Array.isArray(coreEvents)?coreEvents:[]) as Array<{case_id:string;actor_user_id?:string|null;event_type?:string;created_at:string}>){
