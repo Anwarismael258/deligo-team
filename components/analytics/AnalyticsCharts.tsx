@@ -18,8 +18,8 @@ function unavailable(title: string) {
 
 export function AnalyticsLineChart({ data, label = "Valor", secondaryLabel }: { data?: AnalyticsSeriesItem[]; label?: string; secondaryLabel?: string }) {
   if (!hasValues(data)) return unavailable("Série histórica indisponível");
-  return <div className="analyticsChartCanvas" aria-label={label}>
-    <ResponsiveContainer width="100%" height={240}>
+  return <div className="analyticsChartCanvas" aria-label={label} style={{ width: "100%", height: 240, minWidth: 0 }}>
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
       <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#eadfda" />
         <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
@@ -35,8 +35,8 @@ export function AnalyticsLineChart({ data, label = "Valor", secondaryLabel }: { 
 export function AnalyticsBarChart({ data, label = "Total" }: { data?: AnalyticsChartItem[]; label?: string }) {
   if (!hasValues(data)) return unavailable("Distribuição indisponível");
   const items = data || [];
-  return <div className="analyticsChartCanvas" aria-label={label}>
-    <ResponsiveContainer width="100%" height={240}>
+  return <div className="analyticsChartCanvas" aria-label={label} style={{ width: "100%", height: 240, minWidth: 0 }}>
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
       <BarChart data={items} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#eadfda" />
         <XAxis dataKey="label" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} interval={0} angle={items.length > 5 ? -25 : 0} textAnchor={items.length > 5 ? "end" : "middle"} height={items.length > 5 ? 58 : 30} />
@@ -51,8 +51,8 @@ export function AnalyticsBarChart({ data, label = "Total" }: { data?: AnalyticsC
 export function AnalyticsDonutChart({ data }: { data?: AnalyticsChartItem[] }) {
   if (!hasValues(data)) return unavailable("Distribuição indisponível");
   const items = data || [];
-  return <div className="analyticsChartCanvas" aria-label="Distribuição">
-    <ResponsiveContainer width="100%" height={240}>
+  return <div className="analyticsChartCanvas" aria-label="Distribuição" style={{ width: "100%", height: 240, minWidth: 0 }}>
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
       <PieChart>
         <Pie data={items} dataKey="value" nameKey="label" innerRadius="52%" outerRadius="78%" paddingAngle={2}>
           {items.map((item, index) => <Cell key={`${item.label}-${index}`} fill={palette[index % palette.length]} />)}
