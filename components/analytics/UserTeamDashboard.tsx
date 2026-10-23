@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import type { AnalyticsFilters, KPIResult } from "@/lib/analytics-contracts";
 import { ChartContainer } from "./ChartContainer";
 import { DashboardFilters } from "./DashboardFilters";
-import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { KPIGrid } from "./KPIGrid";
 import { TrendIndicator } from "./TrendIndicator";
@@ -64,7 +63,6 @@ export function UserTeamDashboard({ mode, teamDirectory = [] }: { mode: Mode; te
   const directoryDepartments = Object.entries(teamDirectory.reduce<Record<string, number>>((result, employee) => { const label = employee.department || "Sem departamento"; result[label] = (result[label] || 0) + 1; return result; }, {})).map(([label, value]) => ({ label, value }));
   const directoryStatuses = Object.entries(teamDirectory.reduce<Record<string, number>>((result, employee) => { const label = labelize(employee.status || "unknown"); result[label] = (result[label] || 0) + 1; return result; }, {})).map(([label, value]) => ({ label, value }));
   return <section className="analyticsDashboardShell userTeamDashboard">
-    <DashboardHeader title={mode === "users" ? "Dashboard de utilizadores" : "Dashboard de equipa"} description={mode === "users" ? "Pessoas únicas e contas por plataforma, sem duplicar acessos multiplataforma." : "Dimensão da equipa e volume agregado de tarefas, sem rankings individuais."} updatedAt={data?.range ? `${data.range.from} → ${data.range.to}` : undefined} />
     <DashboardFilters value={filters} onChange={setFilters} platforms={data?.filters?.platforms || []} />
     {mode === "team" && <div className="analyticsFilters" aria-label="Filtros de equipa"><label><span>Departamento</span><select value={filters.department || ""} onChange={event => setFilters({ ...filters, department: event.target.value || undefined })}><option value="">Todos os departamentos</option>{(data?.filters?.departments || []).map(department => <option value={String(department.code || department.id || "")} key={String(department.id || department.code)}>{String(department.name || department.code || "Departamento")}</option>)}</select></label><label><span>Estado</span><select value={filters.status || ""} onChange={event => setFilters({ ...filters, status: event.target.value || undefined })}><option value="">Todos os estados</option>{["active", "invited", "suspended", "completed", "in_progress", "pending", "cancelled"].map(status => <option value={status} key={status}>{labelize(status)}</option>)}</select></label></div>}
     {error ? mode === "team" && teamDirectory.length ? <><div className="analyticsExecutiveGrid"><ChartContainer title="Equipa por departamento"><AnalyticsBarChart data={directoryDepartments} label="Trabalhadores" /></ChartContainer><ChartContainer title="Estados da equipa"><AnalyticsDonutChart data={directoryStatuses} /></ChartContainer></div><div className="analyticsDataNote">Resumo da lista autorizada. Analytics histórico indisponível: {error}</div></> : <EmptyState title="Indicadores indisponíveis" description={error} /> : <>
