@@ -193,6 +193,41 @@ footer{display:flex;justify-content:space-between;border-top:1px solid var(--lin
 .profileModal{touch-action:pan-y;overscroll-behavior:contain}
 @media(max-width:720px){.profileModal{align-self:end;max-height:calc(100vh - 24px);border-radius:18px 18px 0 0}}
 .walletWithdrawButton.isAvailable{background:#16834d;color:#fff;box-shadow:0 4px 12px #16834d26}.walletWithdrawButton.isAvailable:hover{background:#116b3e}
+:where(.analyticsChartCanvas,.analyticsChartContainer,.analyticsTableWrap,.analyticsDashboardShell,.analyticsExecutiveGrid,.analyticsKpiGrid){min-width:0;max-width:100%;box-sizing:border-box}
+.analyticsChartCanvas{width:100%;overflow:hidden}
+.analyticsChartCanvas .recharts-responsive-container{max-width:100%}
+.analyticsChartCanvas .recharts-wrapper,.analyticsChartCanvas svg{max-width:100%}
+.analyticsChartContainer{overflow:hidden}
+.analyticsDashboardShell .analyticsDataNote{max-width:70ch}
+.analyticsDashboardShell .analyticsFilters{overflow:hidden}
+.moduleContext{max-width:100%;overflow:hidden}
+@media(max-width:800px){
+  .content{padding:22px 16px}
+  .titleRow{align-items:flex-start;gap:10px;flex-direction:column}
+  .titleRow h1{font-size:23px}
+  .titleRow p{font-size:11px;line-height:1.45}
+  .analyticsChartContainer{padding:10px}
+  .analyticsChartHeading p{line-height:1.35}
+  .analyticsChartCanvas{margin-inline:-2px;width:calc(100% + 4px)}
+  .analyticsChartCanvas .recharts-text{font-size:9px}
+  .analyticsChartCanvas .recharts-cartesian-axis-tick-value{font-size:9px}
+  .financeKpis,.platformPortfolioSummary,.platformGrid,.platformGridRich{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .financePanel,.platformWorkspace,.moduleWorkspace{min-width:0;max-width:100%;overflow:hidden}
+}
+@media(max-width:520px){
+  .content{padding:18px 12px}
+  .analyticsDashboardHeader h2{font-size:16px}
+  .analyticsDashboardHeader p{font-size:10px;line-height:1.35}
+  .analyticsHeaderActions{width:100%;font-size:9px}
+  .analyticsFilters{display:grid;grid-template-columns:1fr;gap:8px}
+  .analyticsFilters label,.analyticsFilters select,.analyticsFilters input{width:100%;min-width:0;box-sizing:border-box}
+  .analyticsChartCanvas .recharts-cartesian-axis-tick-value{font-size:8px}
+  .financeKpis,.platformPortfolioSummary,.platformGrid,.platformGridRich{grid-template-columns:1fr}
+  .financeKpis article{min-width:0}
+  .panelTitle,.sectionHeading{align-items:flex-start;gap:8px;flex-direction:column}
+  .analyticsDataTable{font-size:9px}
+  .analyticsDataTable th,.analyticsDataTable td{padding:7px}
+}
 :root{--analytics-red:#9f1d24;--analytics-orange:#d87824}
 .platformAnalyticsPanel{display:grid;gap:12px;margin:14px 0}.platformAnalyticsHead{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:10px}.platformAnalyticsHead>div>span{font-size:9px;letter-spacing:.12em;color:var(--analytics-red);font-weight:700}.platformAnalyticsHead h2{margin:4px 0;font-size:16px}.platformAnalyticsHead p{margin:0;color:#777;font-size:10px}.platformFinanceFacts{display:grid;gap:8px}.platformFinanceFacts p{display:flex;justify-content:space-between;gap:10px;margin:0;padding:8px 0;border-bottom:1px solid #eee;font-size:10px}.platformFinanceFacts span{color:#666}.platformFinanceFacts strong{color:#242528}
 .analyticsExecutiveGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.analyticsBarList{display:grid;gap:10px}.analyticsBarRow{display:grid;gap:5px}.analyticsBarRow>div{display:flex;justify-content:space-between;gap:10px}.analyticsBarRow strong{font-size:10px;color:#333}.analyticsBarRow small{font-size:9px;color:#888}.analyticsBarRow>span{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}.analyticsBarRow i{display:block;height:7px;min-width:3px;border-radius:10px;background:linear-gradient(90deg,var(--analytics-red),var(--analytics-orange))}.analyticsBarRow b{font-size:10px;white-space:nowrap;color:#333}.analyticsInsightList{display:grid;gap:8px}.analyticsInsightList p{display:flex;gap:7px;margin:0;font-size:10px;color:#4b4d52}.analyticsInsightList p span{color:var(--analytics-red);font-weight:700}.analyticsDataNote{font-size:10px;color:#777;margin:10px 0}.executiveOverviewDashboard{margin-bottom:14px}@media(max-width:800px){.analyticsExecutiveGrid{grid-template-columns:1fr}}
