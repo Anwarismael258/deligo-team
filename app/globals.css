@@ -18,6 +18,14 @@ nav { flex:1; overflow:auto; }.navLabel { font-size:10px; color:#a3a5ab; font-we
 .user { border-top:1px solid var(--line); padding:16px 8px 0; display:flex; gap:9px; align-items:center; }.avatar,.miniAvatar{border-radius:50%;display:grid;place-items:center;background:#202126;color:#fff;font-size:10px;font-weight:700;overflow:hidden}.avatar{width:32px;height:32px}.miniAvatar{width:30px;height:30px}.avatar img,.miniAvatar img{width:100%;height:100%;display:block;object-fit:cover;border-radius:inherit}
 .user div:nth-child(2){flex:1}.user strong,.user span{display:block;font-size:11px}.user span{color:#999;margin-top:3px}.user b{font-size:10px;color:#aaa}
 .workspace { margin-left:248px; width:calc(100% - 248px); }
+/* Desktop HQ navigation stays expanded so every area name is readable. */
+@media(min-width:721px){
+  .sidebar{width:286px;padding-left:18px;padding-right:18px}
+  .workspace{margin-left:286px;width:calc(100% - 286px)}
+  .navLabel{font-size:11px;padding-left:12px;padding-right:12px}
+  .navItem{font-size:14px;padding:10px 12px;gap:13px}
+  .navItem em{white-space:nowrap;overflow:visible}
+}
 header { height:68px; border-bottom:1px solid var(--line); padding:0 34px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; background:#ffffffee; backdrop-filter:blur(12px); z-index:10; }
 .search { width:330px; height:36px; border:1px solid #e1e2e4; background:#f8f8f9; border-radius:8px; color:#9a9ca2; display:flex; align-items:center; gap:9px; padding:0 11px; text-align:left; font-size:12px; }.search span:nth-child(2){flex:1}.search kbd{background:#fff;border:1px solid #ddd;border-radius:4px;padding:2px 5px;font-size:10px}
 .headerActions{display:flex;align-items:center;gap:13px}.headerActions select{border:1px solid #e3e3e5;background:#fff;border-radius:8px;padding:8px 30px 8px 11px;font-size:12px;font-weight:600}.iconButton{border:0;background:none;font-size:19px;position:relative}.iconButton i{position:absolute;width:6px;height:6px;border-radius:50%;background:var(--red);right:2px;top:1px;border:1px solid #fff}.notificationCount{position:absolute;right:-7px;top:-8px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--red);color:#fff;font-size:10px;line-height:16px;text-align:center}
