@@ -69,7 +69,7 @@ export function UserTeamDashboard({ mode, teamDirectory = [] }: { mode: Mode; te
       <KPIGrid items={kpis} />
       <div className="analyticsExecutiveGrid">
         <ChartContainer title={mode === "users" ? "Distribuição por plataforma" : "Distribuição por departamento"} description="Contagens agregadas da fonte autorizada.">
-          <AnalyticsBarChart data={breakdown} label={mode === "users" ? "Utilizadores" : "Tarefas"} />
+          {mode === "team" ? <AnalyticsHorizontalBarChart data={breakdown} label="Tarefas por departamento" /> : <AnalyticsBarChart data={breakdown} label="Utilizadores" />}
         </ChartContainer>
         <ChartContainer title={mode === "users" ? "Estados das contas" : "Tarefas por estado"} description="Estados confirmados pela fonte.">
           <AnalyticsDonutChart data={(statusRows || []).map(item => ({ label: labelize(item.label), value: item.value }))} />
