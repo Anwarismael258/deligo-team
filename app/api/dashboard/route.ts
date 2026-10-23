@@ -88,6 +88,13 @@ export async function GET() {
         })
         : [],
     );
+    // These two legacy wallets are explicitly identified as test accounts by
+    // the business owner. Keep their rows intact for audit/history, but never
+    // include them in the live DeliGo user-wallet total.
+    const excludedKnownWalletUserIds = new Set([
+      "5e5abc60-ecf5-416b-87a8-93cc0f30035a",
+      "0efc4ae3-9b17-4695-940c-9c68b9473e12",
+    ]);
     const activeDeligoWalletRows = Array.isArray(deligoWalletRows)
       ? deligoWalletRows.filter(row => {
         const item = row as Record<string, unknown>;
@@ -96,7 +103,8 @@ export async function GET() {
         // A real user wallet must be linked to a current DeliGo profile.
         return item.is_active === true
           && knownDeligoUserIds.has(ownerId)
-          && !testUserIds.has(ownerId);
+          && !testUserIds.has(ownerId)
+          && !excludedKnownWalletUserIds.has(ownerId);
       })
       : [];
     const deligoWalletAvailable = Array.isArray(deligoWalletRows)
