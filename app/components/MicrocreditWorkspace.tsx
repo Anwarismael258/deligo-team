@@ -52,7 +52,6 @@ export function MicrocreditWorkspace() {
   };
 
   return <section className="financeWorkspace">
-    <div className="financeHero"><div><span>TRIUNFAL MICROCRÉDITO</span><h2>Pedidos recebidos do site institucional</h2><p>Analise pedidos, documentos e estados com histórico protegido.</p></div><button disabled={loading} onClick={() => void load(page)}>Actualizar</button></div>
     <form className="peopleSearchBar" onSubmit={submitSearch}><input value={q} onChange={e => setQ(e.target.value)} maxLength={120} placeholder="Nome, referência, telefone, BI ou NUIT"/><button type="submit" disabled={loading}>Pesquisar</button><select value={status} onChange={e => { setPage(0); setStatus(e.target.value); }} disabled={loading}><option value="todos">Todos os estados</option>{statuses.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select><b>{rows.length} pedidos</b></form>
     {notice && <div className="operationalNotice">{notice}</div>}
     <div className="procurementList">{loading ? <div className="peopleEmpty">A carregar pedidos…</div> : rows.map(r => <button key={r.id} onClick={() => setSelected(r)}><div><strong>{r.reference} · {r.full_name}</strong><span>{r.phone} · recebido {date(r.created_at)}</span></div><b>{money(r.amount)} · {statusLabel(r.status)}</b></button>)}{!loading && !rows.length && <div className="peopleEmpty">Nenhum pedido recebido.</div>}</div>
