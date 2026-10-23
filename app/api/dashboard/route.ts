@@ -67,7 +67,7 @@ export async function GET() {
     // revenue and use available_balance when the column exists; this endpoint
     // only exposes available funds, never subscription revenue.
     const deligoWalletRows = canViewDeligoFinance
-      ? await stagingRest("legacy_wallets?select=balance,available_balance,pending_balance,currency,is_active,user_id,owner_id&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => stagingRest("legacy_wallets?select=balance,currency,is_active,user_id,owner_id&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => null))
+      ? await stagingRest("legacy_wallets?select=id,balance,available_balance,pending_balance,currency,is_active,user_id,owner_id&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => stagingRest("legacy_wallets?select=id,balance,currency,is_active,user_id,owner_id&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => null))
       : null;
     const deligoProfileRows = canViewDeligoFinance
       ? await stagingRest("profiles?select=id,user_id,is_test_user&limit=10000").catch(() => [])
@@ -108,6 +108,17 @@ export async function GET() {
     const deligoWalletPending = Array.isArray(deligoWalletRows)
       ? activeDeligoWalletRows.reduce((total, row) => total + Number((row as Record<string, unknown>).pending_balance || 0), 0)
       : null;
+    const deligoWalletSources = activeDeligoWalletRows.map(row => {
+      const item = row as Record<string, unknown>;
+      return {
+        wallet_id: item.id || null,
+        user_id: item.user_id || item.owner_id || null,
+        available_balance: Number(item.available_balance ?? item.balance ?? 0),
+        pending_balance: Number(item.pending_balance || 0),
+        currency: item.currency || "MZN",
+        is_active: item.is_active === true,
+      };
+    }).filter(row => Boolean(row.user_id) && (row.available_balance !== 0 || row.pending_balance !== 0));
     const financialBreakdown = canViewDeligoFinance ? await (async () => {
       const rpc = await fetch(`${supabaseUrl()}/rest/v1/rpc/financial_platform_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(2_500) }).then(response => response.ok ? response.json() : null).catch(() => null);
       const normalize = (value: Record<string, unknown>) => {
@@ -117,11 +128,11 @@ export async function GET() {
             if (String(row.slug) !== "deligo" || deligoWalletAvailable == null) return row;
             const available = deligoWalletAvailable;
             const pending = deligoWalletPending ?? Number(row.wallet_pending || 0);
-            return { ...row, wallet_available: available, wallet_pending: pending, funds_total: available + pending };
+            return { ...row, wallet_available: available, wallet_pending: pending, funds_total: available + pending, wallet_sources: deligoWalletSources };
           })
           : deligoWalletAvailable == null
             ? sourcePlatforms
-            : [...sourcePlatforms, { slug: "deligo", name: "DeliGo Eats", gross_confirmed: 0, central_revenue_confirmed: 0, provider_fees_confirmed: 0, wallet_available: deligoWalletAvailable, wallet_pending: deligoWalletPending ?? 0, funds_total: deligoWalletAvailable + (deligoWalletPending ?? 0) }];
+            : [...sourcePlatforms, { slug: "deligo", name: "DeliGo Eats", gross_confirmed: 0, central_revenue_confirmed: 0, provider_fees_confirmed: 0, wallet_available: deligoWalletAvailable, wallet_pending: deligoWalletPending ?? 0, funds_total: deligoWalletAvailable + (deligoWalletPending ?? 0), wallet_sources: deligoWalletSources }];
         const available = platforms.reduce((total, row) => total + Number(row.wallet_available || 0), 0) + Number(value.global_user_wallet_available || 0);
         const pending = platforms.reduce((total, row) => total + Number(row.wallet_pending || 0), 0) + Number(value.global_user_wallet_pending || 0);
         const corporate = Number(value.corporate_wallet_available || 0);
