@@ -99,7 +99,17 @@ export async function GET() {
       reserved_amount: Number(wallet.reserved_amount || 0),
       withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
     }));
-    const hqPersonalWalletHasFunds = hqPersonalWallets.some((wallet) =>
+    // The founder's old 10 MZN display balance was created by the previous
+    // corporate-withdrawal experiment and is not a valid personal balance.
+    // Keep its ledger history intact, but do not expose or make it withdrawable
+    // until a reconciled internal transfer creates a new personal balance.
+    const visibleHqPersonalWallets = hqPersonalWallets.filter((wallet) => !(
+      actor.employee_code === "DG-0001"
+      && Number(wallet.available_amount || 0) === 10
+      && Number(wallet.pending_amount || 0) === 0
+      && Number(wallet.reserved_amount || 0) === 0
+    ));
+    const hqPersonalWalletHasFunds = visibleHqPersonalWallets.some((wallet) =>
       Number(wallet.available_amount || 0) > 0 || Number(wallet.pending_amount || 0) > 0 || Number(wallet.reserved_amount || 0) > 0,
     );
 
@@ -132,7 +142,7 @@ export async function GET() {
         withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
       });
     }
-    wallets.push(...hqPersonalWallets);
+    wallets.push(...visibleHqPersonalWallets);
     wallets.push(...canonicalWallets);
 
     const unifiedAvailableAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
