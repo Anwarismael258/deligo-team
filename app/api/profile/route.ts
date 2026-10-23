@@ -83,6 +83,14 @@ export async function GET() {
     const profile = profileRows?.[0] || null;
     const appById = new Map((Array.isArray(apps) ? apps : []).map((app: Record<string, unknown>) => [String(app.id), app]));
     const canonicalWallets = (Array.isArray(canonical) ? canonical : [])
+      .filter((wallet: Record<string, unknown>) => {
+        const metadata = wallet.metadata && typeof wallet.metadata === "object" ? wallet.metadata as Record<string, unknown> : {};
+        const accountCode = String(wallet.account_code || "");
+        return metadata.test_mode !== true
+          && metadata.fictitious !== true
+          && metadata.is_test_user !== true
+          && !accountCode.startsWith("TEST-");
+      })
       .map((wallet: Record<string, unknown>) => mapCanonicalWallet(wallet, appById.get(String(wallet.app_id))))
       .filter((wallet: Record<string, unknown>) => String(wallet.currency || "MZN") === "MZN");
 
@@ -122,7 +130,7 @@ export async function GET() {
     // Once the corporate-profit transfer created the HQ employee wallet, it
     // is the authoritative personal balance. Do not add the old DeliGo wallet
     // on top of it, otherwise the profile shows an unrelated legacy amount.
-    if (legacy?.[0] && !canonicalHasFunds && !hqPersonalWalletHasFunds) {
+    if (legacy?.[0] && actor.employee_code !== "DG-0001" && !canonicalHasFunds && !hqPersonalWalletHasFunds) {
       const wallet = legacy[0];
       wallets.push({
         id: wallet.id,
@@ -144,6 +152,25 @@ export async function GET() {
     }
     wallets.push(...visibleHqPersonalWallets);
     wallets.push(...canonicalWallets);
+
+    // The Profile presents one personal wallet, even when the backend has
+    // several platform-specific accounts. Test accounts and the founder's
+    // unreconciled legacy balance have already been removed above.
+    const walletComponents = wallets.slice();
+    const unifiedWallet = {
+      id: `personal-${walletOwnerId}`,
+      platform_slug: null,
+      platform_name: "Carteira pessoal",
+      wallet_code: "PERSONAL_MZN",
+      account_type: "user",
+      source_kind: "unified_personal",
+      currency: "MZN",
+      available_amount: walletComponents.reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0),
+      pending_amount: walletComponents.reduce((sum, wallet) => sum + Number(wallet.pending_amount || 0), 0),
+      reserved_amount: walletComponents.reduce((sum, wallet) => sum + Number(wallet.reserved_amount || 0), 0),
+      withdrawal_enabled: walletComponents.some((wallet) => wallet.withdrawal_enabled === true),
+    };
+    wallets.splice(0, wallets.length, unifiedWallet);
 
     const unifiedAvailableAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
     const unifiedPendingAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.pending_amount || 0), 0);
