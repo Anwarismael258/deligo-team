@@ -125,7 +125,8 @@ export async function GET() {
         const sourcePlatforms = Array.isArray(value.platforms) ? value.platforms as Array<Record<string, unknown>> : [];
         const platforms = sourcePlatforms.some(row => String(row.slug) === "deligo")
           ? sourcePlatforms.map(row => {
-            if (String(row.slug) !== "deligo" || deligoWalletAvailable == null) return row;
+            if (String(row.slug) !== "deligo") return row;
+            if (deligoWalletAvailable == null) return { ...row, wallet_sources: deligoWalletSources };
             const available = deligoWalletAvailable;
             const pending = deligoWalletPending ?? Number(row.wallet_pending || 0);
             return { ...row, wallet_available: available, wallet_pending: pending, funds_total: available + pending, wallet_sources: deligoWalletSources };
@@ -177,7 +178,7 @@ export async function GET() {
         const walletPending = sum(wallets, "pending_balance_minor") / 100;
         const canonicalAvailable = slug === "deligo" && deligoWalletAvailable != null ? deligoWalletAvailable : walletAvailable;
         const canonicalPending = slug === "deligo" && deligoWalletPending != null ? deligoWalletPending : walletPending;
-        return { slug, name: String(platform?.name || app?.name || slug), gross_confirmed: sum(events, "gross_amount"), central_revenue_confirmed: sum(events, "platform_fee"), provider_fees_confirmed: sum(events, "provider_fee"), wallet_available: canonicalAvailable, wallet_pending: canonicalPending, funds_total: canonicalAvailable + canonicalPending };
+        return { slug, name: String(platform?.name || app?.name || slug), gross_confirmed: sum(events, "gross_amount"), central_revenue_confirmed: sum(events, "platform_fee"), provider_fees_confirmed: sum(events, "provider_fee"), wallet_available: canonicalAvailable, wallet_pending: canonicalPending, funds_total: canonicalAvailable + canonicalPending, ...(slug === "deligo" ? { wallet_sources: deligoWalletSources } : {}) };
       });
       const globalWallets = walletRows.filter(row => {
         const item = row as Record<string, unknown>;
