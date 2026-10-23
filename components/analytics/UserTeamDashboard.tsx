@@ -7,6 +7,7 @@ import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { KPIGrid } from "./KPIGrid";
 import { TrendIndicator } from "./TrendIndicator";
+import { AnalyticsBarChart, AnalyticsLineChart } from "./AnalyticsCharts";
 
 type Mode = "users" | "team";
 type Point = { date: string; newUsers: number; memberships: number; tasksCreated: number; tasksCompleted: number };
@@ -59,8 +60,6 @@ export function UserTeamDashboard({ mode }: { mode: Mode }) {
   ];
   const breakdown = mode === "users" ? users?.byPlatform : team?.byDepartment;
   const statusRows = mode === "users" ? users?.byStatus : team?.taskStates;
-  const maxBreakdown = Math.max(1, ...(breakdown || []).map(item => item.value));
-  const maxSeries = Math.max(1, ...(data?.series || []).map(point => mode === "users" ? point.newUsers : point.tasksCompleted));
   return <section className="analyticsDashboardShell userTeamDashboard">
     <DashboardHeader title={mode === "users" ? "Dashboard de utilizadores" : "Dashboard de equipa"} description={mode === "users" ? "Pessoas únicas e contas por plataforma, sem duplicar acessos multiplataforma." : "Dimensão da equipa e volume agregado de tarefas, sem rankings individuais."} updatedAt={data?.range ? `${data.range.from} → ${data.range.to}` : undefined} />
     <DashboardFilters value={filters} onChange={setFilters} platforms={data?.filters?.platforms || []} />
@@ -69,14 +68,14 @@ export function UserTeamDashboard({ mode }: { mode: Mode }) {
       <KPIGrid items={kpis} />
       <div className="analyticsExecutiveGrid">
         <ChartContainer title={mode === "users" ? "Distribuição por plataforma" : "Distribuição por departamento"} description="Contagens agregadas da fonte autorizada.">
-          {breakdown?.length ? <div className="analyticsBarList">{breakdown.map(item => <div className="analyticsBarRow" key={item.label}><div><strong>{item.label}</strong><small>{item.value} registo(s)</small></div><span><i style={{ width: `${Math.max(3, item.value / maxBreakdown * 100)}%` }} /><b>{item.value}</b></span></div>)}</div> : <EmptyState title="Distribuição indisponível" description="A fonte não devolveu dados suficientes." />}
+          <AnalyticsBarChart data={breakdown} label={mode === "users" ? "Utilizadores" : "Tarefas"} />
         </ChartContainer>
         <ChartContainer title={mode === "users" ? "Estados das contas" : "Tarefas por estado"} description="Sem inferir estados ausentes.">
           <AnalyticsDataTable rows={(statusRows || []).map(item => ({ id: item.label, estado: labelize(item.label), total: item.value }))} columns={[{ key: "estado", label: "Estado" }, { key: "total", label: "Total" }]} empty="Nenhum estado devolvido pela fonte." />
         </ChartContainer>
       </div>
-      <ChartContainer title={mode === "users" ? "Evolução de novos registos" : "Evolução de tarefas concluídas"} description="Série diária real; dias sem eventos não são inventados como actividade.">
-        {data?.series?.some(point => (mode === "users" ? point.newUsers : point.tasksCompleted) > 0) ? <div className="analyticsBarList">{data.series.map(point => { const value = mode === "users" ? point.newUsers : point.tasksCompleted; return <div className="analyticsBarRow" key={point.date}><div><strong>{point.date}</strong><small>{mode === "users" ? "Novos utilizadores" : "Tarefas concluídas"}</small></div><span><i style={{ width: `${Math.max(2, value / maxSeries * 100)}%` }} /><b>{value}</b></span></div>; })}</div> : <EmptyState title="Série histórica indisponível" description="Não existem eventos verificáveis no período seleccionado." />}
+      <ChartContainer title={mode === "users" ? "Evolução de novos registos" : "Evolução de tarefas concluídas"} description="Série diária real; Série histórica indisponível quando a fonte não devolve eventos verificáveis.">
+        <AnalyticsLineChart data={(data?.series || []).map(point => ({ date: point.date, value: mode === "users" ? point.newUsers : point.tasksCompleted }))} label={mode === "users" ? "Novos utilizadores" : "Tarefas concluídas"} />
       </ChartContainer>
       {mode === "users" && <ChartContainer title="Distribuição por tipo de utilizador" description="Papéis devolvidos pela associação de plataforma."><AnalyticsDataTable rows={(users?.byRole || []).map(item => ({ id: item.label, papel: item.label, total: item.value }))} columns={[{ key: "papel", label: "Papel" }, { key: "total", label: "Total" }]} empty="Nenhum papel devolvido pela fonte." /></ChartContainer>}
       <div className="analyticsDataNote">{data?.limitations?.[0] || "Fonte actualizada no período seleccionado."}{team && <span> · Conclusões agregadas: <TrendIndicator changePercent={team.changePercent} /></span>}</div>

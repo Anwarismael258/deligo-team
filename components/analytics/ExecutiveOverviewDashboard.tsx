@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { AnalyticsDataTable } from "./AnalyticsDataTable";
 import { ChartContainer } from "./ChartContainer";
 import { DashboardFilters } from "./DashboardFilters";
@@ -59,7 +60,6 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     { id: "custody-available", label: "Custódia disponível", value: money(numberValue(breakdown?.total_funds_controlled_available)), unit: "MZN", sourceStatus: breakdown ? "fresh" : "unavailable", source: "Receita + carteiras, sem dupla contagem" },
     { id: "critical-alerts", label: "Alertas operacionais", value: pendingAlerts, unit: "count", sourceStatus: pendingAlerts == null ? "unavailable" : "fresh", source: "KYC, suporte e notificações" },
   ];
-  const maxRevenue = Math.max(1, ...((history?.series || []).map((row) => Number(row.revenue || 0))));
   const insights = [
     connectedPlatforms > 0 ? `${connectedPlatforms} plataforma(s) com estado operacional confirmado.` : "Estado operacional das plataformas indisponível.",
     pendingAlerts == null ? "Alertas executivos sem fonte disponível." : `${pendingAlerts} alerta(s) operacional(is) requerem revisão.`,
@@ -72,8 +72,8 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     <DashboardFilters value={filters} onChange={setFilters} platforms={platformNames} />
     <KPIGrid items={kpis} />
     <div className="analyticsExecutiveGrid">
-      <ChartContainer title="Receita por plataforma" description="Valores confirmados pela fonte financeira; sem estimativas.">
-        {historyError ? <EmptyState title="Série histórica indisponível" description={historyError} /> : history?.series?.some((row) => row.revenue > 0) ? <div className="analyticsBarList">{history.series.map((row) => <div className="analyticsBarRow" key={row.date}><div><strong>{row.date}</strong><small>Receita confirmada</small></div><span><i style={{ width: `${Math.min(100, Math.max(2, (Number(row.revenue || 0) / maxRevenue) * 100))}%` }} /><b>{row.revenue.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT</b></span></div>)}</div> : <EmptyState title="Receita histórica indisponível" description="Não existem eventos financeiros confirmados no período seleccionado." />}
+      <ChartContainer title="Evolução das receitas" description="Valores confirmados pela fonte financeira; sem estimativas.">
+        {historyError ? <EmptyState title="Série histórica indisponível" description={historyError} /> : history?.series?.some((row) => row.revenue > 0) ? <div className="analyticsChartCanvas" aria-label="Evolução das receitas"><ResponsiveContainer width="100%" height={240}><LineChart data={history.series} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}><CartesianGrid strokeDasharray="3 3" stroke="#eadfda" /><XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(value: number) => `${value.toLocaleString("pt-MZ")} MT`} width={72} /><Tooltip formatter={(value: unknown) => [typeof value === "number" ? `${value.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT` : "Indisponível", "Receita"]} labelFormatter={(label) => `Data: ${label}`} /><Line type="monotone" dataKey="revenue" name="Receita confirmada" stroke="#9f1d35" strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div> : <EmptyState title="Receita histórica indisponível" description="Não existem eventos financeiros confirmados no período seleccionado." />}
       </ChartContainer>
       <ChartContainer title="Evolução e comparação" description="Últimos 30 dias versus os 30 dias anteriores, no fuso Africa/Maputo.">
         {history?.comparison?.revenue ? <div className="analyticsComparison"><p><span>Período seleccionado</span><strong>{history.comparison.revenue.current.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT</strong></p><p><span>Período anterior</span><strong>{history.comparison.revenue.previous.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT</strong></p><p><span>Variação</span><TrendIndicator changePercent={history.comparison.revenue.changePercent} /></p></div> : <EmptyState title="Comparação temporal indisponível" description="A fonte histórica não devolveu dados válidos para os dois períodos." />}
