@@ -21,7 +21,6 @@ import {DeligoOperationalMap} from "./components/DeligoOperationalMap";
 import {DeligoFinance} from "./components/DeligoFinance";
 import {MicrocreditWorkspace} from "./components/MicrocreditWorkspace";
 import {InboxWorkspace} from "./components/InboxWorkspace";
-import {FinanceReadOnlyDashboard} from "@/components/analytics/FinanceReadOnlyDashboard";
 import {ExecutiveOverviewDashboard} from "@/components/analytics/ExecutiveOverviewDashboard";
 import {PlatformExecutiveDashboard} from "@/components/analytics/PlatformExecutiveDashboard";
 import {UserTeamDashboard} from "@/components/analytics/UserTeamDashboard";
@@ -395,7 +394,6 @@ export function HQApp() {
   const [hrNotice, setHrNotice] = useState("");
   const [financeData, setFinanceData] = useState<FinanceData>({ financial_accounts:[], financial_transactions:[], budgets:[], payment_requests:[], cashflow_forecasts:[], profit_distributions:[], profit_destination:[], payroll_runs:[], payroll_lines:[] });
   const [financeNotice, setFinanceNotice] = useState("");
-  const [financeReconciliation, setFinanceReconciliation] = useState<Record<string, unknown> | null>(null);
   const [workerTransferEmployees, setWorkerTransferEmployees] = useState<Array<{ id: string; name: string; employee_code?: string; job_title?: string; role?: string }>>([]);
   const [workerTransfer, setWorkerTransfer] = useState({ employeeId: "", amount: "" });
   const [workerTransferBusy, setWorkerTransferBusy] = useState(false);
@@ -685,7 +683,6 @@ export function HQApp() {
 
   const refreshFinance = async () => { const response=await fetch("/api/finance",{cache:"no-store"}); if(!response.ok)throw new Error(); const result=await response.json(); setFinanceData(result.data); };
   useEffect(() => { if(active!=="Finanças")return; refreshFinance().catch(()=>setFinanceNotice("Não foi possível carregar os registos financeiros para este perfil.")); },[active]);
-  useEffect(() => { if(active!=="Finanças")return; fetch("/api/finance/reconciliation",{cache:"no-store"}).then(async response=>{const result=await response.json();if(!response.ok)throw new Error(result.error||"Auditoria financeira indisponível.");setFinanceReconciliation(result)}).catch(()=>setFinanceReconciliation(null)); },[active]);
   useEffect(() => {
     if (active !== "Finanças" || !["SUPER_ADMIN", "FINANCE"].includes(sessionUser?.hq_role || "")) return;
     fetch("/api/finance/worker-transfer", { cache: "no-store" })
@@ -1121,7 +1118,6 @@ if(active==="Operações de Campo")void refreshField();
             {platformAdminSnapshot && <PlatformAdminPanel snapshot={platformAdminSnapshot} platform={platform} selectedCollection={platformCollection} onSelectCollection={setPlatformCollection} onAction={platformAction} onOpenProfile={(id,name)=>setSelectedProfile({platform:platformSlug(platform),id,name})} onOpenRecord={(collection,row)=>setSelectedPlatformRecord({collection,row})} />}
           </section>}
           {active === "Finanças" && <section className="financeWorkspace">
-            <FinanceReadOnlyDashboard reconciliation={financeReconciliation} />
             <div className="financeKpis"><article><span>Receita da Central confirmada</span><strong>{corporateConfirmedRevenue == null ? "Indisponível" : money(corporateConfirmedRevenue)}</strong><small>Comissões, taxas e receitas líquidas confirmadas de todas as plataformas</small></article><article><span>Carteiras DeliGo disponíveis</span><strong>{financialBreakdown?.user_wallets_available == null ? "Indisponível" : money(Number(financialBreakdown.user_wallets_available))}</strong><small>Saldo disponível de clientes, restaurantes, estafetas, vendedores, drivers e riders · exclui carteiras pessoais HQ</small></article><article><span>Total sob custódia disponível</span><strong>{financialBreakdown?.total_funds_controlled_available == null ? "Indisponível" : money(Number(financialBreakdown.total_funds_controlled_available))}</strong><small>Receita da Central + carteiras DeliGo, sem incluir o saldo pessoal do admin ou da Finance</small></article><article><span>Total operacional conciliado</span><strong>{financialBreakdown?.total_funds_controlled_available == null ? "Indisponível" : money(Number(financialBreakdown.total_funds_controlled_available))}</strong><small>62,84 MT de receita confirmada + carteiras DeliGo disponíveis · carteira pessoal fica no Perfil</small></article></div>
             <div className="financeKpis">{["deligo","mestre24","sarca","comunhao","taomoz"].map(slug=>{const platform=platformBreakdown(slug);const label=slug==="deligo"?"DeliGo Eats":slug==="mestre24"?"Mestre24":slug==="sarca"?"SARCA":slug==="comunhao"?"Comunhão":"DeliGo Market";return <article key={slug}><span>{label}</span><strong>{platform ? money(Number(platform.central_revenue_confirmed)) : "Indisponível"}</strong><small>Receita da Central · carteiras disponíveis {platform ? money(Number(platform.wallet_available)) : "indisponível"}</small></article>})}</div>
             {["SUPER_ADMIN", "FINANCE"].includes(sessionUser?.hq_role || "") && <form className="financeEntryForm" onSubmit={transferToWorker}>
