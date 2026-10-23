@@ -22,6 +22,8 @@ import {DeligoFinance} from "./components/DeligoFinance";
 import {MicrocreditWorkspace} from "./components/MicrocreditWorkspace";
 import {InboxWorkspace} from "./components/InboxWorkspace";
 import {FinanceReadOnlyDashboard} from "@/components/analytics/FinanceReadOnlyDashboard";
+import {ExecutiveOverviewDashboard} from "@/components/analytics/ExecutiveOverviewDashboard";
+import {PlatformExecutiveDashboard} from "@/components/analytics/PlatformExecutiveDashboard";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 const kycDocumentLinks=(caseId:string,docs:unknown[])=>docs.map((doc,index)=>{const item=doc&&typeof doc==="object"?doc as Record<string,unknown>:null,value=typeof doc==="string"?doc:String(item?.signed_url||item?.url||"");if(!/^https?:\/\//i.test(value))return <span className="kycDocumentUnavailable" key={`${caseId}-doc-${index}`}>Documento {index+1}: indisponível</span>;return <span className="kycDocumentLink" key={`${caseId}-doc-${index}`}><strong>Documento {index+1}</strong><a href={value} target="_blank" rel="noreferrer">Abrir</a><a href={value} download={`documento-${index+1}`} target="_blank" rel="noreferrer">Guardar</a></span>});
@@ -1100,6 +1102,7 @@ if(active==="Operações de Campo")void refreshField();
               <article><span>Operacionais</span><strong>{platformDirectory.filter(item => item.connected || ["connected","operational"].includes(String(item.integration_status || item.platform_status))).length}</strong><small>estado confirmado</small></article>
               <article><span>Ambiente</span><strong>{dashboard?.environment || "—"}</strong><small>fonte dos dados</small></article>
             </div>
+            <PlatformExecutiveDashboard dashboard={dashboard} selectedPlatform={platform} />
             <div className="platformGrid platformGridRich">
               {platformDirectory.map(item => { const status=String(item.integration_status||item.platform_status||"unknown"); const state=status==="connected"||status==="operational"||item.connected?"Ligada":status==="error"?"Erro":"Estado não confirmado"; const roles=platformRoles[item.name]||[]; return <article className="platformCard platformCardRich" key={item.slug} style={{borderTopColor:item.color}}><div className="platformAccent" style={{background:item.color}}/><div className="platformCardHead"><div className="platformIdentity">{platformArtwork[item.name] ? <img className="platformLogo" src={platformArtwork[item.name]} alt=""/> : <i style={{background:item.color}}>{item.name.slice(0,2).toUpperCase()}</i>}<div><strong>{item.name}</strong><span>{String(item.platform_status||"Estado não confirmado")}</span></div></div><span className={`platformCardStatus ${state==="Ligada"?"isConnected":state==="Erro"?"isError":""}`}>{state}</span></div><div className="platformRoleChips">{roles.map(role=><span key={role}>{role}</span>)}</div><div className="platformCardMetrics">{item.metrics?.length ? item.metrics.slice(0,4).map(metric=><div key={metric.key||metric.label}><small>{metric.label}</small><b>{String(metric.value??0)}</b></div>) : <div className="platformNoMetrics">Indicadores não disponíveis nesta fonte.</div>}</div><div className="platformCardFooter"><small>{item.data_freshness ? `Actualizado ${item.data_freshness}` : "Dados reais · actualização não indicada"}</small><button className="primaryAction" onClick={()=>setPlatform(item.name)}>Abrir plataforma <span>→</span></button></div></article> })}
               {!platformDirectory.length && <div className="peopleEmpty">Nenhuma plataforma foi devolvida pelo backend autorizado.</div>}
@@ -1439,25 +1442,7 @@ if(active==="Operações de Campo")void refreshField();
             </article>
             <article className="permissionCard"><h2>Âmbito de acesso</h2><p>Módulos autorizados pelo cargo validado no backend.</p><div>{visibleNav.map(([,item]) => <span key={item}>✓ {item}</span>)}</div></article>
           </section>}
-          {active === "Visão geral" && <>
-          <section className="metrics">
-            {[
-              ["Receita hoje", commandCenter?.summary.revenueToday == null ? "—" : money(commandCenter.summary.revenueToday), "Apenas consulta"],
-              ["Total sob custódia disponível", financialBreakdown?.total_funds_controlled_available == null ? "Indisponível" : money(Number(financialBreakdown.total_funds_controlled_available)), "Receita corporativa disponível + carteiras de utilizadores"],
-            ].map(([label, value, note], index) => (
-              <article className={`metric metric-${index}`} key={label}>
-                <div className="metricTopline"><span>INDICADOR CENTRAL</span></div>
-                <p>{label}</p><strong>{value}</strong><span className="metricNote">{note}</span>
-              </article>
-            ))}
-          </section>
-          {<section className="platformPanel">
-            <div className="sectionHeading"><div><h2>Estado das plataformas</h2><p>Resumo operacional sem métricas fictícias.</p></div><button onClick={()=>navigate("Plataformas")}>Abrir plataformas →</button></div>
-            <div className="platformGrid">
-              {(dashboard?.platforms || []).map(item => <article className="platformCard" key={item.slug}><strong>{item.name}</strong><span>{String(item.platform_status || "Estado não confirmado")}</span><small>Dados: {item.data_freshness || "não indicado"}</small><button onClick={()=>navigate("Plataformas")}>Abrir</button></article>)}
-            </div>
-          </section>}
-          </>}
+          {active === "Visão geral" && <ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} onRefresh={() => { void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} />}
           {active === "Utilizadores" && <section className="peoplePanel">
             <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
             <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
