@@ -35,3 +35,7 @@ O código contém uma integração autenticada para payout (`POST /payouts`) e w
 - Este documento: mapa de fontes, limites e riscos da reconciliação.
 
 Não foram criadas migrations, não foram alterados webhooks, saldos, comissões, RBAC, RLS ou integrações de escrita.
+
+## Fase 2B — consolidação interna
+
+`lib/finance-consolidation.ts` contém a matriz de precedência por plataforma e as regras determinísticas para classificar duplicados, movimentos sem correspondência, pendentes antigos e valores negativos. O endpoint read-only existente devolve agora essa matriz, o estado de cada plataforma e a qualidade dos dados. Estes estados são internos e não equivalem a uma confirmação PaySuite.

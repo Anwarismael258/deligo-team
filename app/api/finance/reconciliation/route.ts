@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireCorporatePermission, hqServiceKey, supabaseUrl } from "@/lib/hq-server";
 import { metricDefinition } from "@/lib/metric-registry";
+import { canonicalSourceMatrix, classifyChecks } from "@/lib/finance-consolidation";
 
 export const dynamic = "force-dynamic";
 
@@ -37,5 +38,18 @@ export async function GET() {
     { key: "finance.legacy_unclassified", label: "Movimentos antigos não classificados", value: Number(revenue.legacy_unclassified_revenue ?? platform.unclassified_legacy_corporate_amount ?? 0), source: "hq.ledger_operations", status: "excluded_from_revenue" },
   ];
   const allSourcesAvailable = platformSummary.ok && revenueSummary.ok;
-  return NextResponse.json({ checkedAt: new Date().toISOString(), state: allSourcesAvailable ? "READ_ONLY_RECONCILIATION_READY" : "SOURCE_UNAVAILABLE", actor: { employeeId: actor.employee_id, role: actor.role }, sources, paysuite: { state: "NOT_VERIFIED", reason: "A API de saldo PaySuite não foi assumida sem endpoint oficial de leitura configurado." }, warnings: ["Esta auditoria não altera saldos, não cria movimentos e não executa levantamentos.", "PaySuite só poderá ser reconciliada quando existir uma resposta oficial de saldo autenticada."] }, { headers: { "Cache-Control": "private, no-store" } });
+  const platformRows = Array.isArray(platform.platforms) ? platform.platforms : [];
+  const platformReconciliation = platformRows.map((row) => {
+    const item = row && typeof row === "object" ? row as Record<string, unknown> : {};
+    const sourceAvailable = platformSummary.ok && (item.slug || item.platform_id);
+    const state = classifyChecks({ sourceAvailable: Boolean(sourceAvailable) });
+    return { platform: String(item.name || item.slug || item.platform_id || "Plataforma não identificada"), slug: String(item.slug || ""), state, evidence: sourceAvailable ? "Resumo financeiro autorizado" : "Fonte financeira não devolvida" };
+  });
+  const qualityChecks = [
+    { key: "duplicate_events", label: "Eventos duplicados", state: "FONTE_INSUFICIENTE", detail: "O resumo RPC não devolve identificadores suficientes para auditar duplicados nesta chamada." },
+    { key: "unmatched_movements", label: "Movimentos sem correspondência", state: "FONTE_INSUFICIENTE", detail: "Requer consulta conjunta ao ledger e aos movimentos de origem." },
+    { key: "negative_values", label: "Valores negativos inesperados", state: "FONTE_INSUFICIENTE", detail: "Nenhuma correcção ou normalização foi aplicada." },
+    { key: "stale_pending", label: "Pendentes antigos", state: "FONTE_INSUFICIENTE", detail: "A idade dos pendentes não está disponível no resumo actual." },
+  ];
+  return NextResponse.json({ checkedAt: new Date().toISOString(), state: allSourcesAvailable ? "READ_ONLY_RECONCILIATION_READY" : "SOURCE_UNAVAILABLE", actor: { employeeId: actor.employee_id, role: actor.role }, sources, canonicalSourceMatrix, platformReconciliation, qualityChecks, paysuite: { state: "NOT_VERIFIED", reason: "A API de saldo PaySuite não foi assumida sem endpoint oficial de leitura configurado." }, warnings: ["Esta auditoria não altera saldos, não cria movimentos e não executa levantamentos.", "PaySuite só poderá ser reconciliada quando existir uma resposta oficial de saldo autenticada.", "A reconciliação interna não é uma confirmação oficial da PaySuite." ] }, { headers: { "Cache-Control": "private, no-store" } });
 }
