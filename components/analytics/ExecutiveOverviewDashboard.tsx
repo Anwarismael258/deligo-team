@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartContainer } from "./ChartContainer";
 import { DashboardFilters } from "./DashboardFilters";
 import { DashboardHeader } from "./DashboardHeader";
 import { EmptyState } from "./EmptyState";
 import { KPIGrid } from "./KPIGrid";
 import { TrendIndicator } from "./TrendIndicator";
-import { AnalyticsBarChart, AnalyticsDonutChart } from "./AnalyticsCharts";
+import { AnalyticsBarChart, AnalyticsDonutChart, AnalyticsLineChart } from "./AnalyticsCharts";
 import type { AnalyticsFilters, KPIResult } from "@/lib/analytics-contracts";
 
 type Platform = { slug: string; name: string; connected?: boolean; platform_status?: string; data_freshness?: string; metrics?: Array<{ key: string; label: string; value: number }> };
@@ -69,7 +68,7 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     <KPIGrid items={kpis} />
     <div className="analyticsExecutiveGrid">
       <ChartContainer title="Evolução das receitas" description="Valores confirmados pela fonte financeira; sem estimativas.">
-        {historyError ? <EmptyState title="Série histórica indisponível" description={historyError} /> : history?.series?.some((row) => row.revenue > 0) ? <div className="analyticsChartCanvas" aria-label="Evolução das receitas"><ResponsiveContainer width="100%" height={240}><AreaChart data={history.series} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}><defs><linearGradient id="executiveRevenueFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#9f1d35" stopOpacity={0.28} /><stop offset="100%" stopColor="#9f1d35" stopOpacity={0.03} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" stroke="#eadfda" /><XAxis dataKey="date" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} /><YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(value: number) => `${value.toLocaleString("pt-MZ")} MT`} width={72} /><Tooltip formatter={(value: unknown) => [typeof value === "number" ? `${value.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT` : "Indisponível", "Receita"]} labelFormatter={(label: unknown) => `Data: ${label}`} /><Area type="monotone" dataKey="revenue" name="Receita confirmada" stroke="#9f1d35" fill="url(#executiveRevenueFill)" strokeWidth={3} dot={{ r: 2 }} activeDot={{ r: 5 }} /></AreaChart></ResponsiveContainer></div> : <EmptyState title="Receita histórica indisponível" description="Não existem eventos financeiros confirmados no período seleccionado." />}
+        {historyError ? <EmptyState title="Série histórica indisponível" description={historyError} /> : <AnalyticsLineChart data={(history?.series || []).map(row => ({ date: row.date, value: row.revenue }))} label="Receita confirmada" />}
       </ChartContainer>
       <ChartContainer title="Receita por plataforma">
         <AnalyticsDonutChart data={revenueByPlatform} />
