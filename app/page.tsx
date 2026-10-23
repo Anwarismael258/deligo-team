@@ -952,7 +952,7 @@ if(active==="Operações de Campo")void refreshField();
     } catch { setHomologationNotice("Não foi possível contactar a homologação. Tente novamente."); }
   };
   const navigate = (label: string) => {
-    if (["Avaliações & Reputação", "Site Institucional", "Vagas"].includes(label)) {
+    if (["Avaliações & Reputação", "Site Institucional", "Vagas", "Relatórios"].includes(label)) {
       window.location.assign(routeByModule[label]);
       return;
     }
