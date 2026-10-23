@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireCorporatePermission, hqServiceKey, supabaseUrl } from "@/lib/hq-server";
+import { metricDefinition } from "@/lib/metric-registry";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +27,14 @@ export async function GET() {
   ]);
   const platform = platformSummary.value && typeof platformSummary.value === "object" ? platformSummary.value as Record<string, unknown> : {};
   const revenue = revenueSummary.value && typeof revenueSummary.value === "object" ? revenueSummary.value as Record<string, unknown> : {};
+  const definitions = ["finance.corporate_revenue_confirmed", "finance.user_wallets_available", "finance.corporate_wallet_available", "finance.custody_available"]
+    .map(key => metricDefinition(key)).filter(Boolean);
   const sources = [
-    { key: "corporate_revenue_confirmed", label: "Receita corporativa confirmada", value: Number(revenue.corporate_revenue_confirmed ?? platform.central_revenue_confirmed ?? 0), source: "hq.corporate_revenue_credits + hq.platform_financial_events", status: revenueSummary.ok ? "confirmed" : "unavailable" },
-    { key: "user_wallets_available", label: "Carteiras de utilizadores disponíveis", value: Number(platform.user_wallets_available ?? 0), source: "payments.wallet_accounts + deligo.legacy_wallets", status: platformSummary.ok ? "confirmed" : "unavailable" },
-    { key: "corporate_wallet_available", label: "Carteira corporativa disponível", value: Number(platform.corporate_wallet_available ?? revenue.corporate_wallet_available ?? 0), source: "hq.logical_wallets/CORPORATE_MZN", status: platformSummary.ok || revenueSummary.ok ? "confirmed" : "unavailable" },
-    { key: "custody_available", label: "Total sob custódia disponível", value: Number(platform.total_funds_controlled_available ?? 0), source: "revenue + user wallets; sem duplicação", status: platformSummary.ok ? "confirmed" : "unavailable" },
-    { key: "legacy_unclassified", label: "Movimentos antigos não classificados", value: Number(revenue.legacy_unclassified_revenue ?? platform.unclassified_legacy_corporate_amount ?? 0), source: "hq.ledger_operations", status: "excluded_from_revenue" },
+    { key: "finance.corporate_revenue_confirmed", label: definitions.find(metric => metric?.key === "finance.corporate_revenue_confirmed")?.label, value: Number(revenue.corporate_revenue_confirmed ?? platform.central_revenue_confirmed ?? 0), source: definitions.find(metric => metric?.key === "finance.corporate_revenue_confirmed")?.source, status: revenueSummary.ok ? "confirmed" : "unavailable" },
+    { key: "finance.user_wallets_available", label: definitions.find(metric => metric?.key === "finance.user_wallets_available")?.label, value: Number(platform.user_wallets_available ?? 0), source: definitions.find(metric => metric?.key === "finance.user_wallets_available")?.source, status: platformSummary.ok ? "confirmed" : "unavailable" },
+    { key: "finance.corporate_wallet_available", label: definitions.find(metric => metric?.key === "finance.corporate_wallet_available")?.label, value: Number(platform.corporate_wallet_available ?? revenue.corporate_wallet_available ?? 0), source: definitions.find(metric => metric?.key === "finance.corporate_wallet_available")?.source, status: platformSummary.ok || revenueSummary.ok ? "confirmed" : "unavailable" },
+    { key: "finance.custody_available", label: definitions.find(metric => metric?.key === "finance.custody_available")?.label, value: Number(platform.total_funds_controlled_available ?? 0), source: definitions.find(metric => metric?.key === "finance.custody_available")?.source, status: platformSummary.ok ? "confirmed" : "unavailable" },
+    { key: "finance.legacy_unclassified", label: "Movimentos antigos não classificados", value: Number(revenue.legacy_unclassified_revenue ?? platform.unclassified_legacy_corporate_amount ?? 0), source: "hq.ledger_operations", status: "excluded_from_revenue" },
   ];
   const allSourcesAvailable = platformSummary.ok && revenueSummary.ok;
   return NextResponse.json({ checkedAt: new Date().toISOString(), state: allSourcesAvailable ? "READ_ONLY_RECONCILIATION_READY" : "SOURCE_UNAVAILABLE", actor: { employeeId: actor.employee_id, role: actor.role }, sources, paysuite: { state: "NOT_VERIFIED", reason: "A API de saldo PaySuite não foi assumida sem endpoint oficial de leitura configurado." }, warnings: ["Esta auditoria não altera saldos, não cria movimentos e não executa levantamentos.", "PaySuite só poderá ser reconciliada quando existir uma resposta oficial de saldo autenticada."] }, { headers: { "Cache-Control": "private, no-store" } });
