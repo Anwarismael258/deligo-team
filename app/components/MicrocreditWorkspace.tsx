@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { MicrocreditAnalyticsDashboard } from "@/components/analytics/MicrocreditAnalyticsDashboard";
 
 const statuses = [["pendente", "Pendente"], ["em_analise", "Em análise"], ["aprovado", "Aprovado"], ["recusado", "Recusado"], ["desembolsado", "Desembolsado"], ["pago", "Pago"], ["cancelado", "Cancelado"]];
 const intakeActions: Record<string, string[]> = { pendente: ["em_analise", "recusado", "cancelado"], em_analise: ["aprovado", "recusado", "cancelado"] };
@@ -46,6 +47,7 @@ export function MicrocreditWorkspace() {
   };
 
   return <section className="financeWorkspace">
+    <MicrocreditAnalyticsDashboard />
     <div className="financeHero"><div><span>TRIUNFAL MICROCRÉDITO</span><h2>Pedidos recebidos do site institucional</h2><p>Analise pedidos, documentos e estados com histórico protegido.</p></div><button disabled={loading} onClick={() => void load(page)}>Actualizar</button></div>
     <form className="peopleSearchBar" onSubmit={submitSearch}><input value={q} onChange={e => setQ(e.target.value)} maxLength={120} placeholder="Nome, referência, telefone, BI ou NUIT"/><button type="submit" disabled={loading}>Pesquisar</button><select value={status} onChange={e => { setPage(0); setStatus(e.target.value); }} disabled={loading}><option value="todos">Todos os estados</option>{statuses.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select><b>{rows.length} pedidos</b></form>
     {notice && <div className="operationalNotice">{notice}</div>}
