@@ -18,7 +18,7 @@ type ExecutiveDashboardData = {
   modules?: { platforms?: Array<{ slug: string; name: string; people?: unknown[] }> };
   deligoFinance?: { breakdown?: { central_revenue_confirmed?: number; gross_platform_volume_confirmed?: number; user_wallets_available?: number; total_funds_controlled_available?: number; platforms?: FinancePlatform[] } };
 };
-type CommandCenter = { summary?: { operationsToday?: number; pendingKyc?: number; openSupport?: number; notificationWork?: number } };
+type CommandCenter = { checkedAt?: string; summary?: { operationsToday?: number; pendingKyc?: number; openSupport?: number; notificationWork?: number }; liveFeed?: Array<{ id: string | number; event_type?: string; entity_type?: string; occurred_at?: string; platforms?: { name?: string; platform_code?: string } }> };
 type HistoryPoint = { date: string; revenue: number; gmv: number; commissions: number; operations: number; cancellations: number };
 type HistoryData = { series: HistoryPoint[]; totals: Record<string, number>; comparison: Record<string, { current: number; previous: number; changePercent: number | null }>; range?: { from: string; to: string }; limitations?: string[] };
 
@@ -62,6 +62,12 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     pendingAlerts == null ? "Alertas executivos sem fonte disponível." : `${pendingAlerts} alerta(s) operacional(is) requerem revisão.`,
     numberValue(breakdown?.central_revenue_confirmed) == null ? "Receita corporativa sem origem financeira disponível." : "Receita corporativa separada das carteiras de terceiros.",
   ];
+  const pendingActions = [
+    { label: "KYC pendente", count: numberValue(commandCenter?.summary?.pendingKyc), href: "/field", action: "Abrir Operações de Campo" },
+    { label: "Tickets abertos", count: numberValue(commandCenter?.summary?.openSupport), href: "/apoio-cliente", action: "Abrir Apoio ao Cliente" },
+    { label: "Trabalho de notificações", count: numberValue(commandCenter?.summary?.notificationWork), href: "/notificacoes", action: "Abrir Notificações" },
+  ];
+  const liveFeed = (commandCenter?.liveFeed || []).slice(0, 12);
   return <section className="analyticsDashboardShell executiveOverviewDashboard">
     <DashboardHeader title="Visão executiva" description="Indicadores reais autorizados da Central HQ, separados por titularidade e fonte." updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} actions={<button className="primaryAction" type="button" onClick={onRefresh}>Actualizar dados</button>} />
     <DashboardFilters value={filters} onChange={setFilters} platforms={platformNames} />
@@ -80,6 +86,14 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     <div className="analyticsExecutiveGrid">
       <ChartContainer title="Insights determinísticos" description="Regras simples, sem IA e sem acesso de escrita."><div className="analyticsInsightList">{insights.map((insight) => <p key={insight}><span>•</span>{insight}</p>)}</div></ChartContainer>
       <ChartContainer title="Estado dos dados"><DataFreshnessIndicator status={history ? "fresh" : "unavailable"} updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} /><p className="analyticsDataNote">Filtro seleccionado: {filters.period}. Período: {history?.range ? `${history.range.from} → ${history.range.to}` : "não disponível"} · fuso Africa/Maputo.</p><p className="analyticsDataNote">{history?.limitations?.[0] || "As métricas sem fonte histórica permanecem indisponíveis."}</p></ChartContainer>
+    </div>
+    <div className="analyticsExecutiveGrid">
+      <ChartContainer title="Centro de ações pendentes" description="Contagens de fontes autorizadas; cada ligação mantém a operação no seu módulo e permissões originais.">
+        <div className="analyticsBarList">{pendingActions.map(item => <div className="analyticsBarRow" key={item.label}><div><strong>{item.label}</strong><small>{item.count == null ? "Indisponível" : `${item.count} pendente(s)`}</small></div><span><b>{item.count == null ? "—" : item.count}</b><a href={item.href}>{item.action}</a></span></div>)}</div>
+      </ChartContainer>
+      <ChartContainer title="Central de eventos ao vivo" description="Feed operacional deduplicado pelo Command Center; não substitui a auditoria nem confirma movimentos financeiros.">
+        {liveFeed.length ? <div className="analyticsBarList">{liveFeed.map(event => <div className="analyticsBarRow" key={String(event.id)}><div><strong>{event.event_type || "Evento operacional"}</strong><small>{event.entity_type || "Registo"} · {event.platforms?.name || event.platforms?.platform_code || "Plataforma não indicada"}</small></div><span><b>{event.occurred_at ? new Date(event.occurred_at).toLocaleString("pt-MZ") : "Data indisponível"}</b></span></div>)}</div> : <EmptyState title="Feed indisponível" description="O Command Center não devolveu eventos operacionais neste momento." />}
+      </ChartContainer>
     </div>
   </section>;
 }

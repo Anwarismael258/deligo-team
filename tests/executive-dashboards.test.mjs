@@ -11,6 +11,8 @@ test("Visão Geral reutiliza analytics e mantém fontes indisponíveis explícit
   assert.match(source, /KPIGrid/);
   assert.match(source, /AnalyticsDataTable/);
   assert.match(source, /Série histórica indisponível/);
+  assert.match(source, /Centro de ações pendentes/);
+  assert.match(source, /Central de eventos ao vivo/);
 });
 
 test("dashboard de plataformas separa receita própria de carteiras de terceiros", () => {
