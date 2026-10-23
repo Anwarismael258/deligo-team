@@ -14,7 +14,8 @@ const normalizePhone = (value: string) => {
 async function paymentsRest(path: string, init: RequestInit = {}) {
   const key = hqServiceKey();
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_NOT_CONFIGURED");
-  const privileged = key.startsWith("sb_secret_") ? { apikey: key } : { apikey: key, Authorization: `Bearer ${key}` };
+  const privileged: Record<string, string> = key.startsWith("sb_secret_") ? { apikey: key } : { apikey: key, Authorization: `Bearer ${key}` };
+  const initHeaders = new Headers(init.headers);
   const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
     ...init,
     headers: {
@@ -23,7 +24,7 @@ async function paymentsRest(path: string, init: RequestInit = {}) {
       Prefer: "return=representation",
       "Content-Profile": "payments",
       "Accept-Profile": "payments",
-      ...(init.headers || {}),
+      ...Object.fromEntries(initHeaders.entries()),
     },
     cache: "no-store",
   });

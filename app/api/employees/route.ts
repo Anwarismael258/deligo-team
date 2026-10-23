@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireCorporatePermission, hqRpc, supabaseUrl } from "@/lib/hq-server";
+import { requireCorporatePermission, hqRpc, hqRest, supabaseUrl } from "@/lib/hq-server";
 import { randomBytes } from "node:crypto";
 
 export async function GET() {
