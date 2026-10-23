@@ -5,7 +5,7 @@ import { DashboardFilters } from "./DashboardFilters";
 import { EmptyState } from "./EmptyState";
 import { KPIGrid } from "./KPIGrid";
 import { TrendIndicator } from "./TrendIndicator";
-import { AnalyticsBarChart, AnalyticsDonutChart, AnalyticsLineChart } from "./AnalyticsCharts";
+import { AnalyticsBarChart, AnalyticsDonutChart, AnalyticsHorizontalBarChart, AnalyticsLineChart } from "./AnalyticsCharts";
 
 type Mode = "users" | "team";
 type Point = { date: string; newUsers: number; memberships: number; tasksCreated: number; tasksCompleted: number };
@@ -78,7 +78,7 @@ export function UserTeamDashboard({ mode, teamDirectory = [] }: { mode: Mode; te
       <ChartContainer title={mode === "users" ? "Evolução de novos registos" : "Evolução de tarefas concluídas"} description="Série diária real; Série histórica indisponível quando a fonte não devolve eventos verificáveis.">
         <AnalyticsLineChart data={(data?.series || []).map(point => ({ date: point.date, value: mode === "users" ? point.newUsers : point.tasksCompleted }))} label={mode === "users" ? "Novos utilizadores" : "Tarefas concluídas"} />
       </ChartContainer>
-      {mode === "users" && <ChartContainer title="Tipos de utilizador" description="Papéis confirmados pela associação de plataforma."><AnalyticsBarChart data={(users?.byRole || []).map(item => ({ label: labelize(item.label), value: item.value }))} label="Utilizadores" /></ChartContainer>}
+      {mode === "users" && <ChartContainer title="Tipos de utilizador" description="Papéis confirmados pela associação de plataforma."><AnalyticsHorizontalBarChart data={(users?.byRole || []).map(item => ({ label: labelize(item.label), value: item.value }))} label="Utilizadores por tipo" /></ChartContainer>}
       <div className="analyticsDataNote">{data?.limitations?.[0] || "Fonte actualizada no período seleccionado."}{team && <span> · Conclusões agregadas: <TrendIndicator changePercent={team.changePercent} /></span>}</div>
     </>}
   </section>;

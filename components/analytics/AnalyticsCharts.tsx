@@ -37,7 +37,8 @@ export function AnalyticsLineChart({ data, label = "Valor", secondaryLabel }: { 
   const x = (index: number) => 54 + (index * 650) / Math.max(1, items.length - 1);
   const y = (value: number) => 208 - (value / max) * 168;
   const points = (key: "value" | "secondary") => items.map((item, index) => `${x(index)},${y(Number(item[key] || 0))}`).join(" ");
-  return <ChartFrame label={label}><Grid max={max} /><line x1="54" x2="704" y1="208" y2="208" stroke="#cfc5c0" /><polyline points={points("value")} fill="none" stroke={red} strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" />{items.map((item, index) => <circle key={`${item.date}-${index}`} cx={x(index)} cy={y(item.value)} r="4" fill={red} stroke="#fff" strokeWidth="2" />)}{secondaryLabel && <polyline points={points("secondary")} fill="none" stroke={orange} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />}{items.map((item, index) => <text key={`label-${item.date}-${index}`} x={x(index)} y="230" textAnchor="middle" fill="#555" fontSize="10">{labelDate(item.date)}</text>)}</ChartFrame>;
+  const labelStep = Math.max(1, Math.ceil(items.length / 7));
+  return <ChartFrame label={label}><Grid max={max} /><line x1="54" x2="704" y1="208" y2="208" stroke="#cfc5c0" /><polyline points={points("value")} fill="none" stroke={red} strokeWidth="4" strokeLinejoin="round" strokeLinecap="round" />{items.map((item, index) => <circle key={`${item.date}-${index}`} cx={x(index)} cy={y(item.value)} r="4" fill={red} stroke="#fff" strokeWidth="2" />)}{secondaryLabel && <polyline points={points("secondary")} fill="none" stroke={orange} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />}{items.map((item, index) => (index % labelStep === 0 || index === items.length - 1) && <text key={`label-${item.date}-${index}`} x={x(index)} y="230" textAnchor="middle" fill="#555" fontSize="10">{labelDate(item.date)}</text>)}</ChartFrame>;
 }
 
 export function AnalyticsBarChart({ data, label = "Total" }: { data?: AnalyticsChartItem[]; label?: string }) {
@@ -47,6 +48,14 @@ export function AnalyticsBarChart({ data, label = "Total" }: { data?: AnalyticsC
   const slot = 650 / Math.max(1, items.length);
   const barWidth = Math.max(18, Math.min(72, slot * 0.62));
   return <ChartFrame label={label}><Grid max={max} /><line x1="54" x2="704" y1="208" y2="208" stroke="#cfc5c0" />{items.map((item, index) => { const height = Math.max(2, (item.value / max) * 168); const center = 54 + slot * index + slot / 2; return <g key={`${item.label}-${index}`}><rect x={center - barWidth / 2} y={208 - height} width={barWidth} height={height} rx="5" fill={index % 2 ? orange : red} /><text x={center} y="224" textAnchor="middle" fill="#555" fontSize="10">{item.label.length > 14 ? `${item.label.slice(0, 12)}…` : item.label}</text><text x={center} y={Math.max(198 - height, 18)} textAnchor="middle" fill="#333" fontSize="10" fontWeight="700">{formatNumber(item.value)}</text></g>; })}</ChartFrame>;
+}
+
+export function AnalyticsHorizontalBarChart({ data, label = "Total" }: { data?: AnalyticsChartItem[]; label?: string }) {
+  if (!hasValues(data)) return unavailable("Distribuição indisponível");
+  const items = (data || []).slice(0, 8);
+  const max = Math.max(1, ...items.map(item => item.value));
+  const rowHeight = 24;
+  return <ChartFrame label={label}><g aria-hidden="true">{items.map((item, index) => { const y = 20 + index * rowHeight; const width = Math.max(4, (item.value / max) * 470); const text = item.label.length > 25 ? `${item.label.slice(0, 23)}…` : item.label; return <g key={`${item.label}-${index}`}><text x="8" y={y + 13} fill="#4b4d52" fontSize="10">{text}</text><rect x="205" y={y} width="470" height="14" rx="5" fill="#f1e9e5" /><rect x="205" y={y} width={width} height="14" rx="5" fill={index % 2 ? orange : red} /><text x="684" y={y + 11} textAnchor="end" fill="#333" fontSize="10" fontWeight="700">{formatNumber(item.value)}</text></g>; })}</g></ChartFrame>;
 }
 
 export function AnalyticsDonutChart({ data }: { data?: AnalyticsChartItem[] }) {
