@@ -1450,7 +1450,7 @@ if(active==="Operações de Campo")void refreshField();
               </article>
             ))}
           </section>
-          {false && <section className="platformPanel">
+          {<section className="platformPanel">
             <div className="sectionHeading"><div><h2>Estado das plataformas</h2><p>Resumo operacional sem métricas fictícias.</p></div><button onClick={()=>navigate("Plataformas")}>Abrir plataformas →</button></div>
             <div className="platformGrid">
               {(dashboard?.platforms || []).map(item => <article className="platformCard" key={item.slug}><strong>{item.name}</strong><span>{String(item.platform_status || "Estado não confirmado")}</span><small>Dados: {item.data_freshness || "não indicado"}</small><button onClick={()=>navigate("Plataformas")}>Abrir</button></article>)}
