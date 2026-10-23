@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AnalyticsDataTable } from "./AnalyticsDataTable";
 import { ChartContainer } from "./ChartContainer";
 import { DashboardFilters } from "./DashboardFilters";
 import { DashboardHeader } from "./DashboardHeader";
@@ -9,6 +8,7 @@ import { EmptyState } from "./EmptyState";
 import { KPIGrid } from "./KPIGrid";
 import { TrendIndicator } from "./TrendIndicator";
 import { SystemHealthPanel } from "./SystemHealthPanel";
+import { AnalyticsBarChart, AnalyticsDonutChart } from "./AnalyticsCharts";
 import type { AnalyticsFilters, KPIResult } from "@/lib/analytics-contracts";
 
 type Platform = { slug: string; name: string; connected?: boolean; platform_status?: string; data_freshness?: string; metrics?: Array<{ key: string; label: string; value: number }> };
@@ -67,6 +67,11 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
   ];
   const pendingActions = commandCenter?.pendingActions || [];
   const liveFeed = (commandCenter?.liveFeed || []).filter(event => !feedCategory || String(event.event_type || "").toLowerCase().includes(feedCategory.toLowerCase())).slice(0, 12);
+  const platformChart = (dashboard?.platforms || []).map((item) => ({ label: item.name, value: item.connected || ["connected", "operational"].includes(String(item.platform_status)) ? 1 : 0 }));
+  const custodyChart = [
+    { label: "Receita", value: numberValue(breakdown?.central_revenue_confirmed) || 0 },
+    { label: "Carteiras", value: numberValue(breakdown?.user_wallets_available) || 0 },
+  ].filter(item => item.value > 0);
   return <section className="analyticsDashboardShell executiveOverviewDashboard">
     <DashboardHeader title="Visão executiva" description="Indicadores reais autorizados da Central HQ, separados por titularidade e fonte." updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} actions={<button className="primaryAction" type="button" onClick={onRefresh}>Actualizar dados</button>} />
     <DashboardFilters value={filters} onChange={setFilters} platforms={platformNames} />
@@ -79,9 +84,14 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
         {history?.comparison?.revenue ? <div className="analyticsComparison"><p><span>Período seleccionado</span><strong>{history.comparison.revenue.current.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT</strong></p><p><span>Período anterior</span><strong>{history.comparison.revenue.previous.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT</strong></p><p><span>Variação</span><TrendIndicator changePercent={history.comparison.revenue.changePercent} /></p></div> : <EmptyState title="Comparação temporal indisponível" description="A fonte histórica não devolveu dados válidos para os dois períodos." />}
       </ChartContainer>
     </div>
-    <ChartContainer title="Distribuição operacional por plataforma" description="Estado e volume devolvidos pelas fontes autorizadas.">
-      <AnalyticsDataTable rows={(dashboard?.platforms || []).map((item) => ({ id: item.slug, plataforma: item.name, estado: item.platform_status || "Não confirmado", actualizacao: item.data_freshness || "Não indicada", ligada: item.connected ? "Sim" : "Não" }))} columns={[{ key: "plataforma", label: "Plataforma" }, { key: "estado", label: "Estado" }, { key: "ligada", label: "Ligação" }, { key: "actualizacao", label: "Actualização" }]} empty="Nenhuma plataforma devolvida pela fonte autorizada." />
-    </ChartContainer>
+    <div className="analyticsExecutiveGrid executiveVisualGrid">
+      <ChartContainer title="Plataformas" description="Estado confirmado pelas fontes autorizadas.">
+        <AnalyticsBarChart data={platformChart} label="Operacionais" />
+      </ChartContainer>
+      <ChartContainer title="Composição da custódia" description="Receita própria separada das carteiras de terceiros.">
+        {custodyChart.length ? <AnalyticsDonutChart data={custodyChart} /> : <EmptyState title="Custódia indisponível" description="A fonte autorizada não devolveu valores verificáveis." />}
+      </ChartContainer>
+    </div>
     <div className="analyticsExecutiveGrid">
       <ChartContainer title="Insights determinísticos" description="Regras simples, sem IA e sem acesso de escrita."><div className="analyticsInsightList">{insights.map((insight) => <p key={insight}><span>•</span>{insight}</p>)}</div></ChartContainer>
       <ChartContainer title="Estado dos dados"><DataFreshnessIndicator status={history ? "fresh" : "unavailable"} updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} /><p className="analyticsDataNote">Filtro seleccionado: {filters.period}. Período: {history?.range ? `${history.range.from} → ${history.range.to}` : "não disponível"} · fuso Africa/Maputo.</p><p className="analyticsDataNote">{history?.limitations?.[0] || "As métricas sem fonte histórica permanecem indisponíveis."}</p></ChartContainer>
