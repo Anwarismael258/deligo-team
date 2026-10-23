@@ -1,2 +1,3 @@
 import { InstitutionalNewsManager } from "@/components/InstitutionalNewsManager";
-export default function InstitutionalContentPage(){ return <InstitutionalNewsManager/>; }
+import { CorporateOperationsAnalyticsDashboard } from "@/components/analytics/CorporateOperationsAnalyticsDashboard";
+export default function InstitutionalContentPage(){ return <><CorporateOperationsAnalyticsDashboard mode="institutional" /><InstitutionalNewsManager/></>; }
