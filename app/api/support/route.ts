@@ -69,13 +69,14 @@ export async function GET(request:NextRequest){
   const coreIds=coreTickets.map((row:{id:string})=>row.id.slice(5));
   const coreFilter=coreIds.length?`case_id=in.(${coreIds.join(",")})`:"case_id=eq.00000000-0000-0000-0000-000000000000";
   const legacyDetail=Boolean(requestedTicket)&&!requestedTicket.startsWith("core:")?requestedTicket:"";
+  const legacyWorkflowCaseId=legacyDetail?String((tickets as Array<{id?:string;workflow_case_id?:string}>).find(row=>String(row.id)===legacyDetail)?.workflow_case_id||""):"";
   const coreDetail=requestedTicket.startsWith("core:")?requestedTicket.slice(5):"";
   const [conversations,attachments,escalations,assignments,events,cases,steps,employees,platformRows,departments,coreConversations,coreEvents]=await Promise.all([
     safe(rest(current.key,`support_conversations?select=id,ticket_id,sender_type,sender_employee_id,message,is_internal,created_at,external_message_id&${ticketFilter}&order=created_at.desc&limit=600`),[]),safe(legacyDetail?rest(current.key,`support_attachments?select=*&ticket_id=eq.${encodeURIComponent(legacyDetail)}&limit=100`):Promise.resolve([]),[]),
     safe(legacyDetail?rest(current.key,`support_escalations?select=*&ticket_id=eq.${encodeURIComponent(legacyDetail)}&limit=100`):Promise.resolve([]),[]),safe(legacyDetail?rest(current.key,`support_department_assignments?select=*&ticket_id=eq.${encodeURIComponent(legacyDetail)}&order=created_at.desc&limit=100`):Promise.resolve([]),[]),
     safe(legacyDetail?rest(current.key,`support_history?select=*&ticket_id=eq.${encodeURIComponent(legacyDetail)}&order=created_at.desc&limit=200`):Promise.resolve([]),[]),
-    legacyDetail&&caseIds.includes(legacyDetail)?safe(rest(current.key,`workflow_cases?id=eq.${encodeURIComponent(legacyDetail)}&select=*&limit=1`),[]):[],
-    legacyDetail&&caseIds.includes(legacyDetail)?safe(rest(current.key,`workflow_steps?case_id=eq.${encodeURIComponent(legacyDetail)}&select=*&order=step_order&limit=100`),[]):[],
+    legacyWorkflowCaseId?safe(rest(current.key,`workflow_cases?id=eq.${encodeURIComponent(legacyWorkflowCaseId)}&select=*&limit=1`),[]):[],
+    legacyWorkflowCaseId?safe(rest(current.key,`workflow_steps?case_id=eq.${encodeURIComponent(legacyWorkflowCaseId)}&select=*&order=step_order&limit=100`),[]):[],
     safe(rest(current.key,"employees?select=id,employee_code,name:display_name,job_title,status,department_id&limit=300"),[]),safe(rest(current.key,"platforms?select=id,slug,name&limit=20"),[]),safe(rest(current.key,"departments?select=id,code,name&active=eq.true&limit=100"),[]),
     safe(coreDetail?coreRest(current.key,`support_case_messages?select=*&case_id=eq.${encodeURIComponent(coreDetail)}&order=created_at.asc&limit=300`):Promise.resolve([]),[]),safe(coreDetail?coreRest(current.key,`support_case_events?select=*&case_id=eq.${encodeURIComponent(coreDetail)}&order=created_at.desc&limit=300`):Promise.resolve([]),[])
   ]);
