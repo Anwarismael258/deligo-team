@@ -15,6 +15,9 @@ test("Visão Geral reutiliza analytics e mantém fontes indisponíveis explícit
 
 test("dashboard de plataformas separa receita própria de carteiras de terceiros", () => {
   const source = read("components/analytics/PlatformExecutiveDashboard.tsx");
+  assert.match(source, /DashboardFilters/);
+  assert.match(source, /api\/analytics\/history/);
+  assert.match(source, /Evolução no período/);
   assert.match(source, /Receita própria/);
   assert.match(source, /Carteiras de terceiros/);
   assert.match(source, /não é receita/);

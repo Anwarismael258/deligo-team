@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import LiveOperationsMap, { type OperationsMapMarker } from "@/components/LiveOperationsMap";
 import { ChartContainer } from "./ChartContainer";
+import { DashboardFilters } from "./DashboardFilters";
 import { EmptyState } from "./EmptyState";
+import type { AnalyticsFilters } from "@/lib/analytics-contracts";
 import { DashboardHeader } from "./DashboardHeader";
 
 type MapPayload = { checkedAt?: string; markers?: OperationsMapMarker[] };
@@ -13,6 +15,7 @@ const platformLabel = (platform: string) => platform === "TaoMoz" ? "DeliGo Mark
 const statusLabel = (status: string) => ({ disponivel: "Disponível", ocupado: "Ocupado", em_servico: "Em serviço", offline: "Offline" }[status] || status || "Não indicado");
 
 export function OperationsMapDashboard() {
+  const [filters, setFilters] = useState<AnalyticsFilters>({ period: "last_30_days", timezone: "Africa/Maputo" });
   const [payload, setPayload] = useState<MapPayload | null>(null);
   const [error, setError] = useState("");
   const [history, setHistory] = useState<HistoryPayload | null>(null);
@@ -24,7 +27,10 @@ export function OperationsMapDashboard() {
     let cancelled = false;
     const load = async () => {
       try {
-        const [response, historyResponse] = await Promise.all([fetch("/api/map", { cache: "no-store" }), fetch("/api/analytics/map?period=last_30_days", { cache: "no-store" })]);
+        const historyParams = new URLSearchParams({ period: filters.period });
+        if (filters.from) historyParams.set("from", filters.from);
+        if (filters.to) historyParams.set("to", filters.to);
+        const [response, historyResponse] = await Promise.all([fetch("/api/map", { cache: "no-store" }), fetch(`/api/analytics/map?${historyParams.toString()}`, { cache: "no-store" })]);
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(String(body.error || "Mapa operacional indisponível."));
         const historyBody = await historyResponse.json().catch(() => ({}));
@@ -36,7 +42,7 @@ export function OperationsMapDashboard() {
     void load();
     const timer = window.setInterval(() => void load(), 10_000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, []);
+    }, [filters.period, filters.from, filters.to]);
 
   const markers = Array.isArray(payload?.markers) ? payload!.markers! : [];
   const filtered = useMemo(() => markers.filter(marker => {
@@ -56,7 +62,7 @@ export function OperationsMapDashboard() {
 
   return <section className="analyticsDashboardShell operationsMapDashboard">
     <DashboardHeader title="Centro de Mapas" description="Mapa operacional e métricas agregadas para trabalhadores autenticados da Central." updatedAt={payload?.checkedAt ? new Date(payload.checkedAt).toLocaleString("pt-MZ") : undefined} />
-    <div className="analyticsFilters" aria-label="Filtros do mapa"><label><span>Plataforma</span><select value={platform} onChange={event => setPlatform(event.target.value)}><option>Todas as plataformas</option>{platforms.map(item => <option key={item}>{item}</option>)}</select></label><label><span>Estado</span><select value={status} onChange={event => setStatus(event.target.value)}><option value="todos">Todos os estados</option><option value="disponivel">Disponível</option><option value="ocupado">Ocupado</option><option value="em_servico">Em serviço</option><option value="offline">Offline</option></select></label><label><span>Pesquisar</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, função ou plataforma" /></label></div>
+      <DashboardFilters value={filters} onChange={setFilters} platforms={platforms} /><div className="analyticsFilters" aria-label="Filtros do mapa"><label><span>Plataforma</span><select value={platform} onChange={event => setPlatform(event.target.value)}><option>Todas as plataformas</option>{platforms.map(item => <option key={item}>{item}</option>)}</select></label><label><span>Estado</span><select value={status} onChange={event => setStatus(event.target.value)}><option value="todos">Todos os estados</option><option value="disponivel">Disponível</option><option value="ocupado">Ocupado</option><option value="em_servico">Em serviço</option><option value="offline">Offline</option></select></label><label><span>Pesquisar</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, função ou plataforma" /></label></div>
     {error ? <EmptyState title="Mapa operacional indisponível" description={error} /> : <>
       <div className="analyticsKpiGrid"><article className="analyticsKpiCard analyticsStatus-fresh"><span>Operações activas</span><strong>{filtered.length}</strong><small>Marcadores actuais · GPS desactualizado: {stale}</small></article><article className="analyticsKpiCard analyticsStatus-fresh"><span>Entregas concluídas · 30 dias</span><strong>{history?.totals?.deliveriesCompleted ?? "Indisponível"}</strong><small>Eventos DeliGo de conclusão verificáveis</small></article><article className="analyticsKpiCard analyticsStatus-fresh"><span>Viagens SARCA · 30 dias</span><strong>{history?.totals?.ridesCompleted ?? "Indisponível"}</strong><small>Eventos SARCA concluídos verificáveis</small></article><article className="analyticsKpiCard analyticsStatus-unavailable"><span>Distância percorrida</span><strong>Indisponível</strong><small>Telemetria histórica insuficiente</small></article></div>
       <div className="analyticsExecutiveGrid"><ChartContainer title="Mapa operacional" description="A localização só aparece quando a fonte autorizada devolve coordenadas recentes.">{payload ? <LiveOperationsMap markers={filtered} /> : <div className="analyticsMapLoading">A carregar posições autorizadas…</div>}</ChartContainer><ChartContainer title="Distribuição por plataforma" description="Contagem dos marcadores devolvidos pelo backend."><div className="analyticsBarList">{byPlatform.length ? byPlatform.map(item => <div className="analyticsBarRow" key={item.label}><div><strong>{item.label}</strong><small>Marcadores</small></div><span><i style={{ width: `${Math.max(3, item.value / maxPlatform * 100)}%` }} /><b>{item.value}</b></span></div>) : <EmptyState title="Sem posições disponíveis" description="Nenhuma plataforma devolveu coordenadas verificáveis." />}</div></ChartContainer></div>
