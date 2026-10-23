@@ -68,6 +68,17 @@ const notificationModuleFor = (notification: FinanceRecord) => {
   if (target.startsWith("/")) return null;
   return "Centro de Notificações";
 };
+const notificationPlatformFor = (notification: FinanceRecord) => {
+  const explicit = String(notification.platform_name || notification.platform || notification.platform_slug || "").trim().toLowerCase();
+  const source = String(notification.source_type || notification.type || "").toLowerCase();
+  const text = `${explicit} ${source} ${String(notification.title || "")} ${String(notification.body || "")}`;
+  if (text.includes("mestre24") || text.includes("mestre 24")) return "Mestre24";
+  if (text.includes("sarca")) return "SARCA";
+  if (text.includes("comunhao") || text.includes("comunhão") || text.includes("igreja")) return "Comunhão";
+  if (text.includes("market") || text.includes("taomoz")) return "DeliGo Market";
+  if (text.includes("deligo") || text.includes("eats")) return "DeliGo";
+  return "Central";
+};
 
 const moduleIcons: Record<string, LucideIcon> = {
   "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Utilizadores": Users, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
@@ -518,6 +529,14 @@ export function HQApp() {
   const unreadCountFor = (label: string) => label === "Centro de Notificações"
     ? unreadNotifications.length
     : unreadNotifications.filter(notification => notificationModuleFor(notification) === label).length;
+  const notificationGroups = useMemo(() => {
+    const groups = new Map<string, FinanceRecord[]>();
+    notifications.forEach(notification => {
+      const key = notificationPlatformFor(notification);
+      groups.set(key, [...(groups.get(key) || []), notification]);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => a === "Central" ? 1 : b === "Central" ? -1 : a.localeCompare(b, "pt"));
+  }, [notifications]);
   const sendNewWhatsapp=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);setWhatsappNotice("A enviar…");const response=await fetch("/api/support/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone"),message:form.get("message")})});const data=await response.json();setWhatsappNotice(response.ok?"Mensagem enviada pelo WhatsApp oficial.":data.error||"Não foi possível enviar.");if(response.ok)event.currentTarget.reset()};
   const withdrawOwnWallet=async()=>{const amount=Number(profileWithdrawal.amount.replace(",","."));if(!Number.isFinite(amount)||amount<=0){setProfileWalletNotice("Indique um montante válido para levantar.");return}if(amount>personalWithdrawableTotal){setProfileWalletNotice(`O montante não pode ultrapassar ${money(personalWithdrawableTotal)} disponíveis para levantamento.`);return}setProfileWithdrawal(current=>({...current,busy:true}));setProfileWalletNotice("A iniciar levantamento PaySuite para o número verificado do perfil…");try{const response=await fetch("/api/profile/withdraw",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount})});const data=await response.json();const reference=data.providerReferences?.join(", ")||data.providerReference||data.payoutIds?.join(", ")||data.payoutId;setProfileWalletNotice(response.ok?`Pedido PaySuite ${data.status === "paid" ? "concluído" : "em processamento"}. Referência: ${reference||"em processamento"}`:(data.error||"Levantamento não iniciado."));if(response.ok){setProfileWithdrawal(current=>({...current,amount:""}));const refresh=await fetch("/api/profile",{cache:"no-store"});const refreshed=await refresh.json();setOwnWallets(Array.isArray(refreshed.wallets)?refreshed.wallets:[])}}catch{setProfileWalletNotice("Não foi possível contactar o serviço de levantamento.")}finally{setProfileWithdrawal(current=>({...current,busy:false}))}};
 
@@ -1032,7 +1051,7 @@ if(active==="Operações de Campo")void refreshField();
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
              <button className="iconButton" title="Notificações" aria-label={`Notificações${unreadNotifications.length?`, ${unreadNotifications.length} não lidas`:""}`} onClick={()=>setNotificationsOpen(!notificationsOpen)}><Bell aria-hidden="true" size={19} strokeWidth={2.2} />{unreadNotifications.length>0&&<><i /><b className="notificationCount">{unreadNotifications.length>99?"99+":unreadNotifications.length}</b></>}</button>
-            {notificationsOpen&&<div className="notificationMenu"><div><strong>Notificações</strong><button onClick={()=>void markNotifications()}>Marcar todas como lidas</button></div>{notifications.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);if(n.target_url)window.location.assign(String(n.target_url))}}><strong>{String(n.title)}</strong><span>{String(n.body)}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")}</small></button>)}{!notifications.length&&<p>Sem notificações.</p>}</div>}
+            {notificationsOpen&&<div className="notificationMenu"><div><strong>Notificações por plataforma</strong><button onClick={()=>void markNotifications()}>Marcar todas como lidas</button></div>{notificationGroups.map(([platformName,items])=><section className="notificationPlatformGroup" key={platformName}><h4>{platformName}<b>{items.filter(item=>!item.read_at).length || ""}</b></h4>{items.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);if(n.target_url)window.location.assign(String(n.target_url))}}><strong>{String(n.title)}</strong><span>{String(n.body)}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")}</small></button>)}</section>)}{!notifications.length&&<p>Sem notificações.</p>}</div>}
             <button className="accountTrigger" onClick={() => setAccountOpen(!accountOpen)} aria-label="Abrir menu da conta">
               <div className="miniAvatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Fotografia de perfil"/>:currentPersona.initials}</div>
               <div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span></div><b>⌄</b>
