@@ -1,14 +1,13 @@
 import { hqServiceKey, supabaseUrl } from "@/lib/hq-server";
+import { canonicalCorporateRole } from "@/lib/corporate-roles";
 
 type Row = Record<string, unknown>;
 
 const inboxRoles = new Set([
   "SUPER_ADMIN",
   "FINANCE",
-  "FINANCE_DIRECTOR",
   "SUPERVISOR",
-  "OPERATIONS_SUPERVISOR",
-  "SUPPORT_AGENT",
+  "CUSTOMER_SUPPORT",
 ]);
 
 function headers(serviceKey: string, profile: string) {
@@ -67,12 +66,12 @@ function eventText(event: Row) {
 
 function recipients(employees: Row[], audience: string) {
   return employees.filter((employee) => {
-    const role = String(employee.role || "").toUpperCase();
+    const role = canonicalCorporateRole(employee.role);
     if (!inboxRoles.has(role)) return false;
     if (role === "SUPER_ADMIN" || role === "SUPERVISOR") return true;
-    if (audience === "support") return ["SUPPORT_AGENT", "OPERATIONS_SUPERVISOR"].includes(role);
-    if (audience === "finance") return ["FINANCE", "FINANCE_DIRECTOR", "OPERATIONS_SUPERVISOR"].includes(role);
-    return ["OPERATIONS_SUPERVISOR", "OPERATIONS"].includes(role) || role === "FINANCE" || role === "FINANCE_DIRECTOR";
+    if (audience === "support") return ["CUSTOMER_SUPPORT", "SUPERVISOR"].includes(role);
+    if (audience === "finance") return ["FINANCE", "SUPERVISOR"].includes(role);
+    return ["SUPERVISOR", "OPERATIONS", "FINANCE"].includes(role);
   });
 }
 

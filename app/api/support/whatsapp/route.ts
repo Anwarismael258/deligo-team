@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateAuthorization } from "@/lib/hq-server";
 
-const allowed = new Set(["SUPER_ADMIN", "FINANCE", "ADMIN", "ADMINISTRATOR", "SUPERVISOR", "OPERATIONS_SUPERVISOR", "CUSTOMER_SUPPORT", "SUPPORT_AGENT"]);
+const allowed = new Set(["SUPER_ADMIN", "FINANCE", "SUPERVISOR", "CUSTOMER_SUPPORT"]);
 
 export async function POST(request: NextRequest) {
   const authorization = await corporateAuthorization();

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateAuthorization, supabaseUrl } from "@/lib/hq-server";
 
-const allowedRoles = new Set(["SUPER_ADMIN", "ADMIN", "ADMINISTRATOR", "SUPERVISOR", "OPERATIONS_SUPERVISOR", "CUSTOMER_SUPPORT", "SUPPORT_AGENT", "FINANCE", "FINANCE_DIRECTOR", "ACCOUNTANT"]);
+const allowedRoles = new Set(["SUPER_ADMIN", "SUPERVISOR", "CUSTOMER_SUPPORT", "FINANCE", "ACCOUNTING"]);
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]);
 const maxBytes = 10 * 1024 * 1024;
 

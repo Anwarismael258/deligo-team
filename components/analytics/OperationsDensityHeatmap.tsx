@@ -33,8 +33,9 @@ export function OperationsDensityHeatmap({ markers }: { markers: OperationsMapMa
     const resize = () => chart?.resize();
     void import("echarts").then((echarts) => {
       if (disposed || !container.current) return;
-      chart = echarts.init(container.current);
-      chart.setOption({
+      const instance = echarts.init(container.current);
+      chart = instance;
+      instance.setOption({
         animation: false,
         grid: { top: 8, right: 12, bottom: 42, left: 48 },
         tooltip: { formatter: (params: { value?: [number, number, number] }) => params.value ? `Posições: ${params.value[2]}` : "Posições" },

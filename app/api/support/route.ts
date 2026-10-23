@@ -5,13 +5,13 @@ const entity = "10000000-0000-0000-0000-000000000001";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
 const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
 // Central support access is role-based and shared across all connected apps.
-const viewerRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","OPERATIONS_SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT","FINANCE","FINANCE_DIRECTOR","ACCOUNTANT"]);
-const replyRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","OPERATIONS_SUPERVISOR","CUSTOMER_SUPPORT","SUPPORT_AGENT","OPERATIONS","FINANCE","FINANCE_DIRECTOR","ACCOUNTANT"]);
-const escalationRoles = new Set(["SUPER_ADMIN","ADMIN","ADMINISTRATOR","SUPERVISOR","OPERATIONS_SUPERVISOR","FINANCE","FINANCE_DIRECTOR","ACCOUNTANT"]);
+const viewerRoles = new Set(["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT","FINANCE","ACCOUNTING"]);
+const replyRoles = new Set(["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT","OPERATIONS","FINANCE","ACCOUNTING"]);
+const escalationRoles = new Set(["SUPER_ADMIN","SUPERVISOR","FINANCE","ACCOUNTING"]);
 const financeReplyActions = new Set(["analysis","waiting_customer","resolve","assign","escalate","reopen","mark_read"]);
 const departmentRoles = new Set(["FINANCE","FINANCE_DIRECTOR","ACCOUNTING","TECHNOLOGY","HUMAN_RESOURCES","LEGAL","COMPLIANCE"]);
 const financialTerms = /finance|finan[cç]|pagamento|pagar|dep[oó]sito|levantamento|saldo|cobran[cç]a|reembolso|estorno|fatura|transa[cç][aã]o|transfer[eê]ncia|payment|refund|withdrawal|deposit|billing/i;
-function isFinanceRole(role:string){return role==="FINANCE"||role==="FINANCE_DIRECTOR"||role==="ACCOUNTANT";}
+function isFinanceRole(role:string){return role==="FINANCE"||role==="ACCOUNTING";}
 const headers = (key:string) => ({ apikey:key, Authorization:`Bearer ${key}`, "Accept-Profile":"hq", "Content-Profile":"hq", "Content-Type":"application/json", Prefer:"return=representation" });
 
 async function rest(key:string,path:string,init:RequestInit={}) { const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json() }

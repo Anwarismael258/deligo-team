@@ -43,7 +43,7 @@ export async function GET() {
     const item = row && typeof row === "object" ? row as Record<string, unknown> : {};
     const sourceAvailable = platformSummary.ok && (item.slug || item.platform_id);
     const state = classifyChecks({ sourceAvailable: Boolean(sourceAvailable) });
-    return { platform: String(item.name || item.slug || item.platform_id || "Plataforma não identificada"), slug: String(item.slug || ""), state, evidence: sourceAvailable ? "Resumo financeiro autorizado" : "Fonte financeira não devolvida" };
+    return { platform: String(item.name || item.slug || item.platform_id || "Plataforma não identificada"), slug: String(item.slug || ""), central_revenue_confirmed: Number(item.central_revenue_confirmed ?? item.revenue ?? NaN), state, evidence: sourceAvailable ? "Resumo financeiro autorizado" : "Fonte financeira não devolvida" };
   });
   const qualityChecks = [
     { key: "duplicate_events", label: "Eventos duplicados", state: "FONTE_INSUFICIENTE", detail: "O resumo RPC não devolve identificadores suficientes para auditar duplicados nesta chamada." },

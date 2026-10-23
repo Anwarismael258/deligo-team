@@ -9,10 +9,10 @@ const platforms: Record<string,string> = {
   sarca:"20000000-0000-0000-0000-000000000004",
   mestre24:"20000000-0000-0000-0000-000000000005",
 };
-const readers = new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","OPERATIONS","TECHNOLOGY","MARKETING","FIELD","CUSTOMER_SUPPORT","HUMAN_RESOURCES","ACQUISITION","OPERATIONS_SUPERVISOR"]);
+const readers = new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","OPERATIONS","TECHNOLOGY","MARKETING","FIELD","CUSTOMER_SUPPORT","HUMAN_RESOURCES","PARTNER_ACQUISITION"]);
 // Tarefas de equipa são criadas/atribuídas apenas pela gestão autorizada.
 // Os restantes trabalhadores podem consultar e executar as tarefas que lhes pertencem.
-const writers = new Set(["SUPER_ADMIN", "FINANCE", "FINANCE_DIRECTOR", "SUPERVISOR", "OPERATIONS_SUPERVISOR"]);
+const writers = new Set(["SUPER_ADMIN", "FINANCE", "SUPERVISOR"]);
 const headers = (key:string) => ({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"});
 
 async function context(){

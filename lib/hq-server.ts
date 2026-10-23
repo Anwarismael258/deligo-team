@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { canonicalCorporateRole } from "./corporate-roles";
 
 /** Production HQ must never silently fall back to a staging project. */
 export const supabaseUrl = () => {
@@ -67,7 +68,7 @@ export async function corporateActor() {
   }
   console.info("HQ_SESSION_ACTOR", { identityStatus: "ok", phonePresent: Boolean(user.phone), primaryStatus: context?.status || null, actorRole: context?.role || null });
   if (!context || context.status !== "active") return null;
-  return { authUserId: user.id, ...context } as { authUserId: string; employee_id: string; employee_code: string; name: string; role: string; status: string };
+  return { authUserId: user.id, ...context, role: canonicalCorporateRole(context.role) } as { authUserId: string; employee_id: string; employee_code: string; name: string; role: string; status: string };
 }
 
 export type CorporateAuthorization = {actor:NonNullable<Awaited<ReturnType<typeof corporateActor>>>;permissions:string[];platformIds:string[];platformSlugs:string[];isSuperAdmin:boolean};
