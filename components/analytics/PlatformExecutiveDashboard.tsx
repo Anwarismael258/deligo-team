@@ -17,7 +17,7 @@ export function PlatformExecutiveDashboard({ dashboard, selectedPlatform }: { da
   const selected = selectedPlatform === "Todas as plataformas" ? null : allPlatforms.find((item) => item.name === selectedPlatform);
   const financeRows = dashboard?.deligoFinance?.breakdown?.platforms || [];
   const selectedFinance = selected ? finance(financeRows, displaySlug(selected.name)) : null;
-  const makeKpis = (item: Platform | null, financeItem: FinancePlatform | null): KPIResult[] => [
+  const makeKpis = (item: Platform | null, financeItem: FinancePlatform | null | undefined): KPIResult[] => [
     { id: "platform-operations", label: item?.name === "SARCA" ? "Viagens" : item?.name === "Mestre24" ? "Pedidos de serviços" : "Operações", value: metric(item || undefined, ["pedido", "operação", "viagem", "serviço"]), unit: "count", sourceStatus: item ? "fresh" : "unavailable", source: "Fonte operacional da plataforma" },
     { id: "platform-revenue", label: "Receita própria", value: money(financeItem?.central_revenue_confirmed), unit: "MZN", sourceStatus: financeItem ? "fresh" : "unavailable", source: "Eventos financeiros confirmados" },
     { id: "platform-gmv", label: "GMV confirmado", value: money(financeItem?.gross_confirmed), unit: "MZN", sourceStatus: financeItem ? "fresh" : "unavailable", source: "Eventos financeiros confirmados" },

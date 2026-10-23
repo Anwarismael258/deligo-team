@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnalyticsDataTable } from "./AnalyticsDataTable";
 import { ChartContainer } from "./ChartContainer";
 import { DashboardFilters } from "./DashboardFilters";
@@ -19,34 +19,44 @@ type ExecutiveDashboardData = {
   deligoFinance?: { breakdown?: { central_revenue_confirmed?: number; gross_platform_volume_confirmed?: number; user_wallets_available?: number; total_funds_controlled_available?: number; platforms?: FinancePlatform[] } };
 };
 type CommandCenter = { summary?: { operationsToday?: number; pendingKyc?: number; openSupport?: number; notificationWork?: number } };
+type HistoryPoint = { date: string; revenue: number; gmv: number; commissions: number; operations: number; cancellations: number };
+type HistoryData = { series: HistoryPoint[]; totals: Record<string, number>; comparison: Record<string, { current: number; previous: number; changePercent: number | null }>; range?: { from: string; to: string }; limitations?: string[] };
 
 const money = (value: number | null) => value == null ? null : Number(value.toFixed(2));
 const numberValue = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
 
 export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh }: { dashboard: ExecutiveDashboardData | null; commandCenter: CommandCenter | null; onRefresh: () => void }) {
   const [filters, setFilters] = useState<AnalyticsFilters>({ period: "last_30_days", timezone: "Africa/Maputo" });
+  const [history, setHistory] = useState<HistoryData | null>(null);
+  const [historyError, setHistoryError] = useState("");
   const breakdown = dashboard?.deligoFinance?.breakdown;
-  const financePlatforms = Array.isArray(breakdown?.platforms) ? breakdown.platforms : [];
   const platformNames = (dashboard?.platforms || []).map((item) => item.name);
-  const visibleFinancePlatforms = filters.platform ? financePlatforms.filter((item) => item.slug === filters.platform || item.name === filters.platform) : financePlatforms;
   const peopleCount = (dashboard?.modules?.platforms || []).reduce((sum, item) => sum + (Array.isArray(item.people) ? item.people.length : 0), 0);
   const connectedPlatforms = (dashboard?.platforms || []).filter((item) => item.connected || ["connected", "operational"].includes(String(item.platform_status))).length;
-  const totalOperationsToday = numberValue(commandCenter?.summary?.operationsToday);
+  useEffect(() => {
+    const params = new URLSearchParams({ period: filters.period });
+    if (filters.from) params.set("from", filters.from);
+    if (filters.to) params.set("to", filters.to);
+    if (filters.platform) params.set("platform", filters.platform);
+    let cancelled = false;
+    fetch(`/api/analytics/history?${params.toString()}`, { cache: "no-store" }).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível carregar a série histórica."); return body as HistoryData; }).then(data => { if (!cancelled) { setHistory(data); setHistoryError(""); } }).catch(error => { if (!cancelled) { setHistory(null); setHistoryError(error instanceof Error ? error.message : "Não foi possível carregar a série histórica."); } });
+    return () => { cancelled = true; };
+  }, [filters.period, filters.from, filters.to, filters.platform]);
   const pendingAlerts = [commandCenter?.summary?.pendingKyc, commandCenter?.summary?.openSupport, commandCenter?.summary?.notificationWork].reduce<number | null>((sum, value) => {
     const numeric = numberValue(value);
     return numeric == null ? sum : (sum ?? 0) + numeric;
   }, null);
   const kpis: KPIResult[] = [
-    { id: "corporate-revenue", label: "Receita corporativa", value: money(numberValue(breakdown?.central_revenue_confirmed)), unit: "MZN", sourceStatus: breakdown ? "fresh" : "unavailable", source: "hq.platform_financial_events · confirmada" },
-    { id: "consolidated-gmv", label: "GMV consolidado", value: money(numberValue(breakdown?.gross_platform_volume_confirmed)), unit: "MZN", sourceStatus: breakdown ? "fresh" : "unavailable", source: "Resumo financeiro por plataforma" },
+    { id: "corporate-revenue", label: "Receita no período", value: history ? money(numberValue(history.totals.revenue)) : null, unit: "MZN", previousValue: history?.comparison.revenue?.previous, changePercent: history?.comparison.revenue?.changePercent, sourceStatus: history ? "fresh" : "unavailable", source: "hq.platform_financial_events · occurred_at · confirmada" },
+    { id: "consolidated-gmv", label: "GMV no período", value: history ? money(numberValue(history.totals.gmv)) : null, unit: "MZN", previousValue: history?.comparison.gmv?.previous, changePercent: history?.comparison.gmv?.changePercent, sourceStatus: history ? "fresh" : "unavailable", source: "hq.platform_financial_events · occurred_at" },
     { id: "active-users", label: "Utilizadores no directório", value: peopleCount || null, unit: "count", sourceStatus: peopleCount ? "fresh" : "unavailable", source: "Directório autorizado · não é métrica de actividade" },
-    { id: "operations-today", label: "Operações hoje", value: totalOperationsToday, unit: "count", sourceStatus: totalOperationsToday == null ? "unavailable" : "fresh", source: "Centro de comando · hoje" },
+    { id: "operations-period", label: "Operações no período", value: history ? money(numberValue(history.totals.operations)) : null, unit: "count", previousValue: history?.comparison.operations?.previous, changePercent: history?.comparison.operations?.changePercent, sourceStatus: history ? "fresh" : "unavailable", source: "hq.platform_events · occurred_at" },
     { id: "platforms-operational", label: "Plataformas operacionais", value: connectedPlatforms || null, unit: "count", sourceStatus: connectedPlatforms ? "fresh" : "unavailable", source: "Estado de integração HQ" },
     { id: "third-party-obligations", label: "Obrigações com utilizadores", value: money(numberValue(breakdown?.user_wallets_available)), unit: "MZN", sourceStatus: breakdown ? "fresh" : "unavailable", source: "Carteiras disponíveis · não é receita própria" },
     { id: "custody-available", label: "Custódia disponível", value: money(numberValue(breakdown?.total_funds_controlled_available)), unit: "MZN", sourceStatus: breakdown ? "fresh" : "unavailable", source: "Receita + carteiras, sem dupla contagem" },
     { id: "critical-alerts", label: "Alertas operacionais", value: pendingAlerts, unit: "count", sourceStatus: pendingAlerts == null ? "unavailable" : "fresh", source: "KYC, suporte e notificações" },
   ];
-  const platformRows = useMemo(() => visibleFinancePlatforms.map((item) => ({ id: item.slug, platform: item.name, revenue: numberValue(item.central_revenue_confirmed), gmv: numberValue(item.gross_confirmed), wallets: numberValue(item.wallet_available), state: "Fonte interna" })), [visibleFinancePlatforms]);
+  const maxRevenue = Math.max(1, ...((history?.series || []).map((row) => Number(row.revenue || 0))));
   const insights = [
     connectedPlatforms > 0 ? `${connectedPlatforms} plataforma(s) com estado operacional confirmado.` : "Estado operacional das plataformas indisponível.",
     pendingAlerts == null ? "Alertas executivos sem fonte disponível." : `${pendingAlerts} alerta(s) operacional(is) requerem revisão.`,
@@ -58,10 +68,10 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     <KPIGrid items={kpis} />
     <div className="analyticsExecutiveGrid">
       <ChartContainer title="Receita por plataforma" description="Valores confirmados pela fonte financeira; sem estimativas.">
-        {platformRows.length ? <div className="analyticsBarList">{platformRows.map((row) => <div className="analyticsBarRow" key={row.id}><div><strong>{row.platform}</strong><small>{row.state}</small></div><span><i style={{ width: `${Math.min(100, Math.max(0, Number(row.revenue || 0)))}%` }} /><b>{row.revenue == null ? "Indisponível" : `${row.revenue.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT`}</b></span></div>)}</div> : <EmptyState title="Receita por plataforma indisponível" description="A fonte financeira não devolveu séries por plataforma para este contexto." />}
+        {historyError ? <EmptyState title="Série histórica indisponível" description={historyError} /> : history?.series?.some((row) => row.revenue > 0) ? <div className="analyticsBarList">{history.series.map((row) => <div className="analyticsBarRow" key={row.date}><div><strong>{row.date}</strong><small>Receita confirmada</small></div><span><i style={{ width: `${Math.min(100, Math.max(2, (Number(row.revenue || 0) / maxRevenue) * 100))}%` }} /><b>{row.revenue.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT</b></span></div>)}</div> : <EmptyState title="Receita histórica indisponível" description="Não existem eventos financeiros confirmados no período seleccionado." />}
       </ChartContainer>
       <ChartContainer title="Evolução e comparação" description="Últimos 30 dias versus os 30 dias anteriores, no fuso Africa/Maputo.">
-        <EmptyState title="Série temporal não disponível" description="A API atual fornece o resumo corrente, mas ainda não expõe uma série temporal verificável. Nenhum valor foi inventado." />
+        {history?.comparison?.revenue ? <div className="analyticsComparison"><p><span>Período seleccionado</span><strong>{history.comparison.revenue.current.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT</strong></p><p><span>Período anterior</span><strong>{history.comparison.revenue.previous.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT</strong></p><p><span>Variação</span><TrendIndicator changePercent={history.comparison.revenue.changePercent} /></p></div> : <EmptyState title="Comparação temporal indisponível" description="A fonte histórica não devolveu dados válidos para os dois períodos." />}
       </ChartContainer>
     </div>
     <ChartContainer title="Distribuição operacional por plataforma" description="Estado e volume devolvidos pelas fontes autorizadas.">
@@ -69,7 +79,7 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     </ChartContainer>
     <div className="analyticsExecutiveGrid">
       <ChartContainer title="Insights determinísticos" description="Regras simples, sem IA e sem acesso de escrita."><div className="analyticsInsightList">{insights.map((insight) => <p key={insight}><span>•</span>{insight}</p>)}</div></ChartContainer>
-      <ChartContainer title="Estado dos dados"><DataFreshnessIndicator status={dashboard?.checkedAt ? "fresh" : "unavailable"} updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} /><p className="analyticsDataNote">Filtro seleccionado: {filters.period}. Os indicadores sem fonte permanecem indisponíveis.</p><TrendIndicator changePercent={null} /></ChartContainer>
+      <ChartContainer title="Estado dos dados"><DataFreshnessIndicator status={history ? "fresh" : "unavailable"} updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} /><p className="analyticsDataNote">Filtro seleccionado: {filters.period}. Período: {history?.range ? `${history.range.from} → ${history.range.to}` : "não disponível"} · fuso Africa/Maputo.</p><p className="analyticsDataNote">{history?.limitations?.[0] || "As métricas sem fonte histórica permanecem indisponíveis."}</p></ChartContainer>
     </div>
   </section>;
 }
