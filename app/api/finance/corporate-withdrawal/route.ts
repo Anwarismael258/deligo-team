@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { corporateActor, hqRest, hqRpc } from "@/lib/hq-server";
+import { corporateActor, hqRpc } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
-
-function normalizeMozPhone(value: unknown) {
-  const digits = String(value || "").replace(/\D/g, "");
-  if (/^2588\d{8}$/.test(digits)) return `+${digits}`;
-  if (/^8\d{8}$/.test(digits)) return `+258${digits}`;
-  return String(value || "").trim();
-}
 
 async function authenticatedRpc(name: string, body: Record<string, unknown>) {
   const token = (await cookies()).get("hq_access_token")?.value;
@@ -54,13 +47,15 @@ export async function POST(request: NextRequest) {
         availableAmount: withdrawableRevenue,
       }, { status: 409 });
     }
-    const [employees, profiles] = await Promise.all([
-      hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=phone_e164`) as Promise<Array<{ phone_e164?: string | null }>>,
-      hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Promise<Array<{ personal_phone?: string | null }>>,
-    ]);
-    const phone = normalizeMozPhone(employees?.[0]?.phone_e164 || profiles?.[0]?.personal_phone);
-    if (!/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "O número de levantamento registado para este perfil não é válido." }, { status: 409 });
-    const prepared = await authenticatedRpc("hq_prepare_corporate_withdrawal_v1", { p_amount: amount, p_method: "mpesa", p_phone_number: phone, p_idempotency_key: String(body?.idempotencyKey || `hq-${actor.employee_id}-${Date.now()}`).trim() });
+    // This is an internal ledger transfer, not a PaySuite payout. The
+    // approved RPC moves CORPORATE_MZN -> the requesting employee wallet;
+    // only the separate profile withdrawal may call PaySuite later.
+    const prepared = await authenticatedRpc("hq_prepare_corporate_withdrawal_v1", {
+      p_amount: amount,
+      p_method: "internal_transfer",
+      p_phone_number: "HQ_INTERNAL_WALLET",
+      p_idempotency_key: String(body?.idempotencyKey || `hq-${actor.employee_id}-${Date.now()}`).trim(),
+    });
     const withdrawalId = String((prepared as Record<string, unknown>).withdrawal_id || "");
     if (!withdrawalId) return NextResponse.json({ error: "Pedido financeiro sem identificador." }, { status: 502 });
     const otp = await authenticatedRpc("hq_send_corporate_withdrawal_otp_v1", { p_withdrawal_id: withdrawalId });
