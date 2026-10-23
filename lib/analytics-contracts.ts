@@ -8,6 +8,7 @@ export type AnalyticsFilters = {
   from?: string;
   to?: string;
   platform?: string;
+  department?: string;
   location?: string;
   status?: string;
   timezone: "Africa/Maputo";
