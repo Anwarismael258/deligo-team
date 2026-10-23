@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deligoTriunfalGovernance } from "@/lib/governance";
-import { corporateActor, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqRest, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +69,15 @@ export async function GET() {
     const deligoWalletRows = canViewDeligoFinance
       ? await stagingRest("legacy_wallets?select=id,balance,available_balance,pending_balance,currency,is_active,user_id,owner_id&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => stagingRest("legacy_wallets?select=id,balance,currency,is_active,user_id,owner_id&currency=eq.MZN&limit=10000", { headers: { "Accept-Profile": "deligo", "Content-Profile": "deligo" } }).catch(() => null))
       : null;
+    const employeeWalletRows = canViewDeligoFinance
+      ? await hqRest("logical_wallets?wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=id,owner_user_id,available_amount,pending_amount&limit=10000").catch(() => [])
+      : [];
+    const employeeWalletAvailable = Array.isArray(employeeWalletRows)
+      ? employeeWalletRows.reduce((total, row) => total + Number((row as Record<string, unknown>).available_amount || 0), 0)
+      : 0;
+    const employeeWalletPending = Array.isArray(employeeWalletRows)
+      ? employeeWalletRows.reduce((total, row) => total + Number((row as Record<string, unknown>).pending_amount || 0), 0)
+      : 0;
     const deligoProfileRows = canViewDeligoFinance
       ? await stagingRest("profiles?select=id,user_id,is_test_user&limit=10000").catch(() => [])
       : [];
@@ -142,8 +151,8 @@ export async function GET() {
           : deligoWalletAvailable == null
             ? sourcePlatforms
             : [...sourcePlatforms, { slug: "deligo", name: "DeliGo Eats", gross_confirmed: 0, central_revenue_confirmed: 0, provider_fees_confirmed: 0, wallet_available: deligoWalletAvailable, wallet_pending: deligoWalletPending ?? 0, funds_total: deligoWalletAvailable + (deligoWalletPending ?? 0), wallet_sources: deligoWalletSources }];
-        const available = platforms.reduce((total, row) => total + Number(row.wallet_available || 0), 0) + Number(value.global_user_wallet_available || 0);
-        const pending = platforms.reduce((total, row) => total + Number(row.wallet_pending || 0), 0) + Number(value.global_user_wallet_pending || 0);
+        const available = platforms.reduce((total, row) => total + Number(row.wallet_available || 0), 0) + Number(value.global_user_wallet_available || 0) + employeeWalletAvailable;
+        const pending = platforms.reduce((total, row) => total + Number(row.wallet_pending || 0), 0) + Number(value.global_user_wallet_pending || 0) + employeeWalletPending;
         const corporate = Number(value.corporate_wallet_available || 0);
         return { ...value, platforms, user_wallets_available: available, user_wallets_pending: pending, total_funds_controlled_available: corporate + available, total_funds_controlled_pending: pending };
       };
@@ -203,11 +212,11 @@ export async function GET() {
       const platformWalletPending = platforms.reduce((total, row) => total + row.wallet_pending, 0);
       const corporateWallet = Number((corporateRevenue as Record<string, unknown> | null)?.corporate_wallet_available || 0);
       const centralRevenue = platforms.reduce((total, row) => total + row.central_revenue_confirmed, 0);
-      return { currency: "MZN", source: "hq.platform_financial_events + deligo.legacy_wallets + payments.wallet_accounts + hq.logical_wallets", platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), user_wallets_available: platformWalletAvailable + sum(globalWallets, "available_balance_minor"), user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), total_funds_controlled_available: corporateWallet + platformWalletAvailable + sum(globalWallets, "available_balance_minor"), total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), legacy_revenue_included: false };
+      return { currency: "MZN", source: "hq.platform_financial_events + deligo.legacy_wallets + payments.wallet_accounts + hq.logical_wallets", platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), user_wallets_available: platformWalletAvailable + sum(globalWallets, "available_balance_minor") + employeeWalletAvailable, user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor") + employeeWalletPending, total_funds_controlled_available: corporateWallet + platformWalletAvailable + sum(globalWallets, "available_balance_minor") + employeeWalletAvailable, total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor") + employeeWalletPending, legacy_revenue_included: false };
     })() : null;
     // Keep this separate from corporate profit: it is only an informational
     // total for user wallets, never the corporate wallet or corporate revenue.
-    const deligoWalletTotal = deligoWalletAvailable;
+    const deligoWalletTotal = deligoWalletAvailable == null ? null : deligoWalletAvailable + employeeWalletAvailable;
     const financeSummary = canonicalFinance || legacyDeligoFinance;
     const summaryWithWallet = financeSummary
       ? { ...financeSummary, ...(deligoWalletTotal == null ? {} : { user_wallets_total: deligoWalletTotal }), ...(corporateRevenue && typeof corporateRevenue === "object" ? corporateRevenue : {}) }
