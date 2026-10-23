@@ -255,3 +255,20 @@ footer{display:flex;justify-content:space-between;border-top:1px solid var(--lin
 .peoplePanel .peopleToolbar{position:sticky;top:0;z-index:1;background:#fff}
 .peoplePanel .peopleList{max-height:350px;overflow-y:auto;border:1px solid var(--line);border-radius:10px}
 @media(max-width:700px){.peoplePanel{max-height:500px;padding:13px}.peoplePanel .peopleList{max-height:320px}}
+.fieldGovernanceGrid>article{min-width:0}
+.fieldDecisionRow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;margin-top:9px;padding:12px;border:1px solid #e4e8ec;border-radius:11px;background:#fff;box-shadow:0 3px 12px #18212b08}
+.fieldDecisionRow>div:first-child{min-width:0}
+.fieldDecisionRow>div:first-child>strong{font-size:12px;color:#20252b;overflow-wrap:anywhere}
+.fieldDecisionRow>div:first-child>span{font-size:9px;color:#66717d;margin-top:4px;overflow-wrap:anywhere}
+.fieldDecisionRow>div:first-child>small{display:block;margin-top:7px;font-size:8px;color:#8a929b}
+.fieldDecisionRow>b{grid-column:2;grid-row:1;align-self:start;white-space:nowrap;padding:5px 8px;border-radius:999px;background:#edf8f3;color:#217052;font-size:8px;letter-spacing:.04em}
+.fieldDecisionRow>div:last-child{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap;padding-top:9px;border-top:1px solid #eef0f2}
+.fieldDecisionRow>div:last-child button{min-height:30px;padding:7px 10px;font-size:9px;font-weight:700}
+.kycApprovedFolder{min-width:0;padding:12px;border:1px solid #e4e8ec;border-radius:12px;background:#f8fafb}
+.kycApprovedFolder>summary{cursor:pointer;padding:2px 0 8px;color:#26323d;font-size:11px;font-weight:800;list-style-position:inside}
+.kycApprovedFolder .fieldDecisionRow{background:#fff}
+.kycDocuments{grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:7px;margin-top:9px}
+.kycDocumentLink{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;align-items:center;min-width:0;padding:7px 8px}
+.kycDocumentLink strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px}
+.kycDocumentLink a{display:inline-flex;align-items:center;justify-content:center;min-height:25px;font-size:8px;padding:4px 7px}
+@media(max-width:600px){.fieldDecisionRow{grid-template-columns:1fr}.fieldDecisionRow>b{grid-column:1;grid-row:auto;justify-self:start}.kycDocuments{grid-template-columns:1fr}.kycDocumentLink{grid-template-columns:minmax(0,1fr) auto auto}}
