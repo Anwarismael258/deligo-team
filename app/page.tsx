@@ -1031,6 +1031,7 @@ if(active==="Operações de Campo")void refreshField();
   const supportEmployeeId=String(supportData.current_employee_id||"");
   const supportInbox=(supportData.support_tickets||[]).filter(ticket=>String(ticket.assigned_to||"")===supportEmployeeId);
   const treasuryBalance=financeAccounts.reduce((sum,row)=>sum+Number(row.current_balance||0),0); const recognizedIncome=financeTransactions.filter(row=>row.transaction_type==="income"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const recognizedExpense=financeTransactions.filter(row=>row.transaction_type==="expense"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const pendingPayments=financePayments.filter(row=>["pending","approved"].includes(row.status||"")); const pendingPaymentTotal=pendingPayments.reduce((sum,row)=>sum+Number(row.amount||0),0); const paidTotal=financePayments.filter(row=>row.status==="paid").reduce((sum,row)=>sum+Number(row.amount||0),0); const budgetTotal=financeBudgets.reduce((sum,row)=>sum+Number(row.amount||0),0); const forecastNet=financeForecasts.reduce((sum,row)=>sum+Number(row.expected_income||0)-Number(row.expected_expense||0),0);
+  const analyticsActive = new Set(["Utilizadores", "Pessoas", "Triunfal Microcrédito", "Caixa de Entrada", "Centro de Notificações", "Relatórios", "Projectos e Tarefas", "Marketing", "Site Institucional", "Vagas", "Operações de Campo", "Apoio ao Cliente"]);
 
   return (
     <main className="shell">
@@ -1096,7 +1097,7 @@ if(active==="Operações de Campo")void refreshField();
           </div>
           {active === "Relatórios" && <CorporateOperationsAnalyticsDashboard mode="reports" />}
           {active === "Projectos e Tarefas" && <CorporateOperationsAnalyticsDashboard mode="projects" />}
-          {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !analyticsActive.has(active) && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
