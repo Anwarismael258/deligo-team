@@ -28,6 +28,8 @@ import {UserTeamDashboard} from "@/components/analytics/UserTeamDashboard";
 import {OperationsSupportDashboard} from "@/components/analytics/OperationsSupportDashboard";
 import {CommunicationAnalyticsDashboard} from "@/components/analytics/CommunicationAnalyticsDashboard";
 import { CorporateOperationsAnalyticsDashboard } from "@/components/analytics/CorporateOperationsAnalyticsDashboard";
+import { OperationsMapDashboard } from "@/components/analytics/OperationsMapDashboard";
+import { ExecutiveGlobeWidget } from "@/components/analytics/ExecutiveGlobeWidget";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 const kycDocumentLinks=(caseId:string,docs:unknown[])=>docs.map((doc,index)=>{const item=doc&&typeof doc==="object"?doc as Record<string,unknown>:null,value=typeof doc==="string"?doc:String(item?.signed_url||item?.url||"");if(!/^https?:\/\//i.test(value))return <span className="kycDocumentUnavailable" key={`${caseId}-doc-${index}`}>Documento {index+1}: indisponível</span>;return <span className="kycDocumentLink" key={`${caseId}-doc-${index}`}><strong>Documento {index+1}</strong><a href={value} target="_blank" rel="noreferrer">Abrir</a><a href={value} download={`documento-${index+1}`} target="_blank" rel="noreferrer">Guardar</a></span>});
@@ -263,7 +265,7 @@ const personas = {
 
 const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", FINANCE_DIRECTOR: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
 const unpublishedModules = new Set(["Embaixadores"]);
-const universalModules = new Set<string>();
+const universalModules = new Set<string>(["Mapa operacional"]);
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
 const modulePermission:Record<string,string>={"Utilizadores":"users.view","Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Triunfal Microcrédito":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
 
@@ -1034,10 +1036,9 @@ if(active==="Operações de Campo")void refreshField();
     <main className="shell">
       <aside className={menuOpen ? "sidebar open" : "sidebar"} onTouchStart={handleSidebarTouchStart} onTouchEnd={handleSidebarTouchEnd}>
         <div className="brand">
-      {active === "Relatórios" && <CorporateOperationsAnalyticsDashboard mode="reports" />}
-      {active === "Projectos e Tarefas" && <CorporateOperationsAnalyticsDashboard mode="projects" />}
           <img className="brandmark logoImage" src="/deligo-icon.png" alt="DeliGo Triunfal" />
           <div><strong>DeliGo Triunfal</strong><span>Central Web</span></div>
+          <ExecutiveGlobeWidget />
         </div>
         <nav>
           <button className={active === "Visão geral" ? "navItem active" : "navItem"} onClick={() => navigate("Visão geral")}><span><LayoutDashboard aria-hidden="true" /></span>Visão Geral</button>
@@ -1093,6 +1094,8 @@ if(active==="Operações de Campo")void refreshField();
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
+          {active === "Relatórios" && <CorporateOperationsAnalyticsDashboard mode="reports" />}
+          {active === "Projectos e Tarefas" && <CorporateOperationsAnalyticsDashboard mode="projects" />}
           {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
@@ -1400,7 +1403,7 @@ if(active==="Operações de Campo")void refreshField();
           {active==="Minhas Tarefas"&&<MyTasksCenter/>}
           {active==="Aprovações"&&<ApprovalRules/>}
           {workflowDepartmentByModule[active]&&active!=="Apoio ao Cliente"&&active!=="Marketing"&&active!=="Finanças"&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>}
-          {active === "Mapa operacional" && <DeligoOperationalMap/>}
+          {active === "Mapa operacional" && <OperationsMapDashboard/>}
           {false && active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Operações de Campo" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">

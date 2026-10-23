@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Headphones, MapPinned, Megaphone, RefreshCw } from "lucide-react";
 
@@ -116,6 +117,6 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
       {!rows.length && <div className="peopleEmpty">Nenhum registo corresponde à pesquisa.</div>}
     </div>
     {module === "support" && ticketId && <section className="supportConversation"><div className="supportConversationHead"><div><span>CONVERSA DO TICKET</span><h3>{pick(activeTicket || {}, ["subject", "title", "id"])}</h3></div><button onClick={() => setTicketId("")}>Fechar</button></div><div className="supportMessages">{ticketMessages.length ? ticketMessages.map((item, index) => <article key={String(item.id || index)}><strong>{pick(item, ["sender_name", "sender_role", "sender_id"])}</strong><p>{pick(item, ["text", "content", "message"])}</p><small>{pick(item, ["created_at", "updated_at"])}</small></article>) : <div className="peopleEmpty">Ainda não existem mensagens neste ticket.</div>}</div><form className="supportComposer" onSubmit={sendMessage}><label htmlFor="support-message">Mensagem</label><textarea id="support-message" value={message} onChange={(event) => setMessage(event.target.value)} minLength={2} maxLength={4000} required /><button className="primaryAction" type="submit">Enviar</button></form></section>}
-    {gallery && <div className="kycGalleryBackdrop" role="dialog" aria-modal="true" onClick={() => setGallery(null)}><div className="kycGallery" onClick={(event) => event.stopPropagation()}><div className="kycGalleryHead"><div><span>DOCUMENTOS KYC</span><h3>{gallery.name}</h3></div><button onClick={() => setGallery(null)}>Fechar</button></div><div className="kycGalleryGrid">{gallery.media.map((item, index) => <a href={item.url} target="_blank" rel="noreferrer" key={`${item.url}-${index}`}><img src={item.url} alt={item.label} /><strong>{item.label}</strong></a>)}</div></div></div>}
+    {gallery && <div className="kycGalleryBackdrop" role="dialog" aria-modal="true" onClick={() => setGallery(null)}><div className="kycGallery" onClick={(event) => event.stopPropagation()}><div className="kycGalleryHead"><div><span>DOCUMENTOS KYC</span><h3>{gallery.name}</h3></div><button onClick={() => setGallery(null)}>Fechar</button></div><div className="kycGalleryGrid">{gallery.media.map((item, index) => <a href={item.url} target="_blank" rel="noreferrer" key={`${item.url}-${index}`}><Image src={item.url} alt={item.label} width={640} height={480} unoptimized /><strong>{item.label}</strong></a>)}</div></div></div>}
   </section>;
 }

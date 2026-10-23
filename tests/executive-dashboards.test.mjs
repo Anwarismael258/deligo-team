@@ -11,10 +11,17 @@ test("Visão Geral reutiliza analytics e mantém fontes indisponíveis explícit
   assert.match(source, /KPIGrid/);
   assert.match(source, /AnalyticsDataTable/);
   assert.match(source, /Série histórica indisponível/);
+  assert.match(source, /Centro de ações pendentes/);
+  assert.match(source, /Central de eventos ao vivo/);
+  assert.match(source, /SystemHealthPanel/);
+  assert.match(source, /pendingActions/);
 });
 
 test("dashboard de plataformas separa receita própria de carteiras de terceiros", () => {
   const source = read("components/analytics/PlatformExecutiveDashboard.tsx");
+  assert.match(source, /DashboardFilters/);
+  assert.match(source, /api\/analytics\/history/);
+  assert.match(source, /Evolução no período/);
   assert.match(source, /Receita própria/);
   assert.match(source, /Carteiras de terceiros/);
   assert.match(source, /não é receita/);
