@@ -6,6 +6,14 @@ type ImapResult = { mailbox: string; scanned: number; imported: number; skipped:
 
 const host = process.env.NOMINALIA_IMAP_HOST || "pop.securemail.pro";
 const port = Number(process.env.NOMINALIA_IMAP_PORT || 993);
+const imapTimeoutMs = 12_000;
+
+async function withTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([operation, new Promise<T>((_, reject) => { timer = setTimeout(() => reject(new Error(`IMAP_${label}_TIMEOUT`)), imapTimeoutMs); })]);
+  } finally { if (timer) clearTimeout(timer); }
+}
 
 function headerValue(raw: string, name: string) { return raw.match(new RegExp(`^${name}:\\s*(.+(?:\\r?\\n[ \\t].+)*)$`, "im"))?.[1].replace(/\\r?\\n[ \\t]+/g, " ").trim() || ""; }
 function decodeHeader(value: string) { return value.replace(/=\\?UTF-8\\?B\\?([^?]+)\\?=/gi, (_, encoded: string) => Buffer.from(encoded, "base64").toString("utf8")).replace(/=\\?UTF-8\\?Q\\?([^?]+)\\?=/gi, (_, encoded: string) => encoded.replace(/_/g, " ").replace(/=([0-9A-F]{2})/gi, (_match: string, hex: string) => String.fromCharCode(parseInt(hex, 16)))); }
@@ -22,17 +30,18 @@ function parseMail(source: Buffer) {
 
 async function fetchMailbox(mailbox: Mailbox): Promise<Buffer[]> {
   const client = new ImapFlow({ host, port, secure: true, auth: { user: mailbox.user, pass: mailbox.password }, logger: false, connectionTimeout: 20_000, greetingTimeout: 20_000, socketTimeout: 30_000 });
-  await client.connect();
-  const lock = await client.getMailboxLock("INBOX");
+  await withTimeout(client.connect(), "CONNECT");
+  const lock = await withTimeout(client.getMailboxLock("INBOX"), "MAILBOX");
   try {
-    const searchResult = await client.search({ all: true }, { uid: true });
+    const searchResult = await withTimeout(client.search({ all: true }, { uid: true }), "SEARCH");
     const uids = Array.isArray(searchResult) ? searchResult : [];
     const messages: Buffer[] = [];
-    for await (const message of client.fetch(uids.slice(-50), { source: true }, { uid: true })) {
-      if (message.source) messages.push(Buffer.isBuffer(message.source) ? message.source : Buffer.from(message.source));
-    }
+    await withTimeout((async () => { for await (const message of client.fetch(uids.slice(-50), { source: true }, { uid: true })) if (message.source) messages.push(Buffer.isBuffer(message.source) ? message.source : Buffer.from(message.source)); })(), "FETCH");
     return messages;
-  } finally { lock.release(); await client.logout(); }
+  } finally {
+    lock.release();
+    try { await withTimeout(client.logout(), "LOGOUT"); } catch { client.close(); }
+  }
 }
 
 function mailboxFor(area: Mailbox["area"]): Mailbox | null {
