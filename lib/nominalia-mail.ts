@@ -20,3 +20,15 @@ export async function sendInboxEmail(message: InboxMessage) {
   await transporter.sendMail({ from: process.env.NOMINALIA_SMTP_USER, to: recipient, replyTo: message.from_email, subject: `[DeliGo Central] ${message.subject}`, text: lines.join("\n") });
   return recipient;
 }
+
+export function configuredInboxSenders() {
+  return [...new Set([process.env.NOMINALIA_SMTP_USER, process.env.NOMINALIA_FROM_EMAIL, process.env.NOMINALIA_SUPPORT_EMAIL].filter((value): value is string => Boolean(value && value.includes("@"))))];
+}
+
+export async function sendComposedInboxEmail(input: { from: string; to: string; subject: string; text: string }) {
+  if (!configured()) throw new Error("NOMINALIA_SMTP_NOT_CONFIGURED");
+  if (!configuredInboxSenders().includes(input.from)) throw new Error("EMAIL_SENDER_NOT_ALLOWED");
+  const transporter = nodemailer.createTransport({ host: process.env.NOMINALIA_SMTP_HOST || "authsmtp.securemail.pro", port: Number(process.env.NOMINALIA_SMTP_PORT || 465), secure: true, auth: { user: process.env.NOMINALIA_SMTP_USER, pass: process.env.NOMINALIA_SMTP_PASSWORD } });
+  await transporter.sendMail({ from: input.from, to: input.to, subject: input.subject, text: input.text });
+  return input.to;
+}
