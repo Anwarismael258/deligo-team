@@ -77,6 +77,18 @@ const notificationModuleFor = (notification: FinanceRecord) => {
   if (target.startsWith("/")) return null;
   return "Centro de Notificações";
 };
+const notificationHref = (notification: FinanceRecord) => {
+  const direct = String(notification.target_url || "").trim();
+  if (direct.startsWith("/") && !direct.startsWith("//")) return direct;
+  const source = `${String(notification.source_type || notification.type || "")} ${String(notification.title || "")} ${String(notification.body || "")}`.toLowerCase();
+  if (source.includes("dispute") || source.includes("complaint") || source.includes("support") || source.includes("ticket") || source.includes("whatsapp") || source.includes("message")) return "/apoio-cliente";
+  if (source.includes("kyc") || source.includes("field") || source.includes("courier") || source.includes("restaurant")) return "/field";
+  if (source.includes("task") || source.includes("project")) return "/projectos-tarefas";
+  if (source.includes("finance") || source.includes("withdraw") || source.includes("payment")) return "/financas";
+  if (source.includes("loan") || source.includes("credit")) return "/microcredito";
+  if (source.includes("user") || source.includes("profile")) return "/utilizadores";
+  return routeByModule[notificationModuleFor(notification) || "Centro de Notificações"] || "/notificacoes";
+};
 const notificationPlatformFor = (notification: FinanceRecord) => {
   const explicit = String(notification.platform_name || notification.platform || notification.platform_slug || "").trim().toLowerCase();
   const source = String(notification.source_type || notification.type || "").toLowerCase();
@@ -549,6 +561,14 @@ export function HQApp() {
     });
     return Array.from(groups.entries()).sort(([a], [b]) => a === "Central" ? 1 : b === "Central" ? -1 : a.localeCompare(b, "pt"));
   }, [notifications]);
+  const notificationPreviewGroups = useMemo(() => {
+    let remaining = 8;
+    return notificationGroups.map(([platformName, items]) => {
+      const preview = items.slice(0, Math.max(0, remaining));
+      remaining -= preview.length;
+      return [platformName, preview] as [string, FinanceRecord[]];
+    }).filter(([, items]) => items.length > 0);
+  }, [notificationGroups]);
   const sendNewWhatsapp=async(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const form=new FormData(event.currentTarget);setWhatsappNotice("A enviar…");const response=await fetch("/api/support/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({phone:form.get("phone"),message:form.get("message")})});const data=await response.json();setWhatsappNotice(response.ok?"Mensagem enviada pelo WhatsApp oficial.":data.error||"Não foi possível enviar.");if(response.ok)event.currentTarget.reset()};
   const withdrawOwnWallet=async()=>{const amount=Number(profileWithdrawal.amount.replace(",","."));if(!Number.isFinite(amount)||amount<=0){setProfileWalletNotice("Indique um montante válido para levantar.");return}if(amount>personalWithdrawableTotal){setProfileWalletNotice(`O montante não pode ultrapassar ${money(personalWithdrawableTotal)} disponíveis para levantamento.`);return}setProfileWithdrawal(current=>({...current,busy:true}));setProfileWalletNotice("A iniciar levantamento PaySuite para o número verificado do perfil…");try{const response=await fetch("/api/profile/withdraw",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({amount})});const data=await response.json();const reference=data.providerReferences?.join(", ")||data.providerReference||data.payoutIds?.join(", ")||data.payoutId;setProfileWalletNotice(response.ok?`Pedido PaySuite ${data.status === "paid" ? "concluído" : "em processamento"}. Referência: ${reference||"em processamento"}`:(data.error||"Levantamento não iniciado."));if(response.ok){setProfileWithdrawal(current=>({...current,amount:""}));const refresh=await fetch("/api/profile",{cache:"no-store"});const refreshed=await refresh.json();setOwnWallets(Array.isArray(refreshed.wallets)?refreshed.wallets:[])}}catch{setProfileWalletNotice("Não foi possível contactar o serviço de levantamento.")}finally{setProfileWithdrawal(current=>({...current,busy:false}))}};
 
@@ -1130,7 +1150,7 @@ if(active==="Operações de Campo")void refreshField();
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
              <button className="iconButton" title="Notificações" aria-label={`Notificações${unreadNotifications.length?`, ${unreadNotifications.length} não lidas`:""}`} onClick={()=>setNotificationsOpen(!notificationsOpen)}><Bell aria-hidden="true" size={19} strokeWidth={2.2} />{unreadNotifications.length>0&&<><i /><b className="notificationCount">{unreadNotifications.length>99?"99+":unreadNotifications.length}</b></>}</button>
-            {notificationsOpen&&<div className="notificationMenu"><div><strong>Notificações por plataforma</strong><button onClick={()=>void markNotifications()}>Marcar todas como lidas</button></div>{notificationGroups.map(([platformName,items])=><section className="notificationPlatformGroup" key={platformName}><h4>{platformName}<b>{items.filter(item=>!item.read_at).length || ""}</b></h4>{items.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);if(n.target_url)window.location.assign(String(n.target_url))}}><strong>{String(n.title)}</strong><span>{String(n.body)}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")}</small></button>)}</section>)}{!notifications.length&&<p>Sem notificações.</p>}</div>}
+            {notificationsOpen&&<div className="notificationMenu"><div className="notificationMenuHead"><strong>Notificações</strong><span>{unreadNotifications.length ? `${unreadNotifications.length} não lidas` : "Tudo lido"}</span><button onClick={()=>void markNotifications()}>Ler tudo</button></div>{notificationPreviewGroups.map(([platformName,items])=><section className="notificationPlatformGroup" key={platformName}><h4>{platformName}<b>{items.filter(item=>!item.read_at).length || ""}</b></h4>{items.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);window.location.assign(notificationHref(n))}}><strong>{String(n.title||"Notificação")}</strong><span>{String(n.body||"")}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")} · Abrir origem</small></button>)}</section>)}{!notifications.length&&<p>Sem notificações.</p>}<button className="notificationMenuFooter" onClick={()=>window.location.assign("/notificacoes")}>Ver centro completo</button></div>}
             <button className="accountTrigger" onClick={() => setAccountOpen(!accountOpen)} aria-label="Abrir menu da conta">
               <div className="miniAvatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Fotografia de perfil"/>:currentPersona.initials}</div>
               <div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span></div><b>⌄</b>
