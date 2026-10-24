@@ -1034,9 +1034,28 @@ if(active==="Operações de Campo")void refreshField();
   const supportInbox=(supportData.support_tickets||[]).filter(ticket=>String(ticket.assigned_to||"")===supportEmployeeId);
   const treasuryBalance=financeAccounts.reduce((sum,row)=>sum+Number(row.current_balance||0),0); const recognizedIncome=financeTransactions.filter(row=>row.transaction_type==="income"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const recognizedExpense=financeTransactions.filter(row=>row.transaction_type==="expense"&&["posted","reconciled"].includes(row.status||"")).reduce((sum,row)=>sum+Number(row.amount||0),0); const pendingPayments=financePayments.filter(row=>["pending","approved"].includes(row.status||"")); const pendingPaymentTotal=pendingPayments.reduce((sum,row)=>sum+Number(row.amount||0),0); const paidTotal=financePayments.filter(row=>row.status==="paid").reduce((sum,row)=>sum+Number(row.amount||0),0); const budgetTotal=financeBudgets.reduce((sum,row)=>sum+Number(row.amount||0),0); const forecastNet=financeForecasts.reduce((sum,row)=>sum+Number(row.expected_income||0)-Number(row.expected_expense||0),0);
   const analyticsActive = new Set(["Utilizadores", "Pessoas", "Triunfal Microcrédito", "Caixa de Entrada", "Centro de Notificações", "Relatórios", "Projectos e Tarefas", "Marketing", "Site Institucional", "Vagas", "Operações de Campo", "Apoio ao Cliente"]);
+  const centralContrastStyles = `
+    .shell .content,.shell .workspace{color:#eaf2ff}
+    .shell .workspace h1,.shell .workspace h2,.shell .workspace h3,.shell .workspace h4,.shell .workspace strong,.shell .workspace b{color:#f4f8ff}
+    .shell .workspace p,.shell .workspace small,.shell .workspace label,.shell .workspace dt,.shell .workspace dd{color:#b8cae0}
+    .shell .moduleWorkspace,.shell .platformWorkspace,.shell .peoplePanel,.shell .reportsWorkspace,.shell .financeWorkspace,.shell .walletProfileCard,.shell .permissionCard,.shell .profileCard,.shell .settingsCard,.shell .securityCard,.shell .sessionsCard{color:#eaf2ff}
+    .shell .moduleWorkspace h1,.shell .moduleWorkspace h2,.shell .moduleWorkspace h3,.shell .moduleWorkspace h4,.shell .platformWorkspace h1,.shell .platformWorkspace h2,.shell .platformWorkspace h3,.shell .peoplePanel h2,.shell .peoplePanel h3,.shell .peoplePanel strong,.shell .reportsWorkspace h2,.shell .financeWorkspace h2{color:#f4f8ff!important}
+    .shell .moduleWorkspace p,.shell .moduleWorkspace small,.shell .moduleWorkspace span,.shell .platformWorkspace p,.shell .platformWorkspace small,.shell .platformWorkspace span,.shell .peoplePanel p,.shell .peoplePanel small,.shell .peoplePanel span,.shell .reportsWorkspace p,.shell .reportsWorkspace small,.shell .financeWorkspace p,.shell .financeWorkspace small{color:#b8cae0}
+    .shell .peopleRow,.shell .peopleHeader,.shell .workspaceTable,.shell .tableHeader,.shell .tableRow{color:#d9e8f7!important;background-color:transparent}
+    .shell .tableHeader,.shell .peopleHeader{color:#9db6ce!important}
+    .shell .tableRow span,.shell .tableRow td,.shell .tableRow th,.shell .peopleRow span,.shell .peopleRow small{color:#c4d5e7!important}
+    .shell .fieldDecisionRow strong,.shell .fieldDecisionRow span,.shell .fieldDecisionRow small,.shell .kycApprovedFolder>summary{color:#dcecff!important}
+    .shell .analyticsChartContainer,.shell .analyticsKpiCard,.shell .chartCard,.shell .kpiCard{color:#eaf2ff}
+    .shell .analyticsChartContainer h3,.shell .analyticsChartContainer h4,.shell .analyticsKpiCard strong,.shell .analyticsKpiCard span,.shell .chartCard h3,.shell .kpiCard strong{color:#f4f8ff!important}
+    .shell .analyticsChartContainer p,.shell .analyticsChartContainer small,.shell .analyticsKpiCard small,.shell .chartCard p,.shell .chartCard small{color:#a9bfd6!important}
+    .shell input,.shell select,.shell textarea{color:#edf6ff;background:#12243a;border-color:#3a5878}
+    .shell input::placeholder,.shell textarea::placeholder{color:#88a3bf}
+    .shell button:not(.navItem):not(.navLabel):not(.menuButton){color:#eaf2ff}
+  `;
 
   return (
     <main className="shell">
+      <style>{centralContrastStyles}</style>
       <aside className={menuOpen ? "sidebar open" : "sidebar"} onTouchStart={handleSidebarTouchStart} onTouchEnd={handleSidebarTouchEnd}>
         <div className="brand">
           <img className="brandmark logoImage" src="/deligo-icon.png" alt="DeliGo Triunfal" />
