@@ -137,9 +137,11 @@ export async function POST(request:NextRequest){
       if(!canReplyToTicket(current,{...publicTicket,category:publicTicket.dispute_type,subject:publicTicket.reason,description:publicTicket.reason}))return NextResponse.json({error:"Sem permissão para responder a este atendimento."},{status:403});
       if(body.resource==="message"||body.resource==="attachment"){
         const record=body.resource==="message"?{ticket_id:publicId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:`${String(body.record.message||"").trim()}\n\n— ${current.actor.name}`}:{ticket_id:publicId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:`Anexo enviado por ${current.actor.name}`,attachment_url:body.record.storage_reference||null,attachment_type:body.record.mime_type||null};
-        const created=(await stagingRest("support_messages",{method:"POST",body:JSON.stringify(record)}) as Array<Record<string,unknown>>)?.[0];
-        await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
-        return NextResponse.json({record:{...created,id:`public-msg:${String(created?.id||"")}`,ticket_id:`public:${publicId}`,sender_type:"agent",message:created?.text||record.text}},{status:201});
+        const created=(await stagingRest("support_messages",{method:"POST",body:JSON.stringify({...record,delivered_at:new Date().toISOString()})}) as Array<Record<string,unknown>>)?.[0];
+        // The message is already available to the platform after INSERT. Do
+        // not make the sender wait for the secondary ticket-state update.
+        void stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})}).catch(error=>console.error("SUPPORT_PUBLIC_TICKET_STATUS_UPDATE_FAILED",String(error)));
+        return NextResponse.json({record:{...created,id:`public-msg:${String(created?.id||"")}`,ticket_id:`public:${publicId}`,sender_type:"agent",message:created?.text||record.text,delivered_at:created?.delivered_at||new Date().toISOString()}},{status:201});
       }
     }
     if(String(body.record.ticket_id||"").startsWith("core:")){
