@@ -1051,6 +1051,18 @@ if(active==="Operações de Campo")void refreshField();
     .shell input,.shell select,.shell textarea{color:#edf6ff;background:#12243a;border-color:#3a5878}
     .shell input::placeholder,.shell textarea::placeholder{color:#88a3bf}
     .shell button:not(.navItem):not(.navLabel):not(.menuButton){color:#eaf2ff}
+    .shell .workspace,.shell .workspace>header,.shell .content{background:#07101c!important}
+    .shell .moduleWorkspace,.shell .platformWorkspace,.shell .peoplePanel,.shell .reportsWorkspace,.shell .financeWorkspace,.shell .walletProfileCard,.shell .permissionCard,.shell .profileCard,.shell .settingsCard,.shell .securityCard,.shell .sessionsCard,.shell .profileBiographyCard,.shell .platformCard,.shell .metric,.shell .chartPanel,.shell .readinessPanel,.shell .analyticsDashboardShell,.shell .analyticsFilters,.shell .analyticsKpiCard,.shell .analyticsChartContainer,.shell .analyticsEmptyState,.shell .analyticsErrorState,.shell .fieldDecisionRow,.shell .kycApprovedFolder,.shell .processActivityGrid>article,.shell .permissionMatrix,.shell .deligoSyncPanel,.shell .marketingSimpleGrid>article{background:#102238!important;border-color:#294766!important;color:#eaf2ff}
+    .shell .workspaceHead,.shell .peoplePanel .peopleToolbar,.shell .profileHero,.shell .settingsCard label,.shell .sessionRow,.shell .readinessRow,.shell .financeTableHead,.shell .financeTableRow,.shell .analyticsDataTable th,.shell .analyticsDataTable td{border-color:#294766!important}
+    .shell .workspaceHead,.shell .peoplePanel .peopleToolbar,.shell .analyticsFilters{background:#132a43!important}
+    .shell .analyticsChartCanvas,.shell .emptyChart,.shell .chartCanvas{background:#0b1b2d!important;border-color:#315174!important}
+    .shell .chartMessage{background:#132a43!important;border-color:#315174!important;color:#eaf2ff}
+    .shell .chartMessage span,.shell .chartAxis,.shell .chartCanvas>span,.shell .analyticsChartHeading p,.shell .analyticsFreshness,.shell .analyticsDataTable th{color:#9db6ce!important}
+    .shell .metricIcon,.shell .securityIcon,.shell .sessionRow>i{background:#17304a!important;color:#8fe8ff!important}
+    .shell .safeNotice,.shell .integrationBadge,.shell .financeReconciliationBanner{background:#2a2730!important;border-color:#735b37!important;color:#f0d49a!important}
+    .shell .permissionCard>div span,.shell .profileNotice,.shell .readinessNote{background:#153a38!important;color:#a8ead0!important;border-color:#2c665b!important}
+    .shell .tableRow:hover,.shell .tableRow.selected{background:#17304a!important}
+    .shell .platformCard:hover{box-shadow:0 0 24px #38e8ff18}
   `;
 
   return (
