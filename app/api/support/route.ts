@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateAuthorization, hqRpc, supabaseUrl } from "@/lib/hq-server";
+import { corporateAuthorization, hqRpc, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
 const entity = "10000000-0000-0000-0000-000000000001";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
@@ -59,16 +59,34 @@ export async function GET(request:NextRequest){
   // Authorized support roles can see the shared queue across every connected platform.
   const requestedPlatformId=requestedPlatform?platforms[requestedPlatform]:null;
   const scope=requestedPlatformId?`&platform_id=eq.${requestedPlatformId}`:"";
-  const tickets=await safe(rest(current.key,`support_tickets?select=id,ticket_number,platform_id,platform_slug,platform_name,subject,description,status,priority,ticket_type,category,customer_name,customer_contact,customer_reference,assigned_to,created_at,updated_at,source_channel,external_reference,workflow_case_id&limit=300${scope}&order=updated_at.desc`),[]);
-  const appCases=await safe(coreRest(current.key,"support_cases?select=id,case_number,app:apps(slug,name),subject,description,status,priority,requester_name,requester_phone,requester_email,requester_user_id,category,assigned_user_id,created_at,updated_at,source_channel&order=updated_at.desc&limit=300"),[]);
-  const platformIdBySlug=platforms;
-  const coreTickets=(Array.isArray(appCases)?appCases:[]).filter((item:{app?:{slug?:string}})=>{const slug=String(item.app?.slug||"");return (!requestedPlatform||slug===requestedPlatform)}).map((item:{id:string;case_number:number;app?:{slug?:string;name?:string};subject:string;description:string;status:string;priority:string;requester_name?:string;requester_phone?:string;requester_email?:string;requester_user_id?:string;category:string;assigned_user_id?:string;created_at:string;updated_at:string;source_channel?:string})=>({id:`core:${item.id}`,source:"app",ticket_number:`${String(item.app?.slug||"app").toUpperCase()}-${String(item.case_number).padStart(6,"0")}`,platform_id:platformIdBySlug[String(item.app?.slug||"")],platform_slug:item.app?.slug,platform_name:item.app?.name,subject:item.subject,description:item.description,status:item.status==="waiting_internal"?"escalated":item.status,priority:item.priority,ticket_type:"app_message",category:item.category,customer_name:item.requester_name,customer_contact:item.requester_phone||item.requester_email,customer_reference:item.requester_user_id,assigned_to:item.assigned_user_id,created_at:item.created_at,updated_at:item.updated_at,external_reference:item.source_channel,source_channel:item.source_channel||"app"}));
-  let allTickets=[...(Array.isArray(tickets)?tickets:[]),...coreTickets];
+  // Keep this projection limited to columns created by the HQ support
+  // migrations. A missing convenience column must not hide the whole queue.
+  const tickets=await safe(rest(current.key,`support_tickets?select=id,ticket_number,platform_id,external_reference,customer_reference,subject,description,status,priority,ticket_type,category,customer_name,customer_contact,assigned_to,created_at:opened_at,updated_at,source_channel,workflow_case_id&limit=300${scope}&order=updated_at.desc`),[]);
+  // The optional cross-platform `core` schema is not exposed by the current
+  // PostgREST configuration. The public support bridge is the canonical
+  // source for app-originated conversations in this environment; do not
+  // retry an unavailable schema on every poll and delay/erase the queue.
+  // Future exposed-core deployments can restore support_cases?select=*,app:apps.
+  const publicTickets=await safe(stagingRest("support_tickets?select=*&order=updated_at.desc&limit=300"),[]);
+  const publicIds=(Array.isArray(publicTickets)?publicTickets:[]).map((row:{id?:string})=>row.id).filter(Boolean);
+  const publicMessages=await safe(publicIds.length?stagingRest(`support_messages?ticket_id=in.(${publicIds.join(",")})&select=*&order=created_at.asc&limit=1000`):Promise.resolve([]),[]);
+  const coreTickets: Array<{id:string}> = [];
+  const publicTicketRows=(Array.isArray(publicTickets)?publicTickets:[]) as Array<Record<string,unknown>>;
+  const publicTicketIds=new Set(publicTicketRows.map(row=>String(row.id||"")));
+  const publicTicketMapped=publicTicketRows.map(row=>{const meta=(row.metadata&&typeof row.metadata==="object"?row.metadata:{}) as Record<string,unknown>;const source=String(row.external_source||meta.platform||"app");return {id:`public:${String(row.id)}`,source:"public_app",ticket_number:`${source.toUpperCase()}-${String(row.external_id||row.id).slice(0,8)}`,platform_id:null,platform_slug:String(meta.platform_slug||source),platform_name:String(meta.platform_name||source),subject:String(row.reason||"Pedido de suporte"),description:String(row.reason||""),status:String(row.status||"open"),priority:String(meta.priority||"normal"),ticket_type:"app_message",category:String(row.dispute_type||"support"),customer_name:String(row.customer_name||"Utilizador"),customer_contact:String(row.customer_phone||row.customer_email||""),customer_reference:String(row.opened_by||""),assigned_to:row.assigned_to||null,created_at:String(row.created_at||""),updated_at:String(row.updated_at||row.created_at||""),external_reference:String(row.external_id||""),source_channel:source};});
+  const publicMessagesMapped=(Array.isArray(publicMessages)?publicMessages:[]).filter((row:{ticket_id?:string})=>publicTicketIds.has(String(row.ticket_id||""))).map((row:Record<string,unknown>)=>{const senderRole=String(row.sender_role||"").toLowerCase();return {id:`public-msg:${String(row.id)}`,ticket_id:`public:${String(row.ticket_id)}`,sender_type:["client","customer","user","cliente"].includes(senderRole)?"customer":"agent",sender_employee_id:null,message:String(row.text||""),is_internal:false,created_at:String(row.created_at||""),is_read:Boolean(row.read_at)}});
+  const publicAttachments=(Array.isArray(publicMessages)?publicMessages:[]).filter((row:Record<string,unknown>)=>publicTicketIds.has(String(row.ticket_id||""))&&row.attachment_url).map((row:Record<string,unknown>)=>({id:`public-attachment:${String(row.id)}`,ticket_id:`public:${String(row.ticket_id)}`,file_name:"Anexo do utilizador",mime_type:row.attachment_type||"ficheiro",storage_reference:row.attachment_url}));
+  const publicExternalReferences=new Set(publicTicketMapped.map(ticket=>String(ticket.external_reference||"")).filter(Boolean));
+  // The bridge mirrors public app tickets into HQ. Prefer the public record
+  // for those mirrored tickets so the queue does not show duplicates or two
+  // competing message histories.
+  const hqTickets=(Array.isArray(tickets)?tickets:[]).filter((ticket:{external_reference?:unknown})=>!publicExternalReferences.has(String(ticket.external_reference||"")));
+  let allTickets=[...hqTickets,...coreTickets,...publicTicketMapped];
   const ids=(tickets||[]).map((row:{id:string})=>row.id),ticketFilter=ids.length?`ticket_id=in.(${ids.join(",")})`:"ticket_id=eq.00000000-0000-0000-0000-000000000000";
   const caseIds=(tickets||[]).map((row:{workflow_case_id?:string})=>row.workflow_case_id).filter(Boolean);
   const coreIds=coreTickets.map((row:{id:string})=>row.id.slice(5));
   const coreFilter=coreIds.length?`case_id=in.(${coreIds.join(",")})`:"case_id=eq.00000000-0000-0000-0000-000000000000";
-  const legacyDetail=Boolean(requestedTicket)&&!requestedTicket.startsWith("core:")?requestedTicket:"";
+  const legacyDetail=Boolean(requestedTicket)&&!requestedTicket.startsWith("core:")&&!requestedTicket.startsWith("public:")?requestedTicket:"";
   const legacyWorkflowCaseId=legacyDetail?String((tickets as Array<{id?:string;workflow_case_id?:string}>).find(row=>String(row.id)===legacyDetail)?.workflow_case_id||""):"";
   const coreDetail=requestedTicket.startsWith("core:")?requestedTicket.slice(5):"";
   const [conversations,attachments,escalations,assignments,events,cases,steps,employees,platformRows,departments,coreConversations,coreEvents]=await Promise.all([
@@ -97,7 +115,7 @@ export async function GET(request:NextRequest){
   allTickets=allTickets.map(ticket=>ticket.id.startsWith("core:")?{...ticket,last_read_at:readAtByCase.get(ticket.id.slice(5))||null}:ticket);
   const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened").map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));
   const legacyHistory=(Array.isArray(events)?events:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened");
-  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...legacyMessages,...coreMessages],support_attachments:attachments,support_escalations:escalations,support_department_assignments:assignments,support_history:[...legacyHistory,...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments}},{headers:{"Cache-Control":"private, no-store"}});
+  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...legacyMessages,...coreMessages,...publicMessagesMapped],support_attachments:[...(Array.isArray(attachments)?attachments:[]),...publicAttachments],support_escalations:escalations,support_department_assignments:assignments,support_history:[...legacyHistory,...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments}},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(request:NextRequest){
@@ -113,6 +131,17 @@ export async function POST(request:NextRequest){
       return NextResponse.json({record:{...created,ticket_number:workflow.ticket_number},workflow},{status:201});
     }
     const table={message:"support_conversations",attachment:"support_attachments"}[body.resource];if(!table)return NextResponse.json({error:"Operação de atendimento inválida."},{status:400});
+    if(String(body.record.ticket_id||"").startsWith("public:")){
+      const publicId=String(body.record.ticket_id).slice(7),publicTicket=(await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}&select=*`) as Array<Record<string,unknown>>)?.[0];
+      if(!publicTicket)return NextResponse.json({error:"Atendimento do aplicativo não encontrado."},{status:404});
+      if(!canReplyToTicket(current,{...publicTicket,category:publicTicket.dispute_type,subject:publicTicket.reason,description:publicTicket.reason}))return NextResponse.json({error:"Sem permissão para responder a este atendimento."},{status:403});
+      if(body.resource==="message"||body.resource==="attachment"){
+        const record=body.resource==="message"?{ticket_id:publicId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:`${String(body.record.message||"").trim()}\n\n— ${current.actor.name}`}:{ticket_id:publicId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:`Anexo enviado por ${current.actor.name}`,attachment_url:body.record.storage_reference||null,attachment_type:body.record.mime_type||null};
+        const created=(await stagingRest("support_messages",{method:"POST",body:JSON.stringify(record)}) as Array<Record<string,unknown>>)?.[0];
+        await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
+        return NextResponse.json({record:{...created,id:`public-msg:${String(created?.id||"")}`,ticket_id:`public:${publicId}`,sender_type:"agent",message:created?.text||record.text}},{status:201});
+      }
+    }
     if(String(body.record.ticket_id||"").startsWith("core:")){
       const caseId=String(body.record.ticket_id).slice(5);
       if(body.resource!=="message")return NextResponse.json({error:"Anexos de casos dos apps devem usar o armazenamento do app."},{status:409});
@@ -148,6 +177,19 @@ export async function PATCH(request:NextRequest){
   const permission=["resolve","close"].includes(body.action)?"support.close":"support.reply",current=await context(permission);if(!current)return NextResponse.json({error:"Sem permissão para atualizar atendimento."},{status:403});
   if(isFinanceRole(current.actor.role)&&!financeReplyActions.has(body.action))return NextResponse.json({error:"Finance só pode atualizar o estado de atendimentos financeiros através das ações permitidas."},{status:403});
   try{
+    if(String(body.ticketId).startsWith("public:")){
+      const publicId=String(body.ticketId).slice(7),publicTicket=(await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}&select=*`) as Array<Record<string,unknown>>)?.[0];
+      if(!publicTicket)return NextResponse.json({error:"Atendimento do aplicativo não encontrado."},{status:404});
+      if(body.action==="mark_read"){
+        await stagingRest(`support_messages?ticket_id=eq.${encodeURIComponent(publicId)}&sender_role=eq.client&read_at=is.null`,{method:"PATCH",body:JSON.stringify({read_at:new Date().toISOString()})});
+        return NextResponse.json({ok:true,readAt:new Date().toISOString()});
+      }
+      if(!canReplyToTicket(current,{...publicTicket,category:publicTicket.dispute_type,subject:publicTicket.reason,description:publicTicket.reason}))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
+      const statusMap:Record<string,string>={analysis:"in_progress",waiting_customer:"waiting",resolve:"resolved",close:"closed",reopen:"open"};
+      const next=statusMap[body.action||""];if(!next)return NextResponse.json({error:"Ação inválida."},{status:400});
+      const updated=(await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}`,{method:"PATCH",body:JSON.stringify({status:next,updated_at:new Date().toISOString(),resolution:body.resolution||null})}) as Array<Record<string,unknown>>)?.[0];
+      return NextResponse.json({ok:true,record:updated});
+    }
     if(String(body.ticketId).startsWith("core:")){
       const caseId=String(body.ticketId).slice(5),coreCase=(await coreRest(current.key,`support_cases?id=eq.${caseId}&select=*`))?.[0];if(!coreCase)return NextResponse.json({error:"Caso do app não encontrado."},{status:404});
       if(body.action==="mark_read"){
