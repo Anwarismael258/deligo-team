@@ -1,7 +1,5 @@
 "use client";
 
-import { EmptyState } from "./EmptyState";
-
 export type AnalyticsChartItem = { label: string; value: number };
 export type AnalyticsSeriesItem = { date: string; value: number; secondary?: number };
 
@@ -11,8 +9,8 @@ const palette = [red, orange, "#d7a33d", "#6f7b93", "#4e9b79", "#8d5aa7"];
 const formatNumber = (value: number) => value.toLocaleString("pt-MZ", { maximumFractionDigits: 2 });
 const hasValues = (items: Array<{ value: number }> | undefined) => Boolean(items?.some(item => Number.isFinite(item.value)));
 
-function unavailable(title: string) {
-  return <EmptyState title={title} description="A fonte autorizada não devolveu dados suficientes para desenhar este gráfico." />;
+function unavailable(_title: string) {
+  return null;
 }
 
 function ChartFrame({ label, children }: { label: string; children: React.ReactNode }) {

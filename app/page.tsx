@@ -1611,7 +1611,7 @@ function PlatformAdminPanelLegacy({ snapshot, platform, selectedCollection, onSe
 }
 
 function PlatformAdminPanel({ snapshot, platform, selectedCollection, onSelectCollection, onAction, onOpenProfile, onOpenRecord }: { snapshot: PlatformAdminSnapshot; platform: string; selectedCollection:string; onSelectCollection:(collection:string)=>void; onAction: (action: string, decision: "approve" | "reject" | "correction", id: string, reason?: string) => Promise<void>; onOpenProfile: (id:string, name:string) => void; onOpenRecord:(collection:string,row:Record<string,unknown>)=>void }) {
-  const entries=Object.entries(snapshot.data).filter(([key, value]) => Array.isArray(value) || typeof value === "number" || typeof value === "string" || Boolean(snapshot.sourceErrors?.[key]));
+  const entries=Object.entries(snapshot.data).filter(([key, value]) => !snapshot.sourceErrors?.[key] && (Array.isArray(value) || typeof value === "number" || typeof value === "string"));
   const collection=selectedCollection && entries.some(([key])=>key===selectedCollection) ? selectedCollection : entries[0]?.[0] || "";
   const visible=(snapshot.data[collection] as unknown[] | undefined) || [];
   const sourceError=snapshot.sourceErrors?.[collection];

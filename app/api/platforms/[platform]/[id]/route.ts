@@ -137,7 +137,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
     ...extras.map(row => ({ ...row, _history_type: "Registo da plataforma" })),
     ...disputes.map(row => ({ ...row, _history_type: platform === "mestre24" ? "Relatório" : "Disputa" })),
     ...activity.map(row => ({ ...row, _history_type: platform === "mestre24" ? "Avaliação" : "Actividade" })),
-  ].sort((a, b) => Date.parse(String(b.created_at || b.updated_at || "")) - Date.parse(String(a.created_at || a.updated_at || "")));
+  ].sort((a, b) => { const newer = (row: Record<string, unknown>) => Date.parse(String(row.created_at || row.updated_at || "")); return newer(b) - newer(a); });
   const signed = async (items: unknown[]) => Promise.all(items.map(item => signRow(platform, item)));
   return NextResponse.json({ platform, id: resolvedId, profile: await signRow(platform, profile), kyc: await signed(kycRows), wallets: await signed(wallets), orders: await signed(orders), disputes: await signed(disputes), activity: await signed(activity), extras: await signed(extras), history: await signed(history), counts: { kyc: kycRows.length, wallets: wallets.length, operations: orders.length, disputes: disputes.length, activity: activity.length, history: history.length } }, { headers: { "Cache-Control": "private, no-store" } });
 }
