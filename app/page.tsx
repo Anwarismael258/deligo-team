@@ -1068,6 +1068,19 @@ if(active==="Operações de Campo")void refreshField();
     .shell .platformDetailHead h2{margin:5px 0 3px;color:#f4f8ff!important;font-size:22px}
     .shell .platformDetailHead p{margin:0;color:#9db6ce!important;font-size:10px}
     .shell .platformDetailHead button{flex:0 0 auto}
+    .shell .platformAdminPanel{background:#0b1b2d!important;border-color:#294766!important;color:#eaf2ff}
+    .shell .platformAdminHead,.shell .platformAdminStats{border-color:#294766!important;background:#102238!important}
+    .shell .platformAdminHead h3,.shell .platformAdminQueueTitle h4{color:#f4f8ff!important}
+    .shell .platformAdminHead p,.shell .platformAdminQueueTitle span,.shell .platformAdminRow small{color:#9db6ce!important}
+    .shell .platformAdminHead>b{background:#153a38!important;color:#a8ead0!important}
+    .shell .platformAdminStats article,.shell .platformAdminStats button{background:#132a43!important;border-color:#315174!important;color:#eaf2ff!important}
+    .shell .platformAdminStats button.selected{background:#173b59!important;border-color:#38e8ff!important}
+    .shell .platformAdminStats span,.shell .platformAdminStats small{color:#9db6ce!important}
+    .shell .platformAdminStats strong,.shell .platformAdminRow strong{color:#f4f8ff!important}
+    .shell .platformAdminRow{border-color:#294766!important}
+    .shell .platformAdminActions button{background:#153a38!important;color:#a8ead0!important;border:1px solid #2c665b!important}
+    .shell .platformAdminActions .danger{background:#422333!important;color:#ffb0bd!important;border-color:#7b3b50!important}
+    .shell .platformAdminRow .recordInfo{background:#12263d!important;color:#cde4fa!important;border-color:#315174!important}
     @media(max-width:650px){.shell .platformDetailHead{align-items:flex-start;flex-direction:column}.shell .platformDetailHead button{width:100%}}
   `;
 
