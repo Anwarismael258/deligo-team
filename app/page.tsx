@@ -82,10 +82,10 @@ const notificationHref = (notification: FinanceRecord) => {
   const direct = String(notification.target_url || "").trim();
   if (direct.startsWith("/") && direct !== "/" && !direct.startsWith("//")) return direct;
   const source = `${String(notification.source_type || notification.type || "")} ${String(notification.title || "")} ${String(notification.body || "")}`.toLowerCase();
-  if (source.includes("order") || source.includes("delivery") || source.includes("ride") || source.includes("trip")) return "/mapa-operacional";
+  if (["order", "delivery", "ride", "trip", "journey", "travel"].some(value => source.includes(value))) return "/mapa-operacional";
   if (source.includes("dispute") || source.includes("complaint") || source.includes("support") || source.includes("ticket") || source.includes("whatsapp") || source.includes("message")) return "/apoio-cliente";
   if (source.includes("kyc") || source.includes("field") || source.includes("courier") || source.includes("restaurant")) return "/field";
-  if (source.includes("service_request") || source.includes("service request")) return "/plataformas";
+  if (["service_request", "service request", "booking", "appointment", "professional_request"].some(value => source.includes(value))) return "/plataformas?platform=mestre24&tab=pedidos";
   if (source.includes("task") || source.includes("project")) return "/projectos-tarefas";
   if (source.includes("finance") || source.includes("withdraw") || source.includes("payment")) return "/financas";
   if (source.includes("loan") || source.includes("credit")) return "/microcredito";
@@ -96,7 +96,8 @@ const notificationActionLabel = (notification: FinanceRecord) => {
   const source = `${String(notification.source_type || notification.type || "")} ${String(notification.title || "")} ${String(notification.body || "")}`.toLowerCase();
   if (source.includes("kyc") || source.includes("field")) return "Rever KYC";
   if (source.includes("support") || source.includes("ticket") || source.includes("message") || source.includes("whatsapp") || source.includes("dispute")) return "Abrir mensagem";
-  if (source.includes("order") || source.includes("delivery") || source.includes("ride") || source.includes("trip")) return "Acompanhar no mapa";
+  if (["order", "delivery", "ride", "trip", "journey", "travel"].some(value => source.includes(value))) return "Acompanhar rota";
+  if (["service_request", "service request", "booking", "appointment", "professional_request"].some(value => source.includes(value))) return "Abrir pedido";
   return "Abrir origem";
 };
 const notificationSummary = (notification: FinanceRecord) => {
@@ -121,6 +122,12 @@ const notificationPlatformFor = (notification: FinanceRecord) => {
   if (text.includes("market") || text.includes("taomoz")) return "DeliGo Market";
   if (text.includes("deligo") || text.includes("eats")) return "DeliGo";
   return "Central";
+};
+const notificationShouldPop = (notification: FinanceRecord) => {
+  const source = `${String(notification.source_type || notification.type || "")} ${String(notification.title || "")} ${String(notification.body || "")}`.toLowerCase();
+  const operational = ["order", "delivery", "ride", "trip", "journey", "travel", "service_request", "service request", "booking", "kyc", "ticket", "support", "dispute"].some(value => source.includes(value));
+  const priority = String(notification.priority || "normal").toLowerCase();
+  return operational && !source.includes("manual_communication") && (priority !== "low" || source.includes("ride") || source.includes("trip") || source.includes("service_request"));
 };
 
 const moduleIcons: Record<string, LucideIcon> = {
@@ -414,8 +421,10 @@ export function HQApp() {
   const [profileWithdrawal,setProfileWithdrawal]=useState<{walletId:string;amount:string;method:string;phone:string;busy:boolean}>({walletId:"",amount:"",method:"mpesa",phone:"",busy:false});
   const [notifications,setNotifications]=useState<FinanceRecord[]>([]);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
+  const [notificationToast,setNotificationToast]=useState<FinanceRecord|null>(null);
   const notificationUnreadRef=useRef<Set<string>>(new Set());
   const notificationLoadedRef=useRef(false);
+  const notificationToastTimerRef=useRef<number|null>(null);
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employeeStatusFilter, setEmployeeStatusFilter] = useState("current");
@@ -665,7 +674,7 @@ export function HQApp() {
       setOwnWallets(Array.isArray(data.wallets) ? data.wallets : []);
     }).catch(error => { setOwnProfile(null); setOwnWallets([]); setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
   }, [active, sessionUser?.id]);
-  const refreshNotifications=async()=>{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unread=new Set<string>(next.filter((item:FinanceRecord)=>!item.read_at).map((item:FinanceRecord)=>String(item.id)));if(notificationLoadedRef.current&&Array.from(unread).some(id=>!notificationUnreadRef.current.has(id)))playNotificationAlert();notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)};
+  const refreshNotifications=async()=>{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)};
   useEffect(() => {
     if (active !== "Visão geral" || !sessionUser) return;
     let cancelled = false;
@@ -1193,6 +1202,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>}
           </div>
         </header>
+        {notificationToast&&<div className="notificationToast" role="alert"><button className="notificationToastMain" onClick={()=>{if(!notificationToast.read_at)void markNotifications(String(notificationToast.id));window.location.assign(notificationHref(notificationToast))}}><span className="notificationToastKicker">{notificationPlatformFor(notificationToast)} · novo aviso</span><strong>{notificationSummary(notificationToast)}</strong><small>{notificationActionLabel(notificationToast)}</small></button><button className="notificationToastClose" aria-label="Fechar aviso" onClick={()=>setNotificationToast(null)}>×</button></div>}
 
         <div className="content">
           <div className="eyebrow"><span>HQ</span> / {displayModuleLabel(active)}</div>

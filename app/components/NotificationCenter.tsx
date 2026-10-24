@@ -10,10 +10,10 @@ const destinationOf = (item: Row) => {
   const direct = text(item.target_url).trim();
   if (direct.startsWith("/") && direct !== "/" && !direct.startsWith("//")) return direct;
   const source = `${text(item.source_type)} ${text(item.type)} ${text(item.title)} ${text(item.body)}`.toLowerCase();
-  if (["order", "delivery", "ride", "trip"].some(value => source.includes(value))) return "/mapa-operacional";
+  if (["order", "delivery", "ride", "trip", "journey", "travel"].some(value => source.includes(value))) return "/mapa-operacional";
   if (["dispute", "complaint", "support", "ticket", "whatsapp", "message"].some(value => source.includes(value))) return "/apoio-cliente";
   if (["kyc", "field", "courier", "restaurant"].some(value => source.includes(value))) return "/field";
-  if (source.includes("service_request") || source.includes("service request")) return "/plataformas";
+  if (["service_request", "service request", "booking", "appointment", "professional_request"].some(value => source.includes(value))) return "/plataformas?platform=mestre24&tab=pedidos";
   if (source.includes("task") || source.includes("project")) return "/projectos-tarefas";
   if (["finance", "withdraw", "payment"].some(value => source.includes(value))) return "/financas";
   if (source.includes("loan") || source.includes("credit")) return "/microcredito";
@@ -24,7 +24,8 @@ const actionLabelOf = (item: Row) => {
   const source = `${text(item.source_type)} ${text(item.type)} ${text(item.title)} ${text(item.body)}`.toLowerCase();
   if (source.includes("kyc") || source.includes("field")) return "Rever KYC";
   if (["support", "ticket", "message", "whatsapp", "dispute"].some(value => source.includes(value))) return "Abrir mensagem";
-  if (["order", "delivery", "ride", "trip"].some(value => source.includes(value))) return "Acompanhar no mapa";
+  if (["order", "delivery", "ride", "trip", "journey", "travel"].some(value => source.includes(value))) return "Acompanhar rota";
+  if (["service_request", "service request", "booking", "appointment", "professional_request"].some(value => source.includes(value))) return "Abrir pedido";
   return "Abrir origem";
 };
 const summaryOf = (item: Row) => {

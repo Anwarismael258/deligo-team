@@ -8,6 +8,7 @@ const inboxRoles = new Set([
   "FINANCE",
   "SUPERVISOR",
   "CUSTOMER_SUPPORT",
+  "MARKETING",
 ]);
 
 function headers(serviceKey: string, profile: string) {
@@ -39,6 +40,38 @@ function eventText(event: Row) {
   const current = payload.new && typeof payload.new === "object" ? payload.new as Row : {};
   const status = String(current.status || "").toLowerCase();
   const reference = String(current.id || event.entity_id || "").slice(0, 8);
+  const source = `${type} ${String(event.entity_type || "")} ${JSON.stringify(current)}`.toLowerCase();
+  const value = (...keys: string[]) => {
+    for (const key of keys) {
+      const found = current[key] ?? payload[key];
+      if (found !== undefined && found !== null && String(found).trim()) return String(found).trim();
+    }
+    return "";
+  };
+
+  if (/(service[_ ]request|booking|appointment|professional[_ ]request)/.test(source)) {
+    const professional = value("professional_name", "provider_name", "professional", "provider");
+    const customer = value("customer_name", "client_name", "customer", "client");
+    const professionalPhone = value("professional_phone", "provider_phone", "professional_contact", "provider_contact");
+    const customerPhone = value("customer_phone", "client_phone", "customer_contact", "client_contact");
+    const service = value("service_name", "service_title", "title", "description");
+    const date = value("scheduled_at", "appointment_at", "requested_for", "date");
+    const details = [
+      professional ? `Profissional: ${professional}` : "",
+      customer ? `Cliente: ${customer}` : "",
+      professionalPhone ? `Contacto profissional: ${professionalPhone}` : "",
+      customerPhone ? `Contacto cliente: ${customerPhone}` : "",
+      service ? `Serviço: ${service}` : "",
+      date ? `Data: ${date}` : "",
+      reference ? `#${reference}` : "",
+    ].filter(Boolean);
+    return {
+      title: professional ? `Pedido para ${professional}` : "Novo pedido Mestre24",
+      body: details.join(" · ") || "A Central recebeu um pedido de serviço Mestre24.",
+      target: "/plataformas?platform=mestre24&tab=pedidos",
+      audience: "operations",
+    };
+  }
 
   if (type.includes("kyc")) {
     return {
@@ -59,7 +92,7 @@ function eventText(event: Row) {
   return {
     title: type.includes("message") ? "Nova mensagem de suporte Mestre24" : "Novo atendimento Mestre24",
     body: "A Central recebeu uma nova mensagem ou atualização de suporte.",
-    target: "/apoio-ao-cliente?platform=mestre24",
+    target: "/apoio-cliente?platform=mestre24",
     audience: "support",
   };
 }
@@ -69,7 +102,7 @@ function recipients(employees: Row[], audience: string) {
     const role = canonicalCorporateRole(employee.role);
     if (!inboxRoles.has(role)) return false;
     if (role === "SUPER_ADMIN" || role === "SUPERVISOR") return true;
-    if (audience === "support") return ["CUSTOMER_SUPPORT", "SUPERVISOR"].includes(role);
+    if (audience === "support") return ["CUSTOMER_SUPPORT", "SUPERVISOR", "MARKETING"].includes(role);
     if (audience === "finance") return ["FINANCE", "SUPERVISOR"].includes(role);
     return ["SUPERVISOR", "OPERATIONS", "FINANCE"].includes(role);
   });
@@ -100,6 +133,8 @@ export async function ingestMestre24CentralEvents() {
       rows.push({
         employee_id: employee.id,
         type: "mestre24_central_event",
+        source_type: "mestre24_central_event",
+        source_id: id,
         title: text.title,
         body: text.body,
         platform_id: null,
