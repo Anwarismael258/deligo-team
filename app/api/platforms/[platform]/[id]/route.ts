@@ -16,7 +16,7 @@ const read = async (platform: SupportedPlatform, path: string) => {
     return [];
   }
 };
-const mediaFields = ["photo_url", "avatar_url", "image_url", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_docs", "kyc_documents", "files", "attachments", "identity_document"];
+const mediaFields = ["photo_url", "avatar_url", "profile_photo_url", "profile_image_url", "image_url", "logo_url", "cover_url", "menu_image_url", "menu_images", "gallery", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_docs", "kyc_documents", "files", "attachments", "identity_document"];
 const mediaPathFields = new Set(["url", "path", "reference", "storage_path", "file_url", "document_url", "photo_url", "image_url"]);
 const signMediaValue = async (platform: SupportedPlatform, value: unknown): Promise<unknown> => {
   if (typeof value === "string") return value ? await signPlatformPath(platform, value) : value;
@@ -38,6 +38,18 @@ const signRow = async (platform: SupportedPlatform, value: unknown) => {
   }
   return row;
 };
+const uniqueRows = (rows: unknown[]) => rows.filter((row, index, all) => {
+  if (!row || typeof row !== "object") return false;
+  const value = row as Record<string, unknown>;
+  const key = String(value.id || value.reference || `${value.created_at || value.updated_at || "row"}-${index}`);
+  return all.findIndex(candidate => {
+    if (!candidate || typeof candidate !== "object") return false;
+    const other = candidate as Record<string, unknown>;
+    return String(other.id || other.reference || `${other.created_at || other.updated_at || "row"}-${all.indexOf(candidate)}`) === key;
+  }) === index;
+}) as Record<string, unknown>[];
+const readMany = async (platform: SupportedPlatform, paths: string[]) => uniqueRows((await Promise.all(paths.map(path => read(platform, path)))).flat());
+const relationPaths = (table: string, keys: string[], id: string, select = "*") => keys.map(key => `${table}?${key}=eq.${encodeURIComponent(id)}&select=${select}&order=created_at.desc&limit=50`);
 
 export async function GET(_request: NextRequest, context: { params: Promise<{ platform: string; id: string }> }) {
   const { platform, id } = await context.params;
@@ -80,14 +92,52 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
     if (!profile && subject) profile = { ...subject, id: resolvedId };
   }
   const subjectEncoded = encodeURIComponent(resolvedId);
-  const [kyc, wallets, orders, disputes, activity] = await Promise.all([
-    read(platform, platform === "mestre24" ? `kyc_verifications?user_id=eq.${subjectEncoded}&select=*&limit=20` : platform === "comunhao" ? `church_applications?id=eq.${subjectEncoded}&select=*&limit=1` : platform === "sarca" ? `driver_documents?driver_id=eq.${subjectEncoded}&select=*&limit=50` : platform === "taomoz" ? `kyc_submissions?user_id=eq.${subjectEncoded}&select=*&limit=20` : `kyc_submissions?user_id=eq.${subjectEncoded}&select=*&limit=20`),
-    read(platform, platform === "taomoz" ? `wallets?user_id=eq.${subjectEncoded}&select=*&limit=20` : `wallets?owner_id=eq.${subjectEncoded}&select=*&limit=20`),
-    read(platform, platform === "mestre24" ? `service_requests?client_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20` : platform === "sarca" ? `trips?driver_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20` : `orders?user_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20`),
-    read(platform, platform === "mestre24" ? `reports?reporter_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20` : platform === "deligo" ? `order_disputes?user_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20` : `disputes?user_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20`),
-    read(platform, platform === "mestre24" ? `reviews?client_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20` : platform === "deligo" ? `admin_actions_log?target_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20` : `internal_notifications?user_id=eq.${subjectEncoded}&select=*&order=created_at.desc&limit=20`),
+  const ids = uniqueRows([{ id: initialId }, { id: resolvedId }, { id: profile?.user_id }, { id: profile?.profile_id }]).map(row => String(row.id)).filter(Boolean);
+  const kycPaths = ids.flatMap(value => platform === "mestre24"
+    ? relationPaths("kyc_verifications", ["user_id", "profile_id"], value)
+    : platform === "sarca"
+      ? relationPaths("driver_documents", ["driver_id", "user_id"], value)
+      : platform === "comunhao"
+        ? relationPaths("church_applications", ["id", "user_id", "owner_id"], value)
+        : relationPaths("kyc_submissions", ["id", "user_id", "profile_id", "owner_id"], value));
+  const walletPaths = ids.flatMap(value => relationPaths("wallets", ["owner_id", "user_id", "profile_id"], value));
+  const operationPaths = platform === "mestre24"
+    ? ids.flatMap(value => relationPaths("service_requests", ["client_id", "professional_id", "provider_id", "user_id"], value))
+    : platform === "sarca"
+      ? ids.flatMap(value => relationPaths("trips", ["driver_id", "rider_id", "passenger_id", "user_id"], value))
+      : ids.flatMap(value => relationPaths("orders", ["user_id", "customer_id", "buyer_id", "seller_id", "restaurant_id", "courier_id", "rider_id"], value));
+  const disputePaths = platform === "mestre24"
+    ? ids.flatMap(value => relationPaths("reports", ["reporter_id", "client_id", "professional_id", "user_id"], value))
+    : platform === "deligo"
+      ? ids.flatMap(value => relationPaths("order_disputes", ["user_id", "customer_id", "restaurant_id", "courier_id"], value))
+      : ids.flatMap(value => relationPaths("disputes", ["user_id", "owner_id", "customer_id", "driver_id", "professional_id"], value));
+  const activityPaths = platform === "mestre24"
+    ? ids.flatMap(value => relationPaths("reviews", ["client_id", "professional_id", "user_id"], value))
+    : platform === "deligo"
+      ? ids.flatMap(value => relationPaths("admin_actions_log", ["target_id", "user_id"], value))
+      : ids.flatMap(value => relationPaths("internal_notifications", ["user_id", "owner_id"], value));
+  const extraPaths = platform === "comunhao"
+    ? ids.flatMap(value => [
+      ...relationPaths("church_events", ["church_id", "owner_id", "user_id"], value),
+      ...relationPaths("church_subscriptions", ["church_id", "owner_id", "user_id"], value),
+      ...relationPaths("donations", ["church_id", "owner_id", "user_id"], value),
+    ])
+    : [];
+  const [kyc, wallets, orders, disputes, activity, extras] = await Promise.all([
+    readMany(platform, kycPaths),
+    readMany(platform, walletPaths),
+    readMany(platform, operationPaths),
+    readMany(platform, disputePaths),
+    readMany(platform, activityPaths),
+    readMany(platform, extraPaths),
   ]);
-  const kycRows = [...sourceKyc, ...(kyc as Record<string, unknown>[])].filter((row, index, all) => all.findIndex(item => String(item.id || "") === String(row.id || "")) === index);
+  const kycRows = uniqueRows([...sourceKyc, ...kyc]);
+  const history = [
+    ...orders.map(row => ({ ...row, _history_type: platform === "mestre24" ? "Pedido de serviço" : platform === "sarca" ? "Viagem" : "Pedido" })),
+    ...extras.map(row => ({ ...row, _history_type: "Registo da plataforma" })),
+    ...disputes.map(row => ({ ...row, _history_type: platform === "mestre24" ? "Relatório" : "Disputa" })),
+    ...activity.map(row => ({ ...row, _history_type: platform === "mestre24" ? "Avaliação" : "Actividade" })),
+  ].sort((a, b) => Date.parse(String(b.created_at || b.updated_at || "")) - Date.parse(String(a.created_at || a.updated_at || "")));
   const signed = async (items: unknown[]) => Promise.all(items.map(item => signRow(platform, item)));
-  return NextResponse.json({ platform, id: resolvedId, profile: await signRow(platform, profile), kyc: await signed(kycRows), wallets: await signed(wallets), orders: await signed(orders), disputes: await signed(disputes), activity: await signed(activity) }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ platform, id: resolvedId, profile: await signRow(platform, profile), kyc: await signed(kycRows), wallets: await signed(wallets), orders: await signed(orders), disputes: await signed(disputes), activity: await signed(activity), extras: await signed(extras), history: await signed(history), counts: { kyc: kycRows.length, wallets: wallets.length, operations: orders.length, disputes: disputes.length, activity: activity.length, history: history.length } }, { headers: { "Cache-Control": "private, no-store" } });
 }
