@@ -67,6 +67,7 @@ const notificationModuleFor = (notification: FinanceRecord) => {
   if (target.startsWith("/financas") || source.includes("finance") || source.includes("withdrawal") || source.includes("payment")) return "Finanças";
   if (target.startsWith("/microcredito") || source.includes("loan") || source.includes("microcredit")) return "Triunfal Microcrédito";
   if (target.startsWith("/apoio-cliente") || source.includes("support") || source.includes("ticket") || source.includes("complaint")) return "Apoio ao Cliente";
+  if (target.startsWith("/caixa-de-entrada") || source.includes("inbox_message")) return "Caixa de Entrada";
   if (target.startsWith("/marketing/vagas") || source.includes("vacancy") || source.includes("job")) return "Vagas";
   if (target.startsWith("/marketing/conteudos") || source.includes("news") || source.includes("content")) return "Site Institucional";
   if (target.startsWith("/marketing") || source.includes("marketing") || source.includes("campaign")) return "Marketing";
@@ -227,6 +228,7 @@ const routeByModule: Record<string, string> = {
   "Pessoas": "/pessoas",
   "Recursos Humanos": "/recursos-humanos",
   "Finanças": "/financas",
+  "Caixa de Entrada": "/caixa-de-entrada",
   "Contabilidade": "/contabilidade",
   "Jurídico": "/juridico",
   "Conformidade e Risco": "/conformidade-risco",

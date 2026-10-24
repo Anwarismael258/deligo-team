@@ -5,7 +5,7 @@ const entity = "10000000-0000-0000-0000-000000000001";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
 const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
 // Central support access is role-based and shared across all connected apps.
-const viewerRoles = new Set(["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT","FINANCE","ACCOUNTING"]);
+const viewerRoles = new Set(["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT","FINANCE","ACCOUNTING","MARKETING"]);
 const replyRoles = new Set(["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT","OPERATIONS","FINANCE","ACCOUNTING"]);
 const escalationRoles = new Set(["SUPER_ADMIN","SUPERVISOR","FINANCE","ACCOUNTING"]);
 const financeReplyActions = new Set(["analysis","waiting_customer","resolve","assign","escalate","reopen","mark_read"]);
