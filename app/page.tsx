@@ -79,15 +79,36 @@ const notificationModuleFor = (notification: FinanceRecord) => {
 };
 const notificationHref = (notification: FinanceRecord) => {
   const direct = String(notification.target_url || "").trim();
-  if (direct.startsWith("/") && !direct.startsWith("//")) return direct;
+  if (direct.startsWith("/") && direct !== "/" && !direct.startsWith("//")) return direct;
   const source = `${String(notification.source_type || notification.type || "")} ${String(notification.title || "")} ${String(notification.body || "")}`.toLowerCase();
+  if (source.includes("order") || source.includes("delivery") || source.includes("ride") || source.includes("trip")) return "/mapa-operacional";
   if (source.includes("dispute") || source.includes("complaint") || source.includes("support") || source.includes("ticket") || source.includes("whatsapp") || source.includes("message")) return "/apoio-cliente";
   if (source.includes("kyc") || source.includes("field") || source.includes("courier") || source.includes("restaurant")) return "/field";
+  if (source.includes("service_request") || source.includes("service request")) return "/plataformas";
   if (source.includes("task") || source.includes("project")) return "/projectos-tarefas";
   if (source.includes("finance") || source.includes("withdraw") || source.includes("payment")) return "/financas";
   if (source.includes("loan") || source.includes("credit")) return "/microcredito";
   if (source.includes("user") || source.includes("profile")) return "/utilizadores";
   return routeByModule[notificationModuleFor(notification) || "Centro de Notificações"] || "/notificacoes";
+};
+const notificationActionLabel = (notification: FinanceRecord) => {
+  const source = `${String(notification.source_type || notification.type || "")} ${String(notification.title || "")} ${String(notification.body || "")}`.toLowerCase();
+  if (source.includes("kyc") || source.includes("field")) return "Rever KYC";
+  if (source.includes("support") || source.includes("ticket") || source.includes("message") || source.includes("whatsapp") || source.includes("dispute")) return "Abrir mensagem";
+  if (source.includes("order") || source.includes("delivery") || source.includes("ride") || source.includes("trip")) return "Acompanhar no mapa";
+  return "Abrir origem";
+};
+const notificationSummary = (notification: FinanceRecord) => {
+  const source = String(notification.source_type || notification.type || "").toLowerCase();
+  const title = String(notification.title || "Notificação").trim();
+  const body = String(notification.body || "").trim();
+  const reference = String(notification.source_id || "").trim();
+  const platform = notificationPlatformFor(notification);
+  if (source.includes("field_kyc") || source.includes("kyc")) return `Novo KYC para revisão · ${platform}${reference ? ` · #${reference.slice(0, 12)}` : ""}`;
+  if (source.includes("support") || source.includes("ticket") || source.includes("message") || source.includes("whatsapp")) return `${title} · ${platform}${body ? ` · ${body}` : ""}`;
+  if (source.includes("platform_event") || source.includes("order") || source.includes("delivery") || source.includes("ride") || source.includes("trip")) return `${title} · ${platform}${reference ? ` · #${reference.slice(0, 12)}` : body ? ` · ${body}` : ""}`;
+  if (body) return body;
+  return `${title}${reference ? ` · #${reference.slice(0, 12)}` : ""}`;
 };
 const notificationPlatformFor = (notification: FinanceRecord) => {
   const explicit = String(notification.platform_name || notification.platform || notification.platform_slug || "").trim().toLowerCase();
@@ -1150,7 +1171,7 @@ if(active==="Operações de Campo")void refreshField();
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
              <button className="iconButton" title="Notificações" aria-label={`Notificações${unreadNotifications.length?`, ${unreadNotifications.length} não lidas`:""}`} onClick={()=>setNotificationsOpen(!notificationsOpen)}><Bell aria-hidden="true" size={19} strokeWidth={2.2} />{unreadNotifications.length>0&&<><i /><b className="notificationCount">{unreadNotifications.length>99?"99+":unreadNotifications.length}</b></>}</button>
-            {notificationsOpen&&<div className="notificationMenu"><div className="notificationMenuHead"><strong>Notificações</strong><span>{unreadNotifications.length ? `${unreadNotifications.length} não lidas` : "Tudo lido"}</span><button onClick={()=>void markNotifications()}>Ler tudo</button></div>{notificationPreviewGroups.map(([platformName,items])=><section className="notificationPlatformGroup" key={platformName}><h4>{platformName}<b>{items.filter(item=>!item.read_at).length || ""}</b></h4>{items.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);window.location.assign(notificationHref(n))}}><strong>{String(n.title||"Notificação")}</strong><span>{String(n.body||"")}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")} · Abrir origem</small></button>)}</section>)}{!notifications.length&&<p>Sem notificações.</p>}<button className="notificationMenuFooter" onClick={()=>window.location.assign("/notificacoes")}>Ver centro completo</button></div>}
+            {notificationsOpen&&<div className="notificationMenu"><div className="notificationMenuHead"><strong>Notificações</strong><span>{unreadNotifications.length ? `${unreadNotifications.length} não lidas` : "Tudo lido"}</span><button onClick={()=>void markNotifications()}>Ler tudo</button></div>{notificationPreviewGroups.map(([platformName,items])=><section className="notificationPlatformGroup" key={platformName}><h4>{platformName}<b>{items.filter(item=>!item.read_at).length || ""}</b></h4>{items.map(n=><button className={n.read_at?"":"unread"} key={n.id} onClick={()=>{if(!n.read_at)void markNotifications(n.id);window.location.assign(notificationHref(n))}}><strong>{notificationSummary(n)}</strong><span>{notificationActionLabel(n)}</span><small>{new Date(String(n.created_at)).toLocaleString("pt-MZ")}</small></button>)}</section>)}{!notifications.length&&<p>Sem notificações.</p>}<button className="notificationMenuFooter" onClick={()=>window.location.assign("/notificacoes")}>Ver centro completo</button></div>}
             <button className="accountTrigger" onClick={() => setAccountOpen(!accountOpen)} aria-label="Abrir menu da conta">
               <div className="miniAvatar">{ownAvatarUrl?<img src={ownAvatarUrl} alt="Fotografia de perfil"/>:currentPersona.initials}</div>
               <div><strong>{currentPersona.name}</strong><span>{currentPersona.role}</span></div><b>⌄</b>
