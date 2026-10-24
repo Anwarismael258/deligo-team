@@ -1081,6 +1081,20 @@ if(active==="Operações de Campo")void refreshField();
     .shell .platformAdminActions button{background:#153a38!important;color:#a8ead0!important;border:1px solid #2c665b!important}
     .shell .platformAdminActions .danger{background:#422333!important;color:#ffb0bd!important;border-color:#7b3b50!important}
     .shell .platformAdminRow .recordInfo{background:#12263d!important;color:#cde4fa!important;border-color:#315174!important}
+    @media(max-width:720px){
+      .shell .content{padding:18px 12px}
+      .shell .analyticsKpiGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      .shell .platformAdminPanel{margin:0;border-radius:12px}
+      .shell .platformAdminStats{grid-template-columns:repeat(2,minmax(0,1fr));padding:10px}
+      .shell .platformAdminQueue{padding:12px}
+      .shell .platformAdminRow{align-items:flex-start;flex-wrap:wrap}
+      .shell .platformAdminRow .profileLink{min-width:calc(100% - 48px)}
+      .shell .platformAdminRow .recordInfo{margin-left:auto}
+      .shell .platformAdminActions{width:100%;justify-content:flex-start}
+      .shell .platformAdminActions button{min-height:34px}
+      .shell .platformCardMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+    }
+    @media(max-width:480px){.shell .analyticsKpiGrid{grid-template-columns:1fr!important}.shell .platformAdminStats{grid-template-columns:1fr}.shell .platformAdminHead{padding:14px}.shell .platformAdminQueueTitle{align-items:flex-start;flex-direction:column;gap:4px}}
     @media(max-width:650px){.shell .platformDetailHead{align-items:flex-start;flex-direction:column}.shell .platformDetailHead button{width:100%}}
   `;
 
