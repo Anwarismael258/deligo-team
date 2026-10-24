@@ -192,6 +192,20 @@ footer{display:flex;justify-content:space-between;border-top:1px solid var(--lin
 /* Swipe gestures: the sidebar closes left on mobile and open profile sheets close upward. */
 .profileModal{touch-action:pan-y;overscroll-behavior:contain}
 @media(max-width:720px){.profileModal{align-self:end;max-height:calc(100vh - 24px);border-radius:18px 18px 0 0}}
+.shell .kycGalleryBackdrop{background:#020915ed!important;backdrop-filter:blur(8px)}
+.shell .profileModal{background:#0b1b2d!important;border:1px solid #315174;color:#eaf2ff;box-shadow:0 24px 80px #000b}
+.shell .profileModal .kycGalleryHead{border-bottom:1px solid #294766;padding-bottom:14px}
+.shell .profileModal .kycGalleryHead span{color:#69d8ff}
+.shell .profileModal .kycGalleryHead h3,.shell .profileModal .profileSectionTitle{color:#f4f8ff}
+.shell .profileModal .kycGalleryHead p,.shell .profileModal .profileFields span,.shell .profileModal .profileSummary span{color:#9db6ce}
+.shell .profileModal .kycGalleryHead button,.shell .profileModal .profileActions button{background:#153a58;border:1px solid #3b6d91;color:#eaf7ff}
+.shell .profileModal .profileSummary article,.shell .profileModal .profileHistory,.shell .profileModal .profileFields>div{background:#102238;border:1px solid #294766;border-radius:10px}
+.shell .profileModal .profileSummary article{padding:12px}
+.shell .profileModal .profileSummary strong,.shell .profileModal .profileFields strong,.shell .profileModal .profileHistory strong{color:#f4f8ff;overflow-wrap:anywhere}
+.shell .profileModal .profileHistory{padding:0 12px}
+.shell .profileModal .profileHistory>div{border-top-color:#294766}
+.shell .profileModal .profileHistory span{color:#9db6ce}
+.shell .profileModal .kycGalleryGrid a{background:#102238;border-color:#315174;color:#eaf2ff}
 .walletWithdrawButton.isAvailable{background:#16834d;color:#fff;box-shadow:0 4px 12px #16834d26}.walletWithdrawButton.isAvailable:hover{background:#116b3e}
 .executiveOverviewDashboard .analyticsChartHeading p{display:none}.executiveOverviewDashboard .analyticsChartContainer{padding:10px}.executiveOverviewDashboard .analyticsChartCanvas{height:240px;min-height:240px;background:linear-gradient(180deg,#fff,#fffaf8);border:1px solid #f0e4df;border-radius:8px;padding:4px;box-sizing:border-box}.executiveOverviewDashboard .analyticsChartCanvas .recharts-responsive-container{height:240px!important;min-height:240px!important}.executiveOverviewDashboard .analyticsChartCanvas .recharts-wrapper,.executiveOverviewDashboard .analyticsChartCanvas svg{display:block;min-height:240px}.executiveOverviewDashboard .analyticsDataNote{font-size:9px}.executiveOverviewDashboard .analyticsInsightList p{font-size:9px}.executiveOverviewDashboard .executiveVisualGrid{margin-top:0}
 .platformAnalyticsPanel .platformAnalyticsHead p,.platformAnalyticsPanel .analyticsChartHeading p{display:none}.platformAnalyticsPanel .analyticsChartContainer{padding:10px}.platformAnalyticsPanel .analyticsChartCanvas{height:205px}.platformAnalyticsPanel .analyticsChartCanvas .recharts-responsive-container{height:205px!important}.platformAnalyticsPanel .analyticsDataNote{font-size:9px}
