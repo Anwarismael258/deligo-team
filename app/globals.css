@@ -334,5 +334,94 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .financeTransferForm,.financeWithdrawalForm{background:linear-gradient(145deg,#0d2135,#102b43);border-color:#315174;box-shadow:0 12px 30px #06111f44;color:#eaf2ff}.financeTransferForm label span,.financeWithdrawalForm label span{color:#b8d0e5}.financeTransferForm input,.financeTransferForm select,.financeWithdrawalForm input,.financeWithdrawalForm select{background:#091a2b;border-color:#477195;color:#f4f9ff}.financeTransferForm input:focus,.financeTransferForm select:focus,.financeWithdrawalForm input:focus,.financeWithdrawalForm select:focus{outline:2px solid #4aa8d8;outline-offset:1px}.financeTransferForm small,.financeWithdrawalForm small{color:#b8d0e5;font-size:8px;line-height:1.4}.financeTransferForm .primaryAction,.financeWithdrawalForm .primaryAction{background:#16834d;color:#fff;border-color:#16834d}.financeTransferForm .primaryAction:hover,.financeWithdrawalForm .primaryAction:hover{background:#1aa45f}
 /* Microcredit detail preview: readable dark surface and an in-app document viewer. */
 .employeeDetail h3{color:#f4f9ff;margin:16px 0 8px}.employeeDetail p{color:#d4e0eb}.microcreditDocumentCard{cursor:zoom-in}.microcreditDocumentCard img{min-height:150px}.microcreditPreviewBackdrop{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:24px;background:#020915e8;backdrop-filter:blur(8px)}.microcreditPreview{width:min(920px,96vw);max-height:94vh;overflow:auto;border:1px solid #477195;border-radius:16px;background:#0b1b2d;color:#eef7ff;padding:14px;box-shadow:0 24px 80px #000c}.microcreditPreviewHead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.microcreditPreviewHead button,.microcreditPreview>a{border:1px solid #477195;border-radius:8px;background:#153a58;color:#eef7ff;padding:8px 11px;text-decoration:none;font-size:11px}.microcreditPreview>img{display:block;width:100%;height:auto;max-height:76vh;object-fit:contain;background:#020711;border-radius:10px}.microcreditPreview>a{display:inline-block;margin-top:12px}@media(max-width:600px){.microcreditPreviewBackdrop{padding:10px}.microcreditPreview{width:100%;padding:10px}.microcreditDocumentCard img{min-height:210px}}
+/* Microcrédito: manter a lista e os detalhes legíveis no tema escuro da Central. */
+.shell .financeWorkspace .procurementList{background:linear-gradient(145deg,#102238,#0b1727)!important;border-color:#294766!important;color:#eaf2ff}
+.shell .financeWorkspace .procurementList>button{background:#132b43!important;border-color:#315174!important;color:#eaf2ff!important}
+.shell .financeWorkspace .procurementList>button strong,.shell .financeWorkspace .procurementList>button b{color:#f4f8ff!important}
+.shell .financeWorkspace .procurementList>button span,.shell .financeWorkspace .procurementList>article span{color:#a9bfd6!important}
+.shell .financeWorkspace .employeeDetail .procurementList>article{background:#132b43!important;border-top-color:#315174!important;color:#eaf2ff;padding:11px 12px;border-radius:8px;margin-top:6px}
+.shell .financeWorkspace .employeeDetail .procurementList>article strong{color:#f4f8ff!important}
+.shell .financeWorkspace .employeeDetail .procurementList>article span{color:#a9bfd6!important}
+.shell .financeWorkspace .peopleSearchBar input,.shell .financeWorkspace .peopleSearchBar select,.shell .financeWorkspace textarea{background:#0b1b2d!important;border-color:#315174!important;color:#eaf2ff!important}
+.shell .financeWorkspace .peopleSearchBar input::placeholder,.shell .financeWorkspace textarea::placeholder{color:#8ea8c1!important}
+.marketingHeroCompact{justify-content:flex-start!important;padding:12px 14px!important;background:linear-gradient(120deg,#381b30,#6e294d)!important}
 /* Inbox email composer */
 .inboxEmailComposer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0;padding:16px;border:1px solid #315174;border-radius:14px;background:linear-gradient(145deg,#0d2135,#102b43);color:#eaf2ff}.inboxComposerHead{grid-column:1/-1;display:flex;justify-content:space-between;align-items:start;border-bottom:1px solid #315174;padding-bottom:10px}.inboxComposerHead span{font-size:8px;letter-spacing:.14em;color:#78d5ae}.inboxComposerHead h3{margin:5px 0 0;font-size:15px}.inboxComposerHead small{color:#b8d0e5;font-size:9px}.inboxEmailComposer label{display:grid;gap:5px}.inboxEmailComposer label span{font-size:9px;color:#b8d0e5;font-weight:700}.inboxEmailComposer input,.inboxEmailComposer select,.inboxEmailComposer textarea{width:100%;box-sizing:border-box;border:1px solid #477195;border-radius:8px;background:#091a2b;color:#f4f9ff;padding:9px;font:inherit;font-size:11px}.inboxEmailComposer textarea{resize:vertical}.inboxComposerWide{grid-column:1/-1}.inboxEmailComposer .primaryAction{justify-self:start;background:#16834d;border-color:#16834d;color:#fff}.inboxEmailComposer .primaryAction:disabled{opacity:.5}@media(max-width:650px){.inboxEmailComposer{grid-template-columns:1fr}.inboxComposerWide{grid-column:auto}.inboxComposerHead{align-items:stretch;flex-direction:column;gap:6px}}
+.inboxFolders{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.inboxFolders button{border:1px solid #315174;border-radius:9px;background:#132b43;color:#cfe1f2;padding:9px 13px;font-size:10px;font-weight:700;cursor:pointer}.inboxFolders button.active{background:#1d765c;border-color:#48c79b;color:#fff}.inboxFolders b{margin-left:5px;color:#8ee3c0}.shell .inboxUnread{box-shadow:inset 3px 0 0 #ff9d38}.shell .inboxUnread strong{color:#fff}.shell .inboxUnread b{color:#8ee3c0}@media(max-width:600px){.inboxFolders{display:grid;grid-template-columns:1fr 1fr 1fr}.inboxFolders button{padding:9px 5px;font-size:9px}}
+.institutionalWorkspace{color:#eaf2ff;background:linear-gradient(145deg,#101a2a,#14263b);border:1px solid #2d4865;border-radius:20px;box-shadow:0 18px 48px #06101f66}
+.institutionalWorkspace h2,.institutionalWorkspace h3,.institutionalWorkspace strong,.institutionalWorkspace b{color:#f4f8ff}
+.institutionalWorkspace p,.institutionalWorkspace small,.institutionalWorkspace span,.institutionalWorkspace label{color:#b8cae0}
+.institutionalWorkspace .marketingHero{background:linear-gradient(120deg,#251b3d,#5b234f);border:1px solid #6b477d;color:#fff}
+.institutionalWorkspace .marketingHero h2,.institutionalWorkspace .marketingHero span,.institutionalWorkspace .marketingHero p{color:#fff}
+.institutionalWorkspace .marketingHero button,.institutionalWorkspace button{border:1px solid #52769c;background:#18304a;color:#edf6ff;border-radius:9px}
+.institutionalWorkspace .marketingHero button:hover,.institutionalWorkspace button:hover{background:#234768;border-color:#7aa6d2}
+.institutionalWorkspace .institutionalNav button.active{background:#c63e6b;border-color:#ed7297;color:#fff}
+.institutionalWorkspace .institutionalFilters input,.institutionalWorkspace .institutionalFilters button,.institutionalWorkspace input,.institutionalWorkspace select,.institutionalWorkspace textarea{background:#102238;color:#edf6ff;border-color:#3a5878}
+.institutionalWorkspace input::placeholder,.institutionalWorkspace textarea::placeholder{color:#88a3bf}
+.institutionalWorkspace .financeKpis>article,.institutionalWorkspace .institutionalTable,.institutionalWorkspace .marketingSimpleGrid>article{background:#172b42;border:1px solid #345271;color:#eaf2ff}
+.institutionalWorkspace .institutionalRow{border-bottom-color:#29445f;color:#d9e8f7;background:transparent}
+.institutionalWorkspace .institutionalHead{background:#1d3854;color:#b8cae0}
+.institutionalWorkspace .institutionalRow .rowActions button{background:#18304a;color:#edf6ff;border-color:#52769c}
+.institutionalWorkspace .newsTitle img,.institutionalWorkspace .newsTitle i{background:#0c1828;border:1px solid #345271}
+.institutionalWorkspace .peopleEmpty,.institutionalWorkspace .operationalNotice{color:#d9e8f7;background:#142b43;border-color:#345271}
+.institutionalWorkspace .financeEntryForm{background:#14263b;border-color:#345271}
+.institutionalWorkspace .marketingStatus{color:#ffd7e2}
+.shell .fieldWorkspace,.shell .fieldKycOnly{color:#eaf2ff}
+.shell .fieldGovernanceGrid>article,.shell .kycApprovedFolder{background:linear-gradient(145deg,#11253b,#172f49)!important;border:1px solid #345879!important;color:#eaf2ff!important;box-shadow:0 14px 32px #06101f55}
+.shell .fieldGovernanceGrid h3,.shell .kycApprovedFolder>summary{color:#f4f8ff!important;font-size:14px;font-weight:800;letter-spacing:.01em}
+.shell .fieldDecisionRow{background:#193650!important;border:1px solid #3d6488!important;border-radius:12px;color:#eaf2ff!important;box-shadow:none}
+.shell .fieldDecisionRow strong{color:#f7fbff!important;font-size:12px}
+.shell .fieldDecisionRow span,.shell .fieldDecisionRow small{color:#b8cce0!important}
+.shell .fieldDecisionRow>b{background:#234d69!important;color:#9be5c6!important;border:1px solid #3b7890}
+.shell .fieldDecisionRow>div:last-child{border-top-color:#315472!important}
+.shell .fieldDecisionRow button{background:#204766!important;border:1px solid #5b86ab!important;color:#f0f7ff!important;border-radius:7px}
+.shell .fieldDecisionRow button:hover{background:#2d5d84!important}
+.shell .kycDocumentLink{background:#10263e!important;border-color:#3d6488!important;color:#eaf2ff}
+.shell .kycDocumentLink strong{color:#f4f8ff!important}
+.shell .kycDocumentLink a{background:#1d4b69!important;border-color:#6b9bc1!important;color:#fff!important}
+.shell .kycDocumentUnavailable{background:#3b2d24!important;border-color:#8b613c!important;color:#ffd4a8!important}
+.shell .fieldGovernanceGrid .peopleEmpty,.shell .kycApprovedFolder .peopleEmpty{background:#142b43;color:#b8cce0;border-color:#345879}
+@media(max-width:850px){.shell .fieldGovernanceGrid{grid-template-columns:1fr}.shell .fieldDecisionRow{grid-template-columns:minmax(0,1fr) auto}.shell .fieldDecisionRow>div:last-child{grid-column:1/-1}}
+@media(max-width:600px){.shell .fieldDecisionRow{grid-template-columns:1fr}.shell .fieldDecisionRow>b{grid-column:1;justify-self:start}.shell .fieldDecisionRow>div:last-child{grid-column:1}}
+.shell .operationsMapDashboard .analyticsFilters{background:linear-gradient(145deg,#132a43,#183653)!important;border:1px solid #345879!important;box-shadow:0 10px 24px #06101f44}
+.shell .operationsMapDashboard .analyticsFilters label,.shell .operationsMapDashboard .analyticsFilters span{color:#b8cce0!important}
+.shell .operationsMapDashboard .analyticsFilters select,.shell .operationsMapDashboard .analyticsFilters input{background:#0d2035!important;color:#f1f7ff!important;border:1px solid #52789c!important;border-radius:8px}
+.shell .operationsMapDashboard .analyticsFilters select option{background:#102238;color:#f1f7ff}
+.shell .operationsMapDashboard .analyticsChartContainer{background:linear-gradient(145deg,#11263d,#172f49)!important;border-color:#345879!important;color:#eaf2ff}
+.shell .operationsMapDashboard .analyticsChartHeading h3,.shell .operationsMapDashboard .analyticsBarRow strong,.shell .operationsMapDashboard .analyticsBarRow b{color:#f4f8ff!important}
+.shell .operationsMapDashboard .analyticsBarRow small,.shell .operationsMapDashboard .analyticsDataNote{color:#a9bfd6!important}
+.shell .operationsMapDashboard .analyticsMapLoading,.shell .operationsMapDashboard .analyticsEmptyState{background:#0c1e32!important;border-color:#345879!important;color:#b8cce0!important}
+.shell .operationsMapDashboard .analyticsBarRow i{background:linear-gradient(90deg,#ff4d6d,#ff9f43)!important}
+.shell .content .peoplePanel,.shell .content .peopleTable,.shell .content .platformModule,.shell .content .moduleToolbar,.shell .content .fieldGovernanceGrid>article,.shell .content .fieldMissionList,.shell .content .fieldDetailGrid>article,.shell .content .financePanel,.shell .content .workflowInbox,.shell .content .internalInboxWorkspace,.shell .content .reportGrid>article,.shell .content .reportSaved>article,.shell .content .legalGrid>article,.shell .content .assetWorkspace,.shell .content .hrLifecycle,.shell .content .hrEventActions,.shell .content .auditWorkspace,.shell .content .auditDetailGrid>article,.shell .content .permissionMatrix,.shell .content .processActivityGrid>article{background:#102238!important;border-color:#294766!important;color:#eaf2ff}
+.shell .content .peopleToolbar,.shell .content .peoplePanel .peopleToolbar,.shell .content .peopleTable .peopleHeader,.shell .content .moduleToolbar,.shell .content .financeTableHead,.shell .content .reportGrid>article>div{background:#132a43!important;border-color:#294766!important;color:#b8cce0}
+.shell .content .peopleRow,.shell .content .fieldMissionList article,.shell .content .fieldDetailGrid p,.shell .content .financeTableRow,.shell .content .reportSaved p,.shell .content .legalRow,.shell .content .auditRow,.shell .content .workflowInboxList article{background:transparent!important;border-color:#294766!important;color:#d9e8f7}
+.shell .content .peopleRow:hover,.shell .content .workflowInboxList article:hover{background:#17304a!important}
+.shell .content .workflowInbox .financeEntryForm{background:#102238!important;border-color:#294766!important;color:#eaf2ff}
+.shell .content .workflowInbox .financeEntryForm label>span{color:#b8cae0!important}
+.shell .content .workflowInbox .financeEntryForm input,.shell .content .workflowInbox .financeEntryForm textarea{background:#0b1b2d!important;border-color:#315174!important;color:#f4f8ff!important}
+.shell .content .workflowInbox .financeEntryForm input::placeholder,.shell .content .workflowInbox .financeEntryForm textarea::placeholder{color:#88a3bf!important}
+.shell .content .workflowInbox .safeNotice{background:#142b43!important;border-color:#345879!important;color:#d9e8f7!important}
+.shell .content .peopleEmpty,.shell .content .analyticsEmptyState,.shell .content .analyticsErrorState,.shell .content .moduleContext,.shell .content .safeNotice,.shell .content .operationalNotice{background:#142b43!important;border-color:#345879!important;color:#b8cce0!important}
+.shell .content .fieldMissionList article>b,.shell .content .connectedPill,.shell .content .status{background:#183f4d!important;color:#a8ead0!important}
+.shell .content button:not(.navItem):not(.navLabel):not(.menuButton):not(.iconButton){border-color:#52789c;color:#edf6ff}
+.shell .content button:not(.navItem):not(.navLabel):not(.menuButton):not(.iconButton):not(.primaryAction):not(.danger){background:#18304a}
+.shell .content button:not(.navItem):not(.navLabel):not(.menuButton):not(.iconButton):hover{background:#234768}
+.shell .content input,.shell .content select,.shell .content textarea{background:#0d2035!important;border-color:#3a5878!important;color:#edf6ff!important}
+.shell .content input::placeholder,.shell .content textarea::placeholder{color:#88a3bf!important}
+.shell .supportWorkspace,.shell .supportQueueView,.shell .supportTicketList,.shell .supportTicket,.shell .supportKindPicker button,.shell .supportTicketActions select,.shell .supportTicketActions button{color:#eaf2ff;background:#102238;border-color:#294766}
+.shell .supportTicketList{box-shadow:0 12px 30px #0003}
+.shell .supportTicket{border-top-color:#294766}
+.shell .supportTicketOpen span{color:#72d8ff}
+.shell .supportTicketOpen strong,.shell .supportTicketOpen small{color:#f4f8ff}
+.shell .supportTicketOpen small{color:#b8cae0}
+.shell .supportTicket.hasUnread{background:#173653}
+.shell .supportTicketActions select,.shell .supportTicketActions button{background:#132a43;color:#eaf2ff}
+.shell .supportCaseDetail{background:#0d1b2d;color:#f4f8ff;border-color:#315174}
+.shell .supportCaseColumns article{background:#132a43;border-color:#315174}
+.shell .supportCaseColumns h4,.shell .supportCaseColumns strong{color:#f4f8ff}
+.shell .supportCaseColumns span{color:#c4d5e7}
+.shell .supportCaseColumns small{color:#9db6ce}
+.shell .supportReplyComposer textarea{background:#12243a;border-color:#3a5878;color:#edf6ff}
+.shell .supportReplyComposer button{background:#173b59;color:#f4f8ff;border:1px solid #38e8ff}
+.shell .supportReplyActions .secondaryAction{background:#132a43;color:#eaf2ff;border-color:#315174}
+.shell .supportAttachmentPicker label,.shell .supportAttachmentPicker small{color:#b8cae0}

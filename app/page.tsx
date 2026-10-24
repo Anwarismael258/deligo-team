@@ -29,6 +29,8 @@ import {CommunicationAnalyticsDashboard} from "@/components/analytics/Communicat
 import { CorporateOperationsAnalyticsDashboard } from "@/components/analytics/CorporateOperationsAnalyticsDashboard";
 import { OperationsMapDashboard } from "@/components/analytics/OperationsMapDashboard";
 import { ExecutiveGlobeWidget } from "@/components/analytics/ExecutiveGlobeWidget";
+import { InstitutionalJobsManager } from "@/components/InstitutionalJobsManager";
+import { InstitutionalNewsManager } from "@/components/InstitutionalNewsManager";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 const kycDocumentLinks=(caseId:string,docs:unknown[])=>docs.map((doc,index)=>{const item=doc&&typeof doc==="object"?doc as Record<string,unknown>:null,value=typeof doc==="string"?doc:String(item?.signed_url||item?.url||"");if(!/^https?:\/\//i.test(value))return <span className="kycDocumentUnavailable" key={`${caseId}-doc-${index}`}>Documento {index+1}: indisponível</span>;return <span className="kycDocumentLink" key={`${caseId}-doc-${index}`}><strong>Documento {index+1}</strong><a href={value} target="_blank" rel="noreferrer">Abrir</a><a href={value} download={`documento-${index+1}`} target="_blank" rel="noreferrer">Guardar</a></span>});
@@ -715,9 +717,9 @@ export function HQApp() {
 
   useEffect(() => {
     if (!sessionRole || isFullAdmin) return;
-    const universallyAllowed = ["Meu Perfil", "DefiniÃ§ões", "SeguranÃ§a"];
+    const universallyAllowed = ["Meu Perfil", "Definições", "Segurança"];
     if (!visibleNav.some(([,label])=>label===active) && !universallyAllowed.includes(active)) {
-      setActive("VisÃ£o geral");
+      setActive("Visão geral");
       setSubArea("");
       window.history.replaceState({}, "", "/");
     }
@@ -793,7 +795,9 @@ export function HQApp() {
     setFieldData({...field,field_kyc_cases:[...native,...mergedCanonical,...aggregateWithoutCanonical]});
   };
   useEffect(()=>{if(active!=="Operações de Campo"||!sessionUser?.id)return;refreshField().catch(()=>{setFieldData({});setFieldNotice("Não foi possível carregar Operações de Campo para este perfil.")})},[active,sessionUser?.id]);
-  const playNotificationAlert=()=>{try{const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)return;const context=supportAudioRef.current||new AudioContextClass();supportAudioRef.current=context;if(context.state==="suspended")void context.resume();const oscillator=context.createOscillator(),gain=context.createGain();oscillator.type="sine";oscillator.frequency.setValueAtTime(880,context.currentTime);oscillator.frequency.exponentialRampToValueAtTime(660,context.currentTime+0.18);gain.gain.setValueAtTime(0.0001,context.currentTime);gain.gain.exponentialRampToValueAtTime(0.12,context.currentTime+0.02);gain.gain.exponentialRampToValueAtTime(0.0001,context.currentTime+0.28);oscillator.connect(gain);gain.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+0.3)}catch{}}
+  const ensureNotificationAudio=()=>{try{const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)return null;const context=supportAudioRef.current||new AudioContextClass();supportAudioRef.current=context;if(context.state==="suspended")void context.resume();return context}catch{return null}}
+  const playNotificationAlert=()=>{const context=ensureNotificationAudio();if(!context)return;try{const oscillator=context.createOscillator(),gain=context.createGain();oscillator.type="sine";oscillator.frequency.setValueAtTime(880,context.currentTime);oscillator.frequency.exponentialRampToValueAtTime(660,context.currentTime+0.18);gain.gain.setValueAtTime(0.0001,context.currentTime);gain.gain.exponentialRampToValueAtTime(0.12,context.currentTime+0.02);gain.gain.exponentialRampToValueAtTime(0.0001,context.currentTime+0.28);oscillator.connect(gain);gain.connect(context.destination);oscillator.start();oscillator.stop(context.currentTime+0.3)}catch{}}
+  useEffect(()=>{const unlock=()=>{ensureNotificationAudio();window.removeEventListener("pointerdown",unlock);window.removeEventListener("keydown",unlock)};window.addEventListener("pointerdown",unlock,{once:true,passive:true});window.addEventListener("keydown",unlock,{once:true});return()=>{window.removeEventListener("pointerdown",unlock);window.removeEventListener("keydown",unlock)}},[])
   const refreshSupport=async(ticketId?:string)=>{const requestId=++supportRequestRef.current;const params=new URLSearchParams();if(platform!=="Todas as plataformas")params.set("platform",platformSlug(platform));if(ticketId)params.set("ticket",ticketId);const query=params.toString();const r=await fetch(`/api/support${query?`?${query}`:""}`,{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).data||{};if(requestId!==supportRequestRef.current)return;const unreadIds=new Set<string>();for(const message of (next.support_conversations||[])){if(message.sender_type==="customer"&&!message.is_read)unreadIds.add(String(message.id))}if(supportLoadedRef.current&&Array.from(unreadIds).some(id=>!supportUnreadRef.current.has(id)))playNotificationAlert();supportUnreadRef.current=unreadIds;supportLoadedRef.current=true;setSupportData(next)};
   const markSupportTicketRead=async(ticketId:string)=>{setSupportData(current=>({...current,support_conversations:(current.support_conversations||[]).map(message=>String(message.ticket_id)===ticketId?{...message,is_read:true}:message)}));try{const response=await fetch("/api/support",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({ticketId,action:"mark_read"})});if(response.ok)await refreshSupport(ticketId)}catch{setSupportNotice("A conversa abriu, mas não foi possível confirmar a leitura no servidor.")}};
   useEffect(()=>{supportUnreadRef.current=new Set();supportLoadedRef.current=false;if(active!=="Apoio ao Cliente")return;let cancelled=false;const poll=async()=>{if(cancelled)return;try{await refreshSupport(selectedSupportTicket||undefined)}catch{if(!cancelled){setSupportData({});setSupportNotice("Não foi possível carregar o atendimento para este perfil.")}}};void poll();const timer=window.setInterval(()=>void poll(),3000);return()=>{cancelled=true;supportRequestRef.current+=1;window.clearInterval(timer)}},[active,platform,selectedSupportTicket]);
@@ -1004,7 +1008,7 @@ if(active==="Operações de Campo")void refreshField();
     } catch { setHomologationNotice("Não foi possível contactar a homologação. Tente novamente."); }
   };
   const navigate = (label: string) => {
-    if (["Avaliações & Reputação", "Site Institucional", "Vagas", "Relatórios"].includes(label)) {
+    if (["Avaliações & Reputação"].includes(label)) {
       window.location.assign(routeByModule[label]);
       return;
     }
@@ -1012,6 +1016,7 @@ if(active==="Operações de Campo")void refreshField();
     setSubArea(moduleDetails[label]?.[0] || "");
     setMenuOpen(false);
     window.history.pushState({}, "", routeByModule[label] || "/");
+    window.dispatchEvent(new PopStateEvent("popstate"));
     window.scrollTo({ top: 0, behavior: "smooth" });
     const ids = label === "Centro de Notificações"
       ? unreadNotifications.map(notification => String(notification.id))
@@ -1216,6 +1221,8 @@ if(active==="Operações de Campo")void refreshField();
           </div>
           {active === "Relatórios" && <CorporateOperationsAnalyticsDashboard mode="reports" />}
           {active === "Projectos e Tarefas" && <CorporateOperationsAnalyticsDashboard mode="projects" />}
+          {active === "Site Institucional" && <><CorporateOperationsAnalyticsDashboard mode="institutional" /><InstitutionalNewsManager /></>}
+          {active === "Vagas" && <><CorporateOperationsAnalyticsDashboard mode="jobs" /><InstitutionalJobsManager /></>}
           {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !analyticsActive.has(active) && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
@@ -1427,7 +1434,7 @@ if(active==="Operações de Campo")void refreshField();
           )}
           {active==="Registo de Auditoria"&&<section className="auditDetailGrid">{auditRecords.slice(0,30).map(event=><article key={`detail-${event.id}`}><div><strong>{event.action.replaceAll("_"," ")}</strong><b>{event.result}</b></div><span>{event.actor} · {event.module||event.target_type} · {new Date(event.occurred_at).toLocaleString("pt-MZ")}</span><small>IP: {event.ip_address||"não registado"} · Dispositivo: {event.device||event.user_agent||"não registado"}</small><pre>Antes: {JSON.stringify(event.before_state||{})}{"\n"}Depois: {JSON.stringify(event.after_state||{})}</pre></article>)}</section>}
           {active === "Marketing" && <><CommunicationAnalyticsDashboard mode="marketing" /><section className="marketingWorkspace marketingSimpleWorkspace">
-            <div className="marketingHero"><div><span>MARKETING</span><h2>Pedidos e publicação</h2><p>Receba pedidos, aprove campanhas e acompanhe o que foi publicado em cada plataforma.</p></div><button onClick={()=>setShowMarketingForm(!showMarketingForm)}>Nova campanha</button></div>
+            <div className="marketingHero marketingHeroCompact"><button onClick={()=>setShowMarketingForm(!showMarketingForm)}>Nova campanha</button></div>
             <div className="marketingSimpleGrid">
               <article className="marketingRequestsPanel"><div className="panelTitle"><div><h3>Pedidos recebidos</h3><p>Pedidos reais vindos das plataformas</p></div><strong>{marketingData.marketing_requests?.length||0}</strong></div>{(marketingData.marketing_requests||[]).slice(0,12).map(request=>{const event=(marketingData.marketing_events||[]).find(item=>String(item.request_id)===String(request.id));return <div className="financeLine" key={String(request.id)}><div><strong>{String(request.event_name||request.campaign_title||"Pedido de marketing")}</strong><span>{String(request.request_type||"solicitação")} · {String(request.location||"local não indicado")}{request.sells_tickets?" · venda de bilhetes":""}</span></div><b>{event?.status==="published"?"Publicado na DeliGo":String(request.status||"pendente")}</b></div>})}{!marketingData.marketing_requests?.length&&<div className="peopleEmpty">Nenhum pedido recebido.</div>}</article>
               <article className="marketingCampaigns"><div className="panelTitle"><div><h3>Campanhas</h3><p>Rascunho → aprovação → publicação → aplicações</p></div><strong>{marketingData.marketing_campaigns?.length||0}</strong></div>{(marketingData.marketing_campaigns||[]).slice(0,12).map(c=><div className="financeLine" key={String(c.id)}><div><strong>{String(c.title)}</strong><span>{String(c.objective||"Campanha")} · {String(c.status||"rascunho").replaceAll("_"," ")}</span></div><div>{c.status==="draft"&&<button onClick={()=>void marketingAction(String(c.id),"submit")}>Enviar</button>}{c.status==="pending_approval"&&sessionRole==="SUPER_ADMIN"&&<button onClick={()=>void marketingAction(String(c.id),"approve")}>Aprovar</button>}{["approved","paused"].includes(String(c.status))&&<button onClick={()=>void marketingAction(String(c.id),"publish")}>Publicar</button>}{c.status==="published"&&<button onClick={()=>void marketingAction(String(c.id),"broadcast")}>Distribuir nas apps</button>}</div></div>)}{!marketingData.marketing_campaigns?.length&&<div className="peopleEmpty">Nenhuma campanha.</div>}</article>
