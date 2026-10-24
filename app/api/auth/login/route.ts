@@ -54,6 +54,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Não foi possível contactar o serviço de autenticação. Tente novamente." }, { status: 503 });
   }
   const payload = await authResponse.json() as { access_token?: string; refresh_token?: string; expires_in?: number; user?: { email?: string; user_metadata?: Record<string, unknown> }; error_description?: string; msg?: string };
+  if (authResponse.status >= 500) {
+    console.error("HQ_LOGIN_AUTH_UPSTREAM_UNAVAILABLE", { status: authResponse.status });
+    return NextResponse.json({ error: "O serviço de autenticação está temporariamente indisponível. Tente novamente em alguns minutos." }, { status: 503 });
+  }
   if (!authResponse.ok || !payload.access_token || !payload.refresh_token) {
     return NextResponse.json({ error: "Telefone ou palavra-passe inválidos." }, { status: 401 });
   }
