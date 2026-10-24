@@ -425,3 +425,9 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell .supportReplyComposer button{background:#173b59;color:#f4f8ff;border:1px solid #38e8ff}
 .shell .supportReplyActions .secondaryAction{background:#132a43;color:#eaf2ff;border-color:#315174}
 .shell .supportAttachmentPicker label,.shell .supportAttachmentPicker small{color:#b8cae0}
+.supportTicketOpen .supportSenderName{order:1;font-size:12px;font-weight:800;line-height:1.2;color:#f4f8ff;margin:0}
+.supportTicketOpen .supportMessagePreview{order:2;display:-webkit-box;overflow:hidden;font-size:10px;line-height:1.35;color:#b8cce0;margin-top:3px;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+.supportTicketOpen .supportTicketMeta{order:3;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:9px;line-height:1.2;color:#8fa8c2;margin-top:5px}
+.supportTicketOpen .supportTicketMeta b{color:#ff4d67;font-size:9px;font-weight:800}
+.supportTicketOpen .supportTicketPlatform{display:none}
+.supportTicketOpen{grid-template-columns:1fr!important;gap:0!important}
