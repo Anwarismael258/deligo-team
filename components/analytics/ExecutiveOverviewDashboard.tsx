@@ -67,7 +67,6 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     <style>{overviewVisualStyles}</style>
     <DashboardHeader title="Visão executiva" description="Indicadores reais autorizados da Central HQ, separados por titularidade e fonte." updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} actions={<button className="primaryAction" type="button" onClick={onRefresh}>Actualizar dados</button>} />
     <DashboardFilters value={filters} onChange={setFilters} platforms={platformNames} />
-    <KPIGrid items={kpis} />
     <div className="analyticsExecutiveGrid">
       <ChartContainer title="Evolução das receitas" description="Valores confirmados pela fonte financeira; sem estimativas.">
         {historyError ? <EmptyState title="Série histórica indisponível" description={historyError} /> : <AnalyticsLineChart data={(history?.series || []).map(row => ({ date: row.date, value: row.revenue }))} label="Receita confirmada" />}
@@ -85,5 +84,6 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
         {custodyChart.length ? <AnalyticsDonutChart data={custodyChart} /> : <EmptyState title="Custódia indisponível" description="A fonte autorizada não devolveu valores verificáveis." />}
       </ChartContainer>
     </div>
+    <KPIGrid items={kpis} />
   </section>;
 }
