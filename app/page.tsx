@@ -1093,7 +1093,7 @@ if(active==="Operações de Campo")void refreshField();
           <div className="titleRow">
             <div>
               <h1>{active === "Visão geral" ? "Visão geral do grupo" : displayModuleLabel(active)}</h1>
-              <p>{active === "Visão geral" ? "Gestão consolidada da DeliGo Triunfal, Lda." : `Área dedicada a ${active}, sem conteúdos de outros departamentos.`}</p>
+              <p>{active === "Visão geral" ? "Indicadores corporativos e estado operacional." : `Área dedicada a ${active}, sem conteúdos de outros departamentos.`}</p>
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
@@ -1439,7 +1439,7 @@ if(active==="Operações de Campo")void refreshField();
               </> : <div className="peopleEmpty">Carteira ainda não disponível para este perfil.</div>}
             </article>
           </section>}
-          {active === "Visão geral" && <ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} onRefresh={() => { void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} />}
+          {active === "Visão geral" && <><ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} onRefresh={() => { void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} /><p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
           {active === "Utilizadores" && <><UserTeamDashboard mode="users" /><section className="peoplePanel">
             <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
             <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>

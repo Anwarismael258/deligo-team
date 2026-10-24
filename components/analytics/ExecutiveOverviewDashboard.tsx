@@ -24,6 +24,7 @@ type HistoryData = { series: HistoryPoint[]; totals: Record<string, number>; com
 
 const money = (value: number | null) => value == null ? null : Number(value.toFixed(2));
 const numberValue = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
+const overviewVisualStyles = `.executiveOverviewDashboard .analyticsKpiCard{background:linear-gradient(145deg,#10253b,#0b1727);border-color:#315174;color:#eaf2ff;box-shadow:0 10px 24px #02071155}.executiveOverviewDashboard .analyticsKpiCard>span{color:#9db6ce}.executiveOverviewDashboard .analyticsKpiCard>strong{color:#f5f9ff}.executiveOverviewDashboard .analyticsKpiCard>small{color:#86a1bd}.executiveOverviewDashboard .analyticsChartContainer{background:linear-gradient(145deg,#10253b,#0b1727);border-color:#315174;color:#eaf2ff}.executiveOverviewDashboard .analyticsChartHeading h3{color:#f5f9ff}.executiveOverviewDashboard .analyticsChartHeading p{color:#9db6ce}.executiveOverviewDashboard .overviewConsolidatedLabel{margin:0;padding:12px 14px;border:1px solid #315174;border-radius:10px;background:#0b1b2d;color:#9db6ce;font-size:11px;text-align:right;box-shadow:0 8px 20px #02071144}`;
 
 export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh }: { dashboard: ExecutiveDashboardData | null; commandCenter: CommandCenter | null; onRefresh: () => void }) {
   const [filters, setFilters] = useState<AnalyticsFilters>({ period: "last_30_days", timezone: "Africa/Maputo" });
@@ -63,6 +64,7 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
   ].filter(item => item.value > 0);
   const revenueByPlatform = (breakdown?.platforms || []).map(item => ({ label: item.name, value: numberValue(item.central_revenue_confirmed) || 0 })).filter(item => item.value > 0);
   return <section className="analyticsDashboardShell executiveOverviewDashboard">
+    <style>{overviewVisualStyles}</style>
     <DashboardHeader title="Visão executiva" description="Indicadores reais autorizados da Central HQ, separados por titularidade e fonte." updatedAt={dashboard?.checkedAt ? new Date(dashboard.checkedAt).toLocaleString("pt-MZ") : undefined} actions={<button className="primaryAction" type="button" onClick={onRefresh}>Actualizar dados</button>} />
     <DashboardFilters value={filters} onChange={setFilters} platforms={platformNames} />
     <KPIGrid items={kpis} />
