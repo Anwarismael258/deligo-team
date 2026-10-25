@@ -40,3 +40,10 @@ test("Notícias só mostram publicação depois de revisão e aprovação", asyn
   assert.match(newsUi, /Publicar no site/);
   assert.match(newsUi, /Boolean\(item\.approved_at\)/);
 });
+
+test("Analytics institucional usa a fonte canónica e agrega todos os estados editoriais", async () => {
+  const analyticsApi = await readFile(new URL("../app/api/analytics/corporate-operations/route.ts", import.meta.url), "utf8");
+  assert.match(analyticsApi, /readPublic\("news\?select=\*\*?\&order=created_at\.desc\&limit=1000"\)/);
+  for (const metric of ["Conteúdos institucionais", "Rascunhos", "Em revisão", "Agendadas", "Publicadas", "Destaques"]) assert.match(analyticsApi, new RegExp(metric));
+  assert.match(analyticsApi, /sources: \{ content: "public\.news" \}/);
+});
