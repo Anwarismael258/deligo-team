@@ -61,29 +61,52 @@ export async function GET(request:NextRequest){
   const scope=requestedPlatformId?`&platform_id=eq.${requestedPlatformId}`:"";
   // Keep this projection limited to columns created by the HQ support
   // migrations. A missing convenience column must not hide the whole queue.
-  const tickets=await safe(rest(current.key,`support_tickets?select=id,ticket_number,platform_id,external_reference,customer_reference,subject,description,status,priority,ticket_type,category,customer_name,customer_contact,assigned_to,created_at:opened_at,updated_at,source_channel,workflow_case_id&limit=300${scope}&order=updated_at.desc`),[]);
+  let ticketsHealthy=true;
+  let publicTicketsHealthy=true;
+  let publicMessagesHealthy=true;
+  let tickets: Array<Record<string,unknown>>=[];
+  try {
+    tickets=await rest(current.key,`support_tickets?select=id,ticket_number,platform_id,external_reference,customer_reference,subject,description,status,priority,ticket_type,category,customer_name,customer_contact,assigned_to,created_at:opened_at,updated_at,source_channel,workflow_case_id&limit=300${scope}&order=updated_at.desc`) as Array<Record<string,unknown>>;
+  } catch(error) {
+    ticketsHealthy=false;
+    console.error("SUPPORT_HQ_TICKETS_SOURCE_FAILED",String(error));
+  }
   // The optional cross-platform `core` schema is not exposed by the current
   // PostgREST configuration. The public support bridge is the canonical
   // source for app-originated conversations in this environment; do not
   // retry an unavailable schema on every poll and delay/erase the queue.
   // Future exposed-core deployments can restore support_cases?select=*,app:apps.
-  const publicTickets=await safe(stagingRest("support_tickets?select=*&order=updated_at.desc&limit=300"),[]);
-  const publicIds=(Array.isArray(publicTickets)?publicTickets:[]).map((row:{id?:string})=>row.id).filter(Boolean);
-  const publicMessages=await safe(publicIds.length?stagingRest(`support_messages?ticket_id=in.(${publicIds.join(",")})&select=*&order=created_at.asc&limit=1000`):Promise.resolve([]),[]);
+  let publicTickets: Array<Record<string,unknown>>=[];
+  try {
+    publicTickets=await stagingRest("support_tickets?select=*&order=updated_at.desc&limit=300") as Array<Record<string,unknown>>;
+  } catch(error) {
+    publicTicketsHealthy=false;
+    console.error("SUPPORT_PUBLIC_TICKETS_SOURCE_FAILED",String(error));
+  }
+  const publicIds=publicTickets.map(row=>String(row.id||"")).filter(Boolean);
+  let publicMessages: Array<Record<string,unknown>>=[];
+  if(publicIds.length){
+    try {
+      publicMessages=await stagingRest(`support_messages?ticket_id=in.(${publicIds.join(",")})&select=*&order=created_at.asc&limit=1000`) as Array<Record<string,unknown>>;
+    } catch(error) {
+      publicMessagesHealthy=false;
+      console.error("SUPPORT_PUBLIC_MESSAGES_SOURCE_FAILED",String(error));
+    }
+  }
   const coreTickets: Array<{id:string}> = [];
-  const publicTicketRows=(Array.isArray(publicTickets)?publicTickets:[]) as Array<Record<string,unknown>>;
+  const publicTicketRows=publicTickets;
   const publicTicketIds=new Set(publicTicketRows.map(row=>String(row.id||"")));
   const publicTicketMapped=publicTicketRows.map(row=>{const meta=(row.metadata&&typeof row.metadata==="object"?row.metadata:{}) as Record<string,unknown>;const source=String(row.external_source||meta.platform||"app");return {id:`public:${String(row.id)}`,source:"public_app",ticket_number:`${source.toUpperCase()}-${String(row.external_id||row.id).slice(0,8)}`,platform_id:null,platform_slug:String(meta.platform_slug||source),platform_name:String(meta.platform_name||source),subject:String(row.reason||"Pedido de suporte"),description:String(row.reason||""),status:String(row.status||"open"),priority:String(meta.priority||"normal"),ticket_type:"app_message",category:String(row.dispute_type||"support"),customer_name:String(row.customer_name||"Utilizador"),customer_contact:String(row.customer_phone||row.customer_email||""),customer_reference:String(row.opened_by||""),assigned_to:row.assigned_to||null,created_at:String(row.created_at||""),updated_at:String(row.updated_at||row.created_at||""),external_reference:String(row.external_id||""),source_channel:source};});
-  const publicMessagesMapped=(Array.isArray(publicMessages)?publicMessages:[]).filter((row:{ticket_id?:string})=>publicTicketIds.has(String(row.ticket_id||""))).map((row:Record<string,unknown>)=>{const senderRole=String(row.sender_role||"").toLowerCase();return {id:`public-msg:${String(row.id)}`,ticket_id:`public:${String(row.ticket_id)}`,sender_type:["client","customer","user","cliente"].includes(senderRole)?"customer":"agent",sender_employee_id:null,message:String(row.text||""),is_internal:false,created_at:String(row.created_at||""),is_read:Boolean(row.read_at)}});
-  const publicAttachments=(Array.isArray(publicMessages)?publicMessages:[]).filter((row:Record<string,unknown>)=>publicTicketIds.has(String(row.ticket_id||""))&&row.attachment_url).map((row:Record<string,unknown>)=>({id:`public-attachment:${String(row.id)}`,ticket_id:`public:${String(row.ticket_id)}`,file_name:"Anexo do utilizador",mime_type:row.attachment_type||"ficheiro",storage_reference:row.attachment_url}));
+  const publicMessagesMapped=publicMessages.filter(row=>publicTicketIds.has(String(row.ticket_id||""))).map(row=>{const senderRole=String(row.sender_role||"").toLowerCase();return {id:`public-msg:${String(row.id)}`,ticket_id:`public:${String(row.ticket_id)}`,sender_type:["client","customer","user","cliente"].includes(senderRole)?"customer":"agent",sender_employee_id:null,message:String(row.text||""),is_internal:false,created_at:String(row.created_at||""),is_read:Boolean(row.read_at)}});
+  const publicAttachments=publicMessages.filter(row=>publicTicketIds.has(String(row.ticket_id||""))&&row.attachment_url).map(row=>({id:`public-attachment:${String(row.id)}`,ticket_id:`public:${String(row.ticket_id)}`,file_name:"Anexo do utilizador",mime_type:row.attachment_type||"ficheiro",storage_reference:row.attachment_url}));
   const publicExternalReferences=new Set(publicTicketMapped.map(ticket=>String(ticket.external_reference||"")).filter(Boolean));
   // The bridge mirrors public app tickets into HQ. Prefer the public record
   // for those mirrored tickets so the queue does not show duplicates or two
   // competing message histories.
-  const hqTickets=(Array.isArray(tickets)?tickets:[]).filter((ticket:{external_reference?:unknown})=>!publicExternalReferences.has(String(ticket.external_reference||"")));
-  let allTickets=[...hqTickets,...coreTickets,...publicTicketMapped];
-  const ids=(tickets||[]).map((row:{id:string})=>row.id),ticketFilter=ids.length?`ticket_id=in.(${ids.join(",")})`:"ticket_id=eq.00000000-0000-0000-0000-000000000000";
-  const caseIds=(tickets||[]).map((row:{workflow_case_id?:string})=>row.workflow_case_id).filter(Boolean);
+  const hqTickets=tickets.filter(ticket=>!publicExternalReferences.has(String(ticket.external_reference||"")));
+  let allTickets: Array<Record<string,unknown>>=[...hqTickets,...coreTickets,...publicTicketMapped];
+  const ids=tickets.map(row=>String(row.id||"")),ticketFilter=ids.length?`ticket_id=in.(${ids.join(",")})`:"ticket_id=eq.00000000-0000-0000-0000-000000000000";
+  const caseIds=tickets.map(row=>String(row.workflow_case_id||"")).filter(Boolean);
   const coreIds=coreTickets.map((row:{id:string})=>row.id.slice(5));
   const coreFilter=coreIds.length?`case_id=in.(${coreIds.join(",")})`:"case_id=eq.00000000-0000-0000-0000-000000000000";
   const legacyDetail=Boolean(requestedTicket)&&!requestedTicket.startsWith("core:")&&!requestedTicket.startsWith("public:")?requestedTicket:"";
@@ -112,10 +135,10 @@ export async function GET(request:NextRequest){
   }
   const legacyMessages=(Array.isArray(conversations)?conversations:[]).map((item:Record<string,unknown>)=>({...item,is_read:item.sender_type!=="customer"||Boolean(readAtByTicket.get(String(item.ticket_id))&&new Date(String(item.created_at)).getTime()<=new Date(readAtByTicket.get(String(item.ticket_id)) as string).getTime())}));
   const coreMessages=(Array.isArray(coreConversations)?coreConversations:[]).map((item:{id:string;case_id:string;author_type:string;body:string;is_internal:boolean;created_at:string})=>({id:`core-msg:${item.id}`,ticket_id:`core:${item.case_id}`,sender_type:item.author_type==="staff"?"agent":"customer",message:item.body,is_internal:item.is_internal,created_at:item.created_at,is_read:item.author_type!=="customer"||Boolean(readAtByCase.get(item.case_id)&&new Date(item.created_at).getTime()<=new Date(readAtByCase.get(item.case_id) as string).getTime())}));
-  allTickets=allTickets.map(ticket=>ticket.id.startsWith("core:")?{...ticket,last_read_at:readAtByCase.get(ticket.id.slice(5))||null}:ticket);
+  allTickets=allTickets.map(ticket=>{const ticketId=String(ticket.id||"");return ticketId.startsWith("core:")?{...ticket,last_read_at:readAtByCase.get(ticketId.slice(5))||null}:ticket;});
   const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened").map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));
   const legacyHistory=(Array.isArray(events)?events:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened");
-  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...legacyMessages,...coreMessages,...publicMessagesMapped],support_attachments:[...(Array.isArray(attachments)?attachments:[]),...publicAttachments],support_escalations:escalations,support_department_assignments:assignments,support_history:[...legacyHistory,...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments}},{headers:{"Cache-Control":"private, no-store"}});
+  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...legacyMessages,...coreMessages,...publicMessagesMapped],support_attachments:[...(Array.isArray(attachments)?attachments:[]),...publicAttachments],support_escalations:escalations,support_department_assignments:assignments,support_history:[...legacyHistory,...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments},meta:{degraded:!ticketsHealthy&&!publicTicketsHealthy||!publicMessagesHealthy,ticketsHealthy,publicTicketsHealthy,publicMessagesHealthy}},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(request:NextRequest){
