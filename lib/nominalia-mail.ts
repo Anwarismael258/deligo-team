@@ -1,4 +1,6 @@
 import nodemailer from "nodemailer";
+import fs from "node:fs";
+import path from "node:path";
 
 export const inboxRecipients: Record<string, string> = {
   geral: "geral@deligotriunfal.site",
@@ -64,6 +66,22 @@ function smtpMailbox(address: string): SmtpMailbox | null {
   return null;
 }
 
+const letterheadPath = path.join(process.cwd(), "public", "deligo-letterhead.png");
+
+function escapeHtml(value: string) {
+  return value.replace(/[&<>\"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;", "'": "&#39;" }[character] || character));
+}
+
+function letterheadHtml(message: string) {
+  const body = escapeHtml(message).replace(/\r?\n/g, "<br>");
+  if (!fs.existsSync(letterheadPath)) return undefined;
+  return `<!doctype html><html><body style="margin:0;background:#f4f4f4;font-family:Arial,sans-serif;color:#171717"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4"><tr><td align="center" style="padding:16px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:1055px;min-height:1490px;background:#fff url('cid:deligo-letterhead') top center / 100% auto no-repeat"><tr><td style="padding:410px 10% 260px;vertical-align:top;font-size:18px;line-height:1.55;word-break:break-word"><div style="white-space:normal">${body}</div></td></tr></table></td></tr></table></body></html>`;
+}
+
+function letterheadAttachment() {
+  return fs.existsSync(letterheadPath) ? [{ filename: "papel-timbrado-deligo.png", path: letterheadPath, cid: "deligo-letterhead" }] : undefined;
+}
+
 function configuredAddresses() {
   return [...new Set([
     ...Object.values(inboxRecipients),
@@ -87,6 +105,8 @@ export async function sendInboxEmail(message: InboxMessage) {
     replyTo: message.from_email,
     subject: `[DeliGo Central] ${message.subject}`,
     text: lines.join("\n"),
+    html: letterheadHtml(lines.join("\n")),
+    attachments: letterheadAttachment(),
   });
   return { recipient, messageId: info.messageId, response: info.response, accepted: info.accepted, rejected: info.rejected };
 }
@@ -111,6 +131,8 @@ export async function sendComposedInboxEmail(input: { from: string; to: string; 
     ...(input.bcc?.trim() ? { bcc: input.bcc.trim() } : {}),
     subject: input.subject,
     text: input.text,
+    html: letterheadHtml(input.text),
+    attachments: letterheadAttachment(),
   });
   return { recipient, messageId: info.messageId, response: info.response, accepted: info.accepted, rejected: info.rejected };
 }
