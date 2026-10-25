@@ -297,6 +297,8 @@ footer{display:flex;justify-content:space-between;border-top:1px solid var(--lin
 
 /* HQ sci-fi visual layer: same navigation and workflows, more cinematic contrast. */
 :root{--ink:#eaf2ff;--muted:#91a4bd;--line:#263b56;--red:#ff4d67;--surface:#0b1422;--neon-cyan:#38e8ff;--neon-violet:#9d7bff;--neon-orange:#ff9b4a}
+/* Shared HQ card treatment: restrained blue-grey borders, cyan only for focus/active states. */
+:root{--hq-border:#466783;--hq-border-soft:#294766;--hq-border-active:#38e8ff}
 html,body{background:#07101c;color:var(--ink)}
 body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34%),radial-gradient(circle at 8% 90%,#0b5b6d22,transparent 30%),linear-gradient(135deg,#07101c,#0b1625 55%,#11152a)}
 .shell{background:transparent}.sidebar{background:linear-gradient(180deg,#0a1524f5,#0a1220f8);border-right-color:#294766;box-shadow:12px 0 45px #02071166}
@@ -369,6 +371,11 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell .fieldWorkspace,.shell .fieldKycOnly{color:#eaf2ff}
 .shell .fieldGovernanceGrid>article,.shell .kycApprovedFolder{background:linear-gradient(145deg,#11253b,#172f49)!important;border:1px solid #345879!important;color:#eaf2ff!important;box-shadow:0 14px 32px #06101f55}
 .shell .fieldGovernanceGrid h3,.shell .kycApprovedFolder>summary{color:#f4f8ff!important;font-size:14px;font-weight:800;letter-spacing:.01em}
+/* Consistent borders across existing Central surfaces. */
+.shell :is(.moduleWorkspace,.platformWorkspace,.peoplePanel,.reportsWorkspace,.financeWorkspace,.walletProfileCard,.permissionCard,.profileCard,.settingsCard,.securityCard,.sessionsCard,.analyticsChartCard,.analyticsDataTable,.institutionalWorkspace,.notificationCenterWorkspace,.financeKpis>article,.platformCard,.platformDirectoryCard){border-color:var(--hq-border)!important}
+.shell :is(.workspaceHead,.workspaceStats,.profileHero,.tableHeader,.institutionalHead,.notificationGroup>header){border-color:var(--hq-border-soft)}
+.shell :is(.analyticsFilters input,.analyticsFilters select,.dashboardFilters select,.institutionalFilters input,.institutionalFilters button,.institutionalWorkspace input,.institutionalWorkspace select,.institutionalWorkspace textarea):focus{border-color:var(--hq-border-active);outline:2px solid #38e8ff33;outline-offset:1px}
+.shell :is(.platformCard:hover,.platformDirectoryCard:hover,.navItem.active){border-color:var(--hq-border-active)!important}
 .shell .fieldDecisionRow{background:#193650!important;border:1px solid #3d6488!important;border-radius:12px;color:#eaf2ff!important;box-shadow:none}
 .shell .fieldDecisionRow strong{color:#f7fbff!important;font-size:12px}
 .shell .fieldDecisionRow span,.shell .fieldDecisionRow small{color:#b8cce0!important}
