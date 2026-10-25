@@ -75,7 +75,7 @@ function escapeHtml(value: string) {
 function letterheadHtml(message: string) {
   const body = escapeHtml(message).replace(/\r?\n/g, "<br>");
   if (!fs.existsSync(letterheadPath)) return undefined;
-  return `<!doctype html><html><body style="margin:0;background:#f4f4f4;font-family:Arial,sans-serif;color:#171717"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4"><tr><td align="center" style="padding:16px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:1055px;min-height:1490px;background:#fff url('cid:deligo-letterhead') top center / 100% auto no-repeat"><tr><td style="padding:410px 10% 260px;vertical-align:top;font-size:18px;line-height:1.55;word-break:break-word"><div style="white-space:normal">${body}</div></td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f4f4f4;font-family:Arial,sans-serif;color:#171717"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4"><tr><td align="center" style="padding:16px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" background="cid:deligo-letterhead" style="max-width:1055px;min-height:1490px;background-color:#ffffff;background-image:url('cid:deligo-letterhead');background-position:top center;background-size:100% auto;background-repeat:no-repeat"><tr><td style="padding:410px 10% 260px;vertical-align:top;font-size:18px;line-height:1.55;word-break:break-word"><div style="white-space:normal">${body}</div></td></tr></table></td></tr></table></body></html>`;
 }
 
 function letterheadAttachment() {
