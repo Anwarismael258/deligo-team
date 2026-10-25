@@ -230,7 +230,10 @@ export async function PATCH(request:NextRequest){
       const publicId=String(body.ticketId).slice(7),publicTicket=(await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}&select=*`) as Array<Record<string,unknown>>)?.[0];
       if(!publicTicket)return NextResponse.json({error:"Atendimento do aplicativo não encontrado."},{status:404});
       if(body.action==="mark_read"){
-        await stagingRest(`support_messages?ticket_id=eq.${encodeURIComponent(publicId)}&sender_role=in.(client,customer,user,cliente)&read_at=is.null`,{method:"PATCH",body:JSON.stringify({read_at:new Date().toISOString()})});
+        // Mark the whole conversation read by ticket. Platform adapters use
+        // different sender_role labels, so filtering on a fixed role list
+        // could leave messages unread and make them reappear on the next poll.
+        await stagingRest(`support_messages?ticket_id=eq.${encodeURIComponent(publicId)}&read_at=is.null`,{method:"PATCH",body:JSON.stringify({read_at:new Date().toISOString()})});
         return NextResponse.json({ok:true,readAt:new Date().toISOString()});
       }
       if(!canReplyToTicket(current,{...publicTicket,category:publicTicket.dispute_type,subject:publicTicket.reason,description:publicTicket.reason}))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
