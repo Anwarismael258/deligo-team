@@ -17,7 +17,15 @@ export type OperationsMapMarker = {
   updatedAt: string;
 };
 
-export default function LiveOperationsMap({ markers }: { markers: OperationsMapMarker[] }) {
+export type OperationsMapRoute = {
+  id: string;
+  platform: string;
+  label: string;
+  coordinates: LatLngTuple[];
+  updatedAt: string;
+};
+
+export default function LiveOperationsMap({ markers, routes = [] }: { markers: OperationsMapMarker[]; routes?: OperationsMapRoute[] }) {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<LeafletMap | null>(null);
   const markerLayer = useRef<LayerGroup | null>(null);
@@ -51,6 +59,13 @@ export default function LiveOperationsMap({ markers }: { markers: OperationsMapM
       if (disposed || !map.current || !markerLayer.current) return;
       markerLayer.current.clearLayers();
       const points: LatLngTuple[] = [];
+      routes.forEach((route) => {
+        const color = route.platform === "SARCA" ? "#f97316" : "#dc2626";
+        L.polyline(route.coordinates, { color, weight: 3, opacity: 0.8, dashArray: "7 6" })
+          .bindTooltip(route.label, { sticky: true })
+          .addTo(markerLayer.current!);
+        route.coordinates.forEach((point) => points.push(point));
+      });
       markers.forEach((marker) => {
       const colorClass = marker.platform.toLowerCase();
       const icon = L.divIcon({ className: "", html: `<span class="operations-map-pin ${colorClass}" aria-label="${marker.role} ${marker.platform}"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] });
@@ -63,7 +78,7 @@ export default function LiveOperationsMap({ markers }: { markers: OperationsMapM
       if (points.length > 1) map.current.fitBounds(points, { padding: [30, 30], maxZoom: 15 });
     });
     return () => { disposed = true; };
-  }, [markers, mapReady]);
+  }, [markers, routes, mapReady]);
 
   return <div ref={container} className="operationsMap" aria-label="Mapa operacional em tempo real" />;
 }
