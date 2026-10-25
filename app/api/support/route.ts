@@ -189,7 +189,7 @@ export async function GET(request:NextRequest){
   let employeesByAuthUserId=new Map<string,Record<string,unknown>>();
   let publicMessagesMapped:Array<Record<string,unknown>>=[];
   const publicAttachments=publicMessages.filter(row=>publicTicketIds.has(String(row.ticket_id||""))&&row.attachment_url).map(row=>{const canonicalId=publicCanonicalIdById.get(String(row.ticket_id))||String(row.ticket_id);return {id:`public-attachment:${String(row.id)}`,ticket_id:`public:${canonicalId}`,file_name:"Anexo do utilizador",mime_type:row.attachment_type||"ficheiro",storage_reference:row.attachment_url};});
-  const publicExternalReferences=new Set(publicTicketRows.flatMap(row=>[String(row.id||""),String(row.external_id||"")].filter(Boolean).flatMap(value=>[value,`public-support:${value}`])));
+  const publicExternalReferences=new Set(publicTicketRows.flatMap(row=>[String(row.id||""),String(row.external_id||"")].filter(Boolean).flatMap(value=>[value,`public-support:${value}`,`deligo:support:${value}`,`mestre24:support:${value}`,`sarca:support:${value}`])));
   // The bridge mirrors public app tickets into HQ. Prefer the public record
   // for those mirrored tickets so the queue does not show duplicates or two
   // competing message histories.
