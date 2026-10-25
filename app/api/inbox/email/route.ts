@@ -2,16 +2,39 @@ import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, stagingRest } from "@/lib/hq-server";
 import { configuredInboxSenders, sendComposedInboxEmail, sendInboxEmail } from "@/lib/nominalia-mail";
 
+export const runtime = "nodejs";
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "EMAIL_FAILED";
+}
+
+function emailError(error: unknown, fallback: string) {
+  const code = errorMessage(error);
+  return NextResponse.json({ error: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? "Configure o SMTP autorizado na Vercel." : code === "EMAIL_SENDER_NOT_ALLOWED" ? "Remetente não autorizado." : fallback }, { status: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? 503 : 502 });
+}
+
 export async function GET() {
-  const actor = await corporateActor();
-  if (!actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return NextResponse.json({ error: "Apenas o Administrador ou Finanças podem enviar email." }, { status: 403 });
-  return NextResponse.json({ senders: configuredInboxSenders() });
+  try {
+    const actor = await corporateActor();
+    if (!actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return NextResponse.json({ error: "Apenas o Administrador ou Finanças podem enviar email." }, { status: 403 });
+    return NextResponse.json({ senders: configuredInboxSenders() });
+  } catch (error) {
+    console.error("INBOX_EMAIL_GET_FAILED", errorMessage(error));
+    return emailError(error, "Não foi possível carregar os remetentes autorizados.");
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const actor = await corporateActor();
-  if (!actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return NextResponse.json({ error: "Apenas o Administrador ou Finanças podem enviar email." }, { status: 403 });
-  const body = await request.json() as { id?: string; from?: string; to?: string; subject?: string; message?: string };
+  let actor;
+  let body: { id?: string; from?: string; to?: string; subject?: string; message?: string };
+  try {
+    actor = await corporateActor();
+    if (!actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return NextResponse.json({ error: "Apenas o Administrador ou Finanças podem enviar email." }, { status: 403 });
+    body = await request.json() as { id?: string; from?: string; to?: string; subject?: string; message?: string };
+  } catch (error) {
+    console.error("INBOX_EMAIL_REQUEST_FAILED", errorMessage(error));
+    return emailError(error, "Não foi possível preparar o envio de email.");
+  }
   if (body.to || body.subject || body.message || body.from) {
     if (!body.from?.trim() || !body.to?.trim() || !body.subject?.trim() || !body.message?.trim()) return NextResponse.json({ error: "Remetente, destinatário, assunto e mensagem são obrigatórios." }, { status: 400 });
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.to) || body.to.length > 320) return NextResponse.json({ error: "Destinatário inválido." }, { status: 400 });
@@ -27,8 +50,8 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({ ok: true, recipient, delivery: { status: "smtp_accepted", messageId: delivery.messageId, response: delivery.response, accepted: delivery.accepted, rejected: delivery.rejected } });
     } catch (error) {
-      const code = error instanceof Error ? error.message : "EMAIL_FAILED";
-      return NextResponse.json({ error: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? "Configure o SMTP autorizado na Vercel." : code === "EMAIL_SENDER_NOT_ALLOWED" ? "Remetente não autorizado." : "Não foi possível enviar o email." }, { status: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? 503 : 502 });
+      console.error("INBOX_EMAIL_SEND_FAILED", errorMessage(error));
+      return emailError(error, "Não foi possível enviar o email.");
     }
   }
   if (!body.id) return NextResponse.json({ error: "Mensagem inválida." }, { status: 400 });
@@ -41,7 +64,7 @@ export async function POST(request: NextRequest) {
     await stagingRest(`inbox_messages?id=eq.${encodeURIComponent(body.id)}`, { method: "PATCH", body: JSON.stringify({ meta }) });
     return NextResponse.json({ ok: true, recipient, delivery: { status: "smtp_accepted", messageId: delivery.messageId, response: delivery.response, accepted: delivery.accepted, rejected: delivery.rejected } });
   } catch (error) {
-    const code = error instanceof Error ? error.message : "EMAIL_FAILED";
-    return NextResponse.json({ error: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? "Configure o utilizador e a palavra-passe SMTP da Nominalia na Vercel." : "Não foi possível enviar o email." }, { status: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? 503 : 502 });
+    console.error("INBOX_EMAIL_EXISTING_SEND_FAILED", errorMessage(error));
+    return emailError(error, "Não foi possível enviar o email.");
   }
 }
