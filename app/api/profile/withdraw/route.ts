@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   const actor = await corporateActor();
   if (!actor) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
 
-  const body = await request.json().catch(() => null) as { walletId?: string; amount?: number; method?: string } | null;
+  const body = await request.json().catch(() => null) as { walletId?: string; wallet_id?: string; amount?: number; method?: string } | null;
   const amount = Number(body?.amount);
   const method = body?.method == null ? "mpesa" : String(body.method);
   if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Indique um valor válido." }, { status: 400 });
@@ -72,9 +72,9 @@ export async function POST(request: NextRequest) {
         const providerReference = String(provider.id || provider.reference || reference);
         if (["success", "successful", "completed", "complete", "paid"].includes(providerStatus)) {
           await hqRpc("hq_complete_employee_paysuite_payout_v1", { p_payout_request_id: payoutId, p_provider_reference: providerReference });
-          return NextResponse.json({ status: "paid", payoutId, providerReference, source: "hq_employee_wallet" });
+          return NextResponse.json({ status: "paid", payoutId, request_id: payoutId, providerReference, provider_reference: providerReference, source: "hq_employee_wallet" });
         }
-        return NextResponse.json({ status: "processing", payoutId, providerReference, source: "hq_employee_wallet" }, { status: 202 });
+        return NextResponse.json({ status: "processing", payoutId, request_id: payoutId, providerReference, provider_reference: providerReference, source: "hq_employee_wallet" }, { status: 202 });
       } catch (error) {
         await hqRpc("hq_fail_employee_paysuite_payout_v1", { p_payout_request_id: payoutId, p_reason: error instanceof Error ? error.message : "PaySuite indisponível" }).catch(() => undefined);
         throw error;
@@ -86,8 +86,11 @@ export async function POST(request: NextRequest) {
     await hqRpc("migrate_legacy_personal_wallet_to_paysuite_v1", { p_auth_user_id: actor.authUserId }).catch((error) => {
       console.warn("legacy_personal_wallet_migration_skipped", error);
     });
-    const walletFilter = body?.walletId
-      ? `id=eq.${encodeURIComponent(body.walletId)}&owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`
+    // Keep the same wallet_id contract used by the DeliGo App, while always
+    // constraining it to the authenticated worker's personal wallet.
+    const requestedWalletId = body?.walletId || body?.wallet_id;
+    const walletFilter = requestedWalletId
+      ? `id=eq.${encodeURIComponent(requestedWalletId)}&owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`
       : `owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`;
     // Consolidate every personal wallet owned by this worker. Corporate
     // wallets have no owner_user_id and are never included here.
@@ -171,7 +174,7 @@ export async function POST(request: NextRequest) {
     const hasFailed = results.some((result) => result.status === "failed");
     const allPaid = results.every((result) => result.status === "paid");
     const status = allPaid ? "paid" : hasFailed ? "partial" : "processing";
-    return NextResponse.json({ status, payoutId: results[0]?.payoutId, payoutIds: results.map((result) => result.payoutId), providerReference: results[0]?.providerReference, providerReferences: results.map((result) => result.providerReference).filter(Boolean), results }, { status: hasFailed ? 502 : allPaid ? 200 : 202 });
+    return NextResponse.json({ status, payoutId: results[0]?.payoutId, request_id: results[0]?.payoutId, payoutIds: results.map((result) => result.payoutId), providerReference: results[0]?.providerReference, provider_reference: results[0]?.providerReference, providerReferences: results.map((result) => result.providerReference).filter(Boolean), results }, { status: hasFailed ? 502 : allPaid ? 200 : 202 });
   } catch (error) {
     console.error("employee_paysuite_withdrawal_failed", error);
     return NextResponse.json({ error: "Não foi possível iniciar o levantamento. Nenhuma transferência foi confirmada." }, { status: 409 });
