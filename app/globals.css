@@ -462,6 +462,7 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .supportTicketOpen .supportTicketPlatform{display:none}
 .supportTicketOpen{grid-template-columns:1fr!important;gap:0!important}
 .shell .supportTicketOpen .supportTicketMeta b,.shell .supportUnreadCount{color:#ff3658!important;background:#3b1422;border:1px solid #ff3658;border-radius:999px;padding:3px 7px;font-weight:900}
+.shell .operationalNotice:empty{display:none}
 .shell .supportCaseDetail{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .shell .supportCaseHead{position:sticky;top:0;z-index:2;gap:14px;padding-bottom:10px;border-bottom:1px solid #315174;background:#0d1b2d}
 .shell .supportCaseHead>div{min-width:0}
