@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-type News = { id: string; title: string; slug: string; summary?: string; status: string; published?: boolean; created_at?: string };
+type News = { id: string; title: string; slug: string; summary?: string; status: string; published?: boolean; approved_at?: string | null; created_at?: string };
 
 export default function InstitutionalCmsPage() {
   const [news, setNews] = useState<News[]>([]);
@@ -34,7 +34,7 @@ export default function InstitutionalCmsPage() {
     <section className="moduleHero"><div><span>SITE INSTITUCIONAL · CMS</span><h1>Conteúdo público da DeliGo Triunfal</h1><p>Marketing gere o conteúdo; o site público recebe apenas publicações aprovadas.</p></div><button onClick={() => setShowForm(!showForm)}>{showForm ? "Fechar" : "Nova notícia"}</button></section>
     {notice && <div className="operationalNotice">{notice}</div>}
     {showForm && <form className="financeEntryForm" onSubmit={create}><label><span>Título</span><input name="title" required /></label><label><span>Resumo público</span><textarea name="summary" required /></label><label><span>Conteúdo</span><textarea name="content" required /></label><button className="primaryAction">Guardar rascunho</button></form>}
-    <section className="reportGrid">{news.map(item => <article key={item.id}><strong>{item.title}</strong><span>{item.status} · {item.published ? "visível no site" : "interno"}</span><div>{item.status === "draft" && <button onClick={() => void action(item.id, "submit")}>Enviar para revisão</button>}{item.status === "in_review" && <button onClick={() => void action(item.id, "approve")}>Aprovar</button>}{item.status === "in_review" && <button onClick={() => void action(item.id, "publish")}>Publicar</button>}{["published", "scheduled"].includes(item.status) && <button onClick={() => void action(item.id, "archive")}>Arquivar</button>}</div></article>)}{!news.length && <div className="peopleEmpty">Ainda não existem notícias institucionais.</div>}</section>
+    <section className="reportGrid">{news.map(item => <article key={item.id}><strong>{item.title}</strong><span>{item.status} · {item.published ? "visível no site" : item.approved_at ? "aprovada · pronta para publicar" : "interno"}</span><div>{item.status === "draft" && <button onClick={() => void action(item.id, "submit")}>Enviar para revisão</button>}{item.status === "in_review" && !item.approved_at && <button onClick={() => void action(item.id, "approve")}>Aprovar</button>}{item.status === "in_review" && Boolean(item.approved_at) && <button className="primaryAction" onClick={() => void action(item.id, "publish")}>Publicar no site</button>}{["published", "scheduled"].includes(item.status) && <button onClick={() => void action(item.id, "archive")}>Arquivar</button>}</div></article>)}{!news.length && <div className="peopleEmpty">Ainda não existem notícias institucionais.</div>}</section>
     <div className="safeNotice"><b>Separação interna/pública</b><span>Orçamentos, leads, candidatos e dados de aprovação permanecem na Central. O site lê apenas conteúdos publicados.</span></div>
   </main>;
 }
