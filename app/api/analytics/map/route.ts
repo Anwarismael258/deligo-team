@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRest } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
-type Period = "last_7_days" | "last_30_days" | "last_90_days";
+type Period = "today" | "last_7_days" | "last_30_days" | "last_90_days" | "this_year";
 type Row = Record<string, unknown>;
 const dayMs = 86_400_000;
 const maputoDate = (value: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Maputo", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
 const atMaputoStart = (value: string) => new Date(`${value}T00:00:00+02:00`);
-const rangeFor = (period: Period, end = new Date()) => { const days = period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; const to = maputoDate(end); const from = maputoDate(new Date(atMaputoStart(to).getTime() - (days - 1) * dayMs)); return { from, to, days }; };
+const rangeFor = (period: Period, end = new Date()) => { const to = maputoDate(end); if (period === "this_year") { const from = `${to.slice(0, 4)}-01-01`; return { from, to, days: Math.max(1, Math.round((atMaputoStart(to).getTime() - atMaputoStart(from).getTime()) / dayMs) + 1) }; } const days = period === "today" ? 1 : period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; const from = maputoDate(new Date(atMaputoStart(to).getTime() - (days - 1) * dayMs)); return { from, to, days }; };
 const previousRange = (range: { from: string; days: number }) => { const to = new Date(atMaputoStart(range.from).getTime() - dayMs); const from = new Date(to.getTime() - (range.days - 1) * dayMs); return { from: maputoDate(from), to: maputoDate(to), days: range.days }; };
 const isoEnd = (date: string) => new Date(atMaputoStart(date).getTime() + dayMs).toISOString();
 const countEvents = (rows: Row[]) => rows.reduce((total, row) => total + 1, 0);
@@ -24,7 +24,7 @@ function aggregate(rows: Row[], range: { from: string; to: string }) {
 export async function GET(request: NextRequest) {
   if (!await corporateActor()) return NextResponse.json({ error: "Sessão corporativa necessária." }, { status: 401 });
   const requested = request.nextUrl.searchParams.get("period") || "last_30_days";
-  if (!["last_7_days", "last_30_days", "last_90_days"].includes(requested)) return NextResponse.json({ error: "Período inválido." }, { status: 400 });
+  if (!["today", "last_7_days", "last_30_days", "last_90_days", "this_year"].includes(requested)) return NextResponse.json({ error: "Período inválido." }, { status: 400 });
   const period = requested as Period; const current = rangeFor(period); const previous = previousRange(current); const from = atMaputoStart(previous.from).toISOString(); const to = isoEnd(current.to);
   try {
     const rows = await hqRest(`platform_events?select=id,platform_id,resource_type:entity_type,resource_id:entity_id,event_type,occurred_at,created_at,platforms!inner(slug)&occurred_at=gte.${encodeURIComponent(from)}&occurred_at=lt.${encodeURIComponent(to)}&order=occurred_at.asc&limit=10000`) as Row[];

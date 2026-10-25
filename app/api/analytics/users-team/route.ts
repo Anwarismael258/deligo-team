@@ -4,7 +4,7 @@ import { hqRest, hqRpc, requireCorporatePermission } from "@/lib/hq-server";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, unknown>;
-type Period = "last_7_days" | "last_30_days" | "last_90_days" | "custom";
+type Period = "today" | "last_7_days" | "last_30_days" | "last_90_days" | "this_year" | "custom";
 const dayMs = 86_400_000;
 
 function dateOnly(value: unknown) { return typeof value === "string" ? value.slice(0, 10) : ""; }
@@ -15,7 +15,8 @@ function validDate(value: string | null) { return value && /^\d{4}-\d{2}-\d{2}$/
 function range(period: Period, from: string | null, to: string | null) {
   const today = maputoDate(new Date());
   const end = period === "custom" ? to : today;
-  const days = period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30;
+  const days = period === "today" ? 1 : period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30;
+  if (period === "this_year") return { from: `${today.slice(0, 4)}-01-01`, to: today, days: Math.max(1, Math.round((start(today).getTime() - start(`${today.slice(0, 4)}-01-01`).getTime()) / dayMs) + 1) };
   if (period === "custom" && from && end) {
     return { from, to: end, days: Math.max(1, Math.round((start(end).getTime() - start(from).getTime()) / dayMs) + 1) };
   }
@@ -51,7 +52,7 @@ function state(row: Row) { return String(row.profile_status || row.membership_st
 
 export async function GET(request: NextRequest) {
   const periodParam = request.nextUrl.searchParams.get("period") as Period | null;
-  const period: Period = ["last_7_days", "last_30_days", "last_90_days", "custom"].includes(String(periodParam)) ? periodParam as Period : "last_30_days";
+  const period: Period = ["today", "last_7_days", "last_30_days", "last_90_days", "this_year", "custom"].includes(String(periodParam)) ? periodParam as Period : "last_30_days";
   const current = range(period, validDate(request.nextUrl.searchParams.get("from")), validDate(request.nextUrl.searchParams.get("to")));
   const prior = previous(current);
   const selectedPlatform = request.nextUrl.searchParams.get("platform")?.trim() || "";

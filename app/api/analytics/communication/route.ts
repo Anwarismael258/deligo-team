@@ -4,13 +4,13 @@ import { corporateAuthorization, hqRest, stagingRest } from "@/lib/hq-server";
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;
 type Mode = "marketing" | "inbox" | "notifications";
-type Period = "last_7_days" | "last_30_days" | "last_90_days" | "custom";
+type Period = "today" | "last_7_days" | "last_30_days" | "last_90_days" | "this_year" | "custom";
 const dayMs = 86_400_000;
 const maputoDate = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Maputo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 const start = (date: string) => new Date(`${date}T00:00:00+02:00`);
 const dateOnly = (value: unknown) => typeof value === "string" ? value.slice(0, 10) : "";
 const validDate = (value: string | null) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-function range(period: Period, from: string | null, to: string | null) { const today = maputoDate(new Date()); const end = period === "custom" ? to : today; const days = period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; if (period === "custom" && from && end) return { from, to: end, days: Math.max(1, Math.round((start(end).getTime() - start(from).getTime()) / dayMs) + 1) }; const endDate = start(end || today); return { from: maputoDate(new Date(endDate.getTime() - (days - 1) * dayMs)), to: end || today, days }; }
+function range(period: Period, from: string | null, to: string | null) { const today = maputoDate(new Date()); const end = period === "custom" ? to : today; const days = period === "today" ? 1 : period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; if (period === "this_year") return { from: `${today.slice(0, 4)}-01-01`, to: today, days: Math.max(1, Math.round((start(today).getTime() - start(`${today.slice(0, 4)}-01-01`).getTime()) / dayMs) + 1) }; if (period === "custom" && from && end) return { from, to: end, days: Math.max(1, Math.round((start(end).getTime() - start(from).getTime()) / dayMs) + 1) }; const endDate = start(end || today); return { from: maputoDate(new Date(endDate.getTime() - (days - 1) * dayMs)), to: end || today, days }; }
 const inRange = (value: unknown, current: { from: string; to: string }) => { const date = dateOnly(value); return Boolean(date && date >= current.from && date <= current.to); };
 const safe = async <T>(operation: Promise<T>, fallback: T) => { try { return await operation; } catch { return fallback; } };
 const countBy = (rows: Row[], key: (row: Row) => string) => { const counts = new Map<string, number>(); rows.forEach(row => { const label = key(row) || "Não indicado"; counts.set(label, (counts.get(label) || 0) + 1); }); return [...counts.entries()].map(([label, value]) => ({ label, value })); };
@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const allowed = mode === "marketing" ? ["SUPER_ADMIN", "MARKETING", "FINANCE", "OPERATIONS", "SUPERVISOR"] : mode === "inbox" ? ["SUPER_ADMIN", "SUPERVISOR", "CUSTOMER_SUPPORT", "MARKETING", "FINANCE"] : ["SUPER_ADMIN", "SUPERVISOR", "CUSTOMER_SUPPORT", "MARKETING", "FINANCE"];
   if (!authorization.isSuperAdmin && !allowed.includes(authorization.actor.role)) return NextResponse.json({ error: "Sem permissão para este dashboard." }, { status: 403 });
   const periodParam = query.get("period") as Period | null;
-  const period: Period = ["last_7_days", "last_30_days", "last_90_days", "custom"].includes(String(periodParam)) ? periodParam as Period : "last_30_days";
+  const period: Period = ["today", "last_7_days", "last_30_days", "last_90_days", "this_year", "custom"].includes(String(periodParam)) ? periodParam as Period : "last_30_days";
   const current = range(period, validDate(query.get("from")), validDate(query.get("to")));
   const platform = query.get("platform")?.trim().toLowerCase() || "";
   const channel = query.get("channel")?.trim().toLowerCase() || "";
@@ -49,8 +49,8 @@ export async function GET(request: NextRequest) {
   if (mode === "inbox") {
     const areas: Record<string, string[]> = { SUPER_ADMIN: ["geral", "comercial", "carreiras"], SUPERVISOR: ["geral", "comercial", "carreiras"], CUSTOMER_SUPPORT: ["geral"], MARKETING: ["comercial"], FINANCE: ["geral", "comercial", "carreiras"] };
     const allowedAreas = areas[authorization.actor.role] || ["geral", "comercial", "carreiras"];
-    const [messages, replies] = await Promise.all([safe(stagingRest(`inbox_messages?select=id,area,status,assigned_to,created_at,updated_at,channel,platform_id&limit=3000`) as Promise<Row[]>, []), safe(stagingRest("inbox_replies?select=message_id,created_at,author_id&limit=6000") as Promise<Row[]>, [])]);
-    const currentMessages = messages.filter(row => allowedAreas.includes(String(row.area)) && inRange(row.created_at, current) && matches(row)); const currentReplies = replies.filter(row => inRange(row.created_at, current)); const replyIds = new Set(currentReplies.map(row => String(row.message_id)));
+    const [messages, replies] = await Promise.all([safe(stagingRest(`inbox_messages?select=id,area,status,assigned_to,created_at,updated_at,channel,platform_id,meta&limit=3000`) as Promise<Row[]>, []), safe(stagingRest("inbox_replies?select=message_id,created_at,author_id&limit=6000") as Promise<Row[]>, [])]);
+    const currentMessages = messages.filter(row => allowedAreas.includes(String(row.area)) && !Boolean((row.meta as Record<string, unknown> | null)?.outbound) && inRange(row.created_at, current) && matches(row)); const currentReplies = replies.filter(row => inRange(row.created_at, current)); const replyIds = new Set(currentReplies.map(row => String(row.message_id)));
     const open = currentMessages.filter(row => !["resolved", "closed", "archived"].includes(String(row.status).toLowerCase()));
     return NextResponse.json({ mode, period, timezone: "Africa/Maputo", range: current, data: { messagesReceived: currentMessages.length, messagesSent: currentReplies.length, conversationsOpen: open.length, conversationsPending: currentMessages.filter(row => ["pending", "open", "in_analysis"].includes(String(row.status).toLowerCase())).length, conversationsAssigned: currentMessages.filter(row => Boolean(row.assigned_to)).length, conversationsWithoutResponse: currentMessages.filter(row => !replyIds.has(String(row.id))).length, byChannel: countBy(currentMessages, row => String(row.channel || "site")), byStatus: countBy(currentMessages, row => String(row.status || "Não indicado")), byPlatform: countBy(currentMessages, row => platformById.get(String(row.platform_id || "")) || "Não indicado"), series: addSeries(points(current), currentMessages, row => row.created_at), filters: { platforms: [...new Set(platforms.map(row => String(row.slug || "")).filter(Boolean))], channels: [...new Set(messages.map(row => String(row.channel || "site")).filter(Boolean))] } }, sources: { messages: "staging.inbox_messages", replies: "staging.inbox_replies" }, limitations: ["O tempo médio de resposta não é calculado sem uma relação verificável entre primeira resposta e mensagem.", "O conteúdo privado das mensagens não é devolvido ao dashboard."] }, { headers: { "Cache-Control": "private, no-store" } });
   }

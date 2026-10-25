@@ -3,7 +3,7 @@ import { requireCorporatePermission, hqRest } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
-type Period = "last_7_days" | "last_30_days" | "last_90_days" | "custom";
+type Period = "today" | "last_7_days" | "last_30_days" | "last_90_days" | "this_year" | "custom";
 type Row = Record<string, unknown>;
 const dayMs = 86_400_000;
 
@@ -21,7 +21,8 @@ function isoEnd(date: string) { return new Date(maputoStart(date).getTime() + da
 function periodRange(period: Period, from: string | null, to: string | null) {
   const today = maputoDate(new Date());
   const end = period === "custom" ? to : today;
-  const days = period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30;
+  const days = period === "today" ? 1 : period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30;
+  if (period === "this_year") return { from: `${today.slice(0, 4)}-01-01`, to: today, days: Math.max(1, Math.round((maputoStart(today).getTime() - maputoStart(`${today.slice(0, 4)}-01-01`).getTime()) / dayMs) + 1) };
   if (period === "custom" && from && end) {
     return {
       from,
@@ -79,7 +80,7 @@ function change(current: number, previous: number) { return previous === 0 ? nul
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams;
   const period = (query.get("period") || "last_30_days") as Period;
-  if (!["last_7_days", "last_30_days", "last_90_days", "custom"].includes(period)) return NextResponse.json({ error: "Período inválido." }, { status: 400 });
+  if (!["today", "last_7_days", "last_30_days", "last_90_days", "this_year", "custom"].includes(period)) return NextResponse.json({ error: "Período inválido." }, { status: 400 });
   const from = validDate(query.get("from")); const to = validDate(query.get("to"));
   const selectedPlatform = String(query.get("platform") || "").trim();
   const authorization = await requireCorporatePermission("dashboard.view", selectedPlatform || undefined);

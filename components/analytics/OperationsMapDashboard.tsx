@@ -15,6 +15,7 @@ type HistoryPayload = { series: Array<{ date: string; events: number; created: n
 const platformLabel = (platform: string) => platform === "TaoMoz" ? "DeliGo Market" : platform;
 const statusLabel = (status: string) => ({ disponivel: "Disponível", ocupado: "Ocupado", em_servico: "Em serviço", offline: "Offline" }[status] || status || "Não indicado");
 const entityOptions = ["Pedidos", "Estafetas", "Drivers", "Riders", "Clientes", "Restaurantes"];
+const configuredPlatforms = ["DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"];
 const normalizeEntity = (value: string) => value.toLocaleLowerCase("pt").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 const entityMatches = (role: string, entity: string) => {
   if (entity === "todos") return true;
@@ -70,9 +71,9 @@ export function OperationsMapDashboard() {
     return matchesPlatform && matchesEntity && matchesStatus && haystack.includes(search.toLocaleLowerCase("pt"));
   }), [markers, platform, entity, status, search]);
 
-  const platforms = useMemo(() => Array.from(new Set(markers.map(marker => platformLabel(marker.platform))).values()).sort((a, b) => a.localeCompare(b, "pt")), [markers]);
-  const byPlatform = useMemo(() => platforms.map(label => ({ label, value: markers.filter(marker => platformLabel(marker.platform) === label).length })), [markers, platforms]);
-  const byStatus = useMemo(() => ["disponivel", "ocupado", "em_servico", "offline"].map(value => ({ label: statusLabel(value), value: markers.filter(marker => marker.status === value).length })).filter(item => item.value > 0), [markers]);
+  const platforms = useMemo(() => Array.from(new Set([...configuredPlatforms, ...markers.map(marker => platformLabel(marker.platform)).filter(Boolean)])).sort((a, b) => a.localeCompare(b, "pt")), [markers]);
+  const byPlatform = useMemo(() => platforms.map(label => ({ label, value: filtered.filter(marker => platformLabel(marker.platform) === label).length })).filter(item => item.value > 0), [filtered, platforms]);
+  const byStatus = useMemo(() => ["disponivel", "ocupado", "em_servico", "offline"].map(value => ({ label: statusLabel(value), value: filtered.filter(marker => marker.status === value).length })).filter(item => item.value > 0), [filtered]);
   const stale = markers.filter(marker => { const timestamp = Date.parse(marker.updatedAt); return Number.isFinite(timestamp) && Date.now() - timestamp > 5 * 60_000; }).length;
   const maxPlatform = Math.max(1, ...byPlatform.map(item => item.value));
   const maxStatus = Math.max(1, ...byStatus.map(item => item.value));

@@ -4,13 +4,13 @@ import { corporateAuthorization, hqRest } from "@/lib/hq-server";
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;
 type Mode = "institutional" | "jobs" | "projects" | "reports";
-type Period = "last_7_days" | "last_30_days" | "last_90_days" | "custom";
+type Period = "today" | "last_7_days" | "last_30_days" | "last_90_days" | "this_year" | "custom";
 const dayMs = 86_400_000;
 const dateOnly = (value: unknown) => typeof value === "string" ? value.slice(0, 10) : "";
 const maputoDate = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Maputo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 const start = (date: string) => new Date(`${date}T00:00:00+02:00`);
 const validDate = (value: string | null) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-const range = (period: Period, from: string | null, to: string | null) => { const today = maputoDate(new Date()); const days = period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; if (period === "custom" && from && to) return { from, to, days: Math.max(1, Math.round((start(to).getTime() - start(from).getTime()) / dayMs) + 1) }; return { from: maputoDate(new Date(start(today).getTime() - (days - 1) * dayMs)), to: today, days }; };
+const range = (period: Period, from: string | null, to: string | null) => { const today = maputoDate(new Date()); const days = period === "today" ? 1 : period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; if (period === "this_year") return { from: `${today.slice(0, 4)}-01-01`, to: today, days: Math.max(1, Math.round((start(today).getTime() - start(`${today.slice(0, 4)}-01-01`).getTime()) / dayMs) + 1) }; if (period === "custom" && from && to) return { from, to, days: Math.max(1, Math.round((start(to).getTime() - start(from).getTime()) / dayMs) + 1) }; return { from: maputoDate(new Date(start(today).getTime() - (days - 1) * dayMs)), to: today, days }; };
 const countBy = (rows: Row[], getter: (row: Row) => string) => { const counts = new Map<string, number>(); rows.forEach(row => { const key = getter(row) || "Não indicado"; counts.set(key, (counts.get(key) || 0) + 1); }); return [...counts.entries()].map(([label, value]) => ({ label, value })); };
 const metric = (id: string, label: string, value: number | null, formula: string, source: string) => ({ id, label, value, unit: "count", formula, source, status: value == null ? "unavailable" : "fresh" });
 async function read(path: string) { try { const rows = await hqRest(path) as Row[]; return Array.isArray(rows) ? rows : []; } catch { return []; } }
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams;
   const mode = (query.get("mode") || "institutional") as Mode;
   if (!["institutional", "jobs", "projects", "reports"].includes(mode)) return NextResponse.json({ error: "Modo analítico inválido." }, { status: 400 });
-  const period = (["last_7_days", "last_30_days", "last_90_days", "custom"].includes(query.get("period") || "") ? query.get("period") : "last_30_days") as Period;
+  const period = (["today", "last_7_days", "last_30_days", "last_90_days", "this_year", "custom"].includes(query.get("period") || "") ? query.get("period") : "last_30_days") as Period;
   const current = range(period, validDate(query.get("from")), validDate(query.get("to")));
   const permission = await corporateAuthorization();
   const role = String(permission?.actor.role || "").toUpperCase();

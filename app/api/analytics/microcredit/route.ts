@@ -3,14 +3,14 @@ import { corporateActor, stagingRest } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;
-type Period = "last_7_days" | "last_30_days" | "last_90_days" | "custom";
+type Period = "today" | "last_7_days" | "last_30_days" | "last_90_days" | "this_year" | "custom";
 const staff = new Set(["SUPER_ADMIN", "FINANCE"]);
 const dayMs = 86_400_000;
 const dateOnly = (value: unknown) => typeof value === "string" ? value.slice(0, 10) : "";
 const maputoDate = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Maputo", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 const start = (date: string) => new Date(`${date}T00:00:00+02:00`);
 const validDate = (value: string | null) => value && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
-const range = (period: Period, from: string | null, to: string | null) => { const today = maputoDate(new Date()); const days = period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; if (period === "custom" && from && to) return { from, to, days: Math.max(1, Math.round((start(to).getTime() - start(from).getTime()) / dayMs) + 1) }; return { from: maputoDate(new Date(start(today).getTime() - (days - 1) * dayMs)), to: today, days }; };
+const range = (period: Period, from: string | null, to: string | null) => { const today = maputoDate(new Date()); const days = period === "today" ? 1 : period === "last_7_days" ? 7 : period === "last_90_days" ? 90 : 30; if (period === "this_year") return { from: `${today.slice(0, 4)}-01-01`, to: today, days: Math.max(1, Math.round((start(today).getTime() - start(`${today.slice(0, 4)}-01-01`).getTime()) / dayMs) + 1) }; if (period === "custom" && from && to) return { from, to, days: Math.max(1, Math.round((start(to).getTime() - start(from).getTime()) / dayMs) + 1) }; return { from: maputoDate(new Date(start(today).getTime() - (days - 1) * dayMs)), to: today, days }; };
 const inRange = (value: unknown, current: { from: string; to: string }) => { const date = dateOnly(value); return Boolean(date && date >= current.from && date <= current.to); };
 const countBy = (rows: Row[], getter: (row: Row) => string) => { const map = new Map<string, number>(); rows.forEach(row => { const key = getter(row) || "Não indicado"; map.set(key, (map.get(key) || 0) + 1); }); return [...map.entries()].map(([label, value]) => ({ label, value })); };
 const moneySum = (rows: Row[], key: string) => { const values = rows.map(row => Number(row[key])).filter(Number.isFinite); return values.length ? Number(values.reduce((sum, value) => sum + value, 0).toFixed(2)) : null; };
@@ -21,7 +21,7 @@ function series(current: { from: string; to: string }, rows: Row[], dateKey: str
 export async function GET(request: NextRequest) {
   const currentActor = await corporateActor();
   if (!currentActor || !staff.has(currentActor.role)) return NextResponse.json({ error: "Sem acesso ao analytics de microcrédito." }, { status: 403 });
-  const query = request.nextUrl.searchParams; const periodParam = query.get("period"); const period = (["last_7_days", "last_30_days", "last_90_days", "custom"].includes(periodParam || "") ? periodParam : "last_30_days") as Period; const periodRange = range(period, validDate(query.get("from")), validDate(query.get("to"))); const status = (query.get("status") || "").toLowerCase(); const loanType = (query.get("loan_type") || query.get("type") || "").toLowerCase(); const collateralType = (query.get("collateral_type") || "").toLowerCase();
+  const query = request.nextUrl.searchParams; const periodParam = query.get("period"); const period = (["today", "last_7_days", "last_30_days", "last_90_days", "this_year", "custom"].includes(periodParam || "") ? periodParam : "last_30_days") as Period; const periodRange = range(period, validDate(query.get("from")), validDate(query.get("to"))); const status = (query.get("status") || "").toLowerCase(); const loanType = (query.get("loan_type") || query.get("type") || "").toLowerCase(); const collateralType = (query.get("collateral_type") || "").toLowerCase();
   try {
     const [applications, contracts, disbursements, repayments, collaterals, history] = await Promise.all([
       read("loan_applications?select=*&order=created_at.desc&limit=3000"),
