@@ -17,6 +17,8 @@ const headers = (key:string) => ({ apikey:key, Authorization:`Bearer ${key}`, "A
 async function rest(key:string,path:string,init:RequestInit={}) { const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...headers(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json() }
 const coreHeaders=(key:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":"core","Content-Profile":"core","Content-Type":"application/json",Prefer:"return=representation"});
 async function coreRest(key:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...coreHeaders(key),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
+const sourceHeaders=(key:string,schema:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":schema,"Content-Profile":schema,"Content-Type":"application/json",Prefer:"return=representation"});
+async function sourceRest(key:string,schema:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...sourceHeaders(key,schema),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
 async function safe<T>(operation:Promise<T>,fallback:T):Promise<T>{try{return await operation}catch(error){console.error("SUPPORT_OPTIONAL_SOURCE_FAILED",String(error));return fallback}}
 async function context(_permission="support.viewTickets",platform?:string){
   const authorization=await corporateAuthorization(),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;
@@ -32,6 +34,29 @@ function isFinancialTicket(ticket:Record<string,unknown>){
 }
 function canReplyToTicket(current:{actor:{role:string}},ticket:Record<string,unknown>){
   return replyRoles.has(current.actor.role)||(isFinanceRole(current.actor.role)&&isFinancialTicket(ticket));
+}
+async function dispatchLegacyPlatformReply(current:{key:string;actor:{authUserId:string;name:string}},ticket:Record<string,unknown>,message:string){
+  const reference=String(ticket.external_reference||"");
+  const signed=message.trim();
+  if(reference.startsWith("deligo:support:")){
+    const ticketId=reference.slice("deligo:support:".length);
+    const created=(await stagingRest("support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:signed})}) as Array<Record<string,unknown>>)?.[0];
+    await stagingRest(`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
+    return {source:"deligo",sourceMessageId:String(created?.id||""),mirrored:true};
+  }
+  if(reference.startsWith("mestre24:support:")){
+    const ticketId=reference.slice("mestre24:support:".length);
+    const created=(await sourceRest(current.key,"mestre24","support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_id:current.actor.authUserId,sender_role:"support",message:signed})}) as Array<Record<string,unknown>>)?.[0];
+    await sourceRest(current.key,"mestre24",`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
+    return {source:"mestre24",sourceMessageId:String(created?.id||""),mirrored:true};
+  }
+  if(/^sarca:support:|^sar[a-z-]*:support:/i.test(reference)){
+    const ticketId=reference.slice(reference.indexOf(":support:")+9);
+    const created=(await sourceRest(current.key,"sarca","support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_user_id:current.actor.authUserId,sender_role:"support",message:signed})}) as Array<Record<string,unknown>>)?.[0];
+    await sourceRest(current.key,"sarca",`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
+    return {source:"sarca",sourceMessageId:String(created?.id||""),mirrored:true};
+  }
+  return {source:"hq",sourceMessageId:null,mirrored:false};
 }
 async function sendWhatsAppReply(channel:unknown, contact:unknown, message:string):Promise<string|null>{
   if(String(channel||"").toLowerCase()!=="whatsapp")return null;
@@ -217,7 +242,13 @@ export async function POST(request:NextRequest){
       if(outboundId)record.external_message_id=outboundId;
     }
     if(table==="support_attachments")record.uploaded_by=current.actor.employee_id;
-    const created=(await rest(current.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];await history(current.key,ticket.id,body.resource==="message"?"response_sent":"attachment_added",body.resource==="message"?"Resposta adicionada à conversa":"Anexo associado ao ticket",current.actor.employee_id,{department_id:current.departmentId,source_channel:ticket.source_channel||"central"});await audit(current.key,current.actor.employee_id,`support_${body.resource}_created`,ticket.id,{record_id:created.id,department_id:current.departmentId});return NextResponse.json({record:created},{status:201});
+    const platformDelivery=body.resource==="message"&&!record.is_internal?await dispatchLegacyPlatformReply(current,ticket,String(record.message||"")):null;
+    const created=platformDelivery?.mirrored
+      ? { id:platformDelivery.sourceMessageId||crypto.randomUUID(), ticket_id:ticket.id, sender_type:"agent", sender_employee_id:current.actor.employee_id, message:String(record.message||""), source_channel:ticket.source_channel||"platform", external_message_id:platformDelivery.sourceMessageId }
+      : (await rest(current.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];
+    await history(current.key,ticket.id,body.resource==="message"?"response_sent":"attachment_added",body.resource==="message"?"Resposta adicionada à conversa":"Anexo associado ao ticket",current.actor.employee_id,{department_id:current.departmentId,source_channel:ticket.source_channel||"central",platform_delivery:platformDelivery});
+    await audit(current.key,current.actor.employee_id,`support_${body.resource}_created`,ticket.id,{record_id:created.id,department_id:current.departmentId,platform_delivery:platformDelivery});
+    return NextResponse.json({record:created,delivery:platformDelivery||{source:"hq",mirrored:false}},{status:201});
   }catch(error){const message=error instanceof Error?error.message:"";if(message.includes("WHATSAPP_OUTBOUND_NOT_CONFIGURED"))return NextResponse.json({error:"WhatsApp ainda não está configurado no deployment: faltam WHATSAPP_ACCESS_TOKEN ou WHATSAPP_PHONE_NUMBER_ID."},{status:503});if(message.includes("WHATSAPP_SEND_FAILED"))return NextResponse.json({error:"O WhatsApp recusou o envio. Confirme o número, o token Meta e a janela de atendimento."},{status:502});return NextResponse.json({error:"Não foi possível guardar o atendimento. Confirme cliente, plataforma e dados obrigatórios."},{status:409})}
 }
 
