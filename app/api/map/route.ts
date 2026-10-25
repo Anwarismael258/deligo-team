@@ -24,6 +24,8 @@ const safeRows = async <T,>(loader: () => Promise<T>): Promise<T | null> => {
   try { return await loader(); } catch { return null; }
 };
 
+const firstValue = (row: MapMarker, keys: string[]) => keys.map((key) => row[key]).find((value) => value !== null && value !== undefined && value !== "");
+
 export async function GET() {
   if (!(await cookies()).get("hq_access_token")?.value || !(await corporateActor())) {
     return NextResponse.json({ error: "Sessao corporativa necessaria." }, { status: 401 });
@@ -50,6 +52,13 @@ export async function GET() {
     const checkedAt = base.checkedAt || new Date().toISOString();
     const markers = Array.isArray(base.markers) ? [...base.markers] : [];
     const routes: MapRoute[] = [];
+    const markerIds = new Set(markers.map((marker) => String(marker.id || "")));
+    const addMarker = (marker: MapMarker) => {
+      const id = String(marker.id || "");
+      if (!id || markerIds.has(id)) return;
+      markerIds.add(id);
+      markers.push(marker);
+    };
 
     // DeliGo's already-authorized operational RPC contains active orders,
     // couriers and restaurants. Only add map objects when coordinates exist.
@@ -59,15 +68,48 @@ export async function GET() {
       for (const restaurant of deligo?.restaurants || []) {
         const location = point(restaurant.latitude, restaurant.longitude);
         if (!location) continue;
-        markers.push({ id: `deligo:restaurant:${String(restaurant.id)}`, platform: "DeliGo", role: "Restaurante", workerName: restaurant.name, status: restaurant.is_open ? "disponivel" : "offline", service: `${restaurant.active_orders || 0} pedidos ativos`, latitude: location[0], longitude: location[1], updatedAt: checkedAt });
+        addMarker({ id: `deligo:restaurant:${String(restaurant.id)}`, platform: "DeliGo", role: "Restaurante", workerName: restaurant.name, status: restaurant.is_open ? "disponivel" : "offline", service: `${restaurant.active_orders || 0} pedidos ativos`, latitude: location[0], longitude: location[1], updatedAt: checkedAt });
       }
       for (const order of deligo?.orders || []) {
         const origin = point(order.origin_latitude, order.origin_longitude);
         const destination = point(order.destination_latitude, order.destination_longitude);
         const updatedAt = typeof order.updated_at === "string" ? order.updated_at : checkedAt;
-        if (origin) markers.push({ id: `deligo:order:${String(order.id)}:origin`, platform: "DeliGo", role: "Pedido", service: String(order.id), status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
-        if (destination) markers.push({ id: `deligo:order:${String(order.id)}:destination`, platform: "DeliGo", role: "Cliente", service: String(order.id), status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+        if (origin) addMarker({ id: `deligo:order:${String(order.id)}:origin`, platform: "DeliGo", role: "Pedido", service: String(order.id), status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
+        if (destination) addMarker({ id: `deligo:order:${String(order.id)}:destination`, platform: "DeliGo", role: "Cliente", service: String(order.id), status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
         if (origin && destination) routes.push({ id: `deligo:order:${String(order.id)}`, platform: "DeliGo", label: `Pedido ${String(order.id).slice(0, 8)}`, coordinates: [origin, destination], updatedAt });
+      }
+
+      // Some DeliGo environments expose coordinates in the platform tables,
+      // while the HQ RPC only returns the live courier snapshot. Read both
+      // existing operational sources and merge them without duplicating IDs.
+      const [orders, deliveries, restaurants] = await Promise.all([
+        safeRows(() => platformRest("deligo", "orders?select=*&order=updated_at.desc&limit=500")),
+        safeRows(() => platformRest("deligo", "deliveries?select=*&order=updated_at.desc&limit=500")),
+        safeRows(() => platformRest("deligo", "restaurants?select=*&order=updated_at.desc&limit=500")),
+      ]) as [MapMarker[] | null, MapMarker[] | null, MapMarker[] | null];
+      for (const restaurant of restaurants || []) {
+        const location = point(firstValue(restaurant, ["latitude", "lat"]), firstValue(restaurant, ["longitude", "lng", "lon"]));
+        if (!location) continue;
+        addMarker({ id: `deligo:restaurant:${String(restaurant.id)}`, platform: "DeliGo", role: "Restaurante", workerName: String(firstValue(restaurant, ["name", "restaurant_name"]) || "Restaurante"), status: restaurant.is_open === false ? "offline" : "disponivel", latitude: location[0], longitude: location[1], updatedAt: String(firstValue(restaurant, ["updated_at", "created_at"]) || checkedAt) });
+      }
+      const active = (row: MapMarker) => !["delivered", "cancelled", "failed", "completed"].includes(String(row.status || "").toLowerCase());
+      for (const order of orders || []) {
+        if (!active(order)) continue;
+        const id = String(order.id || order.order_id || "");
+        if (!id) continue;
+        const origin = point(firstValue(order, ["origin_latitude", "pickup_latitude", "restaurant_latitude", "pickup_lat"]), firstValue(order, ["origin_longitude", "pickup_longitude", "restaurant_longitude", "pickup_lng"]));
+        const destination = point(firstValue(order, ["destination_latitude", "delivery_latitude", "customer_latitude", "dropoff_lat"]), firstValue(order, ["destination_longitude", "delivery_longitude", "customer_longitude", "dropoff_lng"]));
+        const updatedAt = String(firstValue(order, ["updated_at", "created_at"]) || checkedAt);
+        if (origin) addMarker({ id: `deligo:order:${id}:origin`, platform: "DeliGo", role: "Pedido", service: id, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
+        if (destination) addMarker({ id: `deligo:order:${id}:destination`, platform: "DeliGo", role: "Cliente", service: id, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+        if (origin && destination && !routes.some((route) => route.id === `deligo:order:${id}`)) routes.push({ id: `deligo:order:${id}`, platform: "DeliGo", label: `Pedido ${id.slice(0, 8)}`, coordinates: [origin, destination], updatedAt });
+      }
+      for (const delivery of deliveries || []) {
+        if (!active(delivery)) continue;
+        const id = String(delivery.id || delivery.delivery_id || delivery.order_id || "");
+        const current = point(firstValue(delivery, ["current_latitude", "latitude", "current_lat"]), firstValue(delivery, ["current_longitude", "longitude", "current_lng"]));
+        if (!id || !current) continue;
+        addMarker({ id: `deligo:delivery:${id}:current`, platform: "DeliGo", role: "Estafeta", service: String(delivery.order_id || id), status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
       }
     }
 
