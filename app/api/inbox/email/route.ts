@@ -8,6 +8,10 @@ function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "EMAIL_FAILED";
 }
 
+function validAddressList(value: string) {
+  return value.split(",").map(item => item.trim()).filter(Boolean).every(item => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(item));
+}
+
 function emailError(error: unknown, fallback: string) {
   const code = errorMessage(error);
   const normalized = code.toLowerCase();
@@ -50,10 +54,11 @@ export async function POST(request: NextRequest) {
   }
   if (body.to || body.subject || body.message || body.from) {
     if (!body.from?.trim() || !body.to?.trim() || !body.subject?.trim() || !body.message?.trim()) return NextResponse.json({ error: "Remetente, destinatário, assunto e mensagem são obrigatórios." }, { status: 400 });
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.to) || body.to.length > 320) return NextResponse.json({ error: "Destinatário inválido." }, { status: 400 });
+    if (!validAddressList(body.to) || body.to.length > 320) return NextResponse.json({ error: "Destinatário inválido." }, { status: 400 });
+    if ((body.cc && (!validAddressList(body.cc) || body.cc.length > 320)) || (body.bcc && (!validAddressList(body.bcc) || body.bcc.length > 320))) return NextResponse.json({ error: "Cc ou Cco inválido." }, { status: 400 });
     if (body.subject.length > 200 || body.message.length > 10000) return NextResponse.json({ error: "Assunto ou mensagem demasiado longos." }, { status: 400 });
     try {
-      const delivery = await sendComposedInboxEmail({ from: body.from, to: body.to, subject: body.subject.trim(), text: body.message.trim() });
+      const delivery = await sendComposedInboxEmail({ from: body.from, to: body.to, cc: body.cc, bcc: body.bcc, subject: body.subject.trim(), text: body.message.trim() });
       const recipient = delivery.recipient;
       try {
         const outbound = (await stagingRest("inbox_messages", { method: "POST", body: JSON.stringify({ area: "geral", source: "email", subject: body.subject.trim(), from_name: "Central HQ", from_email: body.from.trim().toLowerCase(), body: body.message.trim(), meta: { outbound: true, recipient } }) }))?.[0];
