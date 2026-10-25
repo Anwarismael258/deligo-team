@@ -15,3 +15,12 @@ test("respostas da Central são entregues à fonte da plataforma e notificam o u
   assert.match(route, /stagingRest\("support_messages"/);
   assert.match(route, /notificationSent/);
 });
+
+test("a conversa preserva o nome do trabalhador nas respostas", async () => {
+  const route = await read("app/api/support/route.ts");
+  const page = await read("app/page.tsx");
+  assert.match(route, /sender_name:senderType===\"agent\"\?String\(row\.sender_name/);
+  assert.match(route, /auth_user_id,employee_code/);
+  assert.match(page, /m\.sender_name\|\|\(\(supportData\.employees\|\|\[\]\)\.find\(e=>e\.id===m\.sender_employee_id\|\|e\.auth_user_id===m\.sender_id\)/);
+  assert.match(page, /· Trabalhador/);
+});
