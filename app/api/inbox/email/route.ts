@@ -10,7 +10,20 @@ function errorMessage(error: unknown) {
 
 function emailError(error: unknown, fallback: string) {
   const code = errorMessage(error);
-  return NextResponse.json({ error: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? "Configure o SMTP autorizado na Vercel." : code === "EMAIL_SENDER_NOT_ALLOWED" ? "Remetente não autorizado." : fallback }, { status: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? 503 : 502 });
+  const normalized = code.toLowerCase();
+  const message = code === "NOMINALIA_SMTP_NOT_CONFIGURED"
+    ? "SMTP da caixa selecionada não está configurado no ambiente de produção."
+    : code === "EMAIL_SENDER_NOT_ALLOWED"
+      ? "Remetente não autorizado. Escolha uma das caixas Nominalia configuradas."
+      : /eauth|authentication|invalid login|535/.test(normalized)
+        ? "A autenticação SMTP falhou. Confirme a palavra-passe da caixa selecionada na Vercel."
+        : /timeout|timed out|enotfound|econn|connection/.test(normalized)
+          ? "Não foi possível ligar ao servidor SMTP da Nominalia."
+          : /rejected|recipient|550|553/.test(normalized)
+            ? "O servidor SMTP rejeitou o envio ou o destinatário."
+            : fallback;
+  console.error("INBOX_EMAIL_SAFE_ERROR", { code: code.slice(0, 240) });
+  return NextResponse.json({ error: message }, { status: code === "NOMINALIA_SMTP_NOT_CONFIGURED" ? 503 : 502 });
 }
 
 export async function GET() {
