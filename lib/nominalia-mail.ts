@@ -67,6 +67,7 @@ function smtpMailbox(address: string): SmtpMailbox | null {
 }
 
 const letterheadPath = path.join(process.cwd(), "public", "deligo-letterhead.png");
+const letterheadPublicUrl = "https://www.deligoteam.online/deligo-letterhead.png";
 
 function escapeHtml(value: string) {
   return value.replace(/[&<>\"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;", "'": "&#39;" }[character] || character));
@@ -74,8 +75,10 @@ function escapeHtml(value: string) {
 
 function letterheadHtml(message: string) {
   const body = escapeHtml(message).replace(/\r?\n/g, "<br>");
-  if (!fs.existsSync(letterheadPath)) return undefined;
-  return `<!doctype html><html><body style="margin:0;background:#f4f4f4;font-family:Arial,sans-serif;color:#171717"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4"><tr><td align="center" style="padding:16px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:1055px;background-color:#ffffff"><tr><td style="padding:0"><img src="cid:deligo-letterhead" alt="Papel timbrado DeliGo Triunfal" width="1055" style="display:block;width:100%;height:auto;border:0;outline:none;text-decoration:none"></td></tr><tr><td style="padding:24px 10% 48px;vertical-align:top;font-size:18px;line-height:1.55;word-break:break-word"><div style="white-space:normal">${body}</div></td></tr></table></td></tr></table></body></html>`;
+  // Use the public image as the primary source because some mail clients do
+  // not render CID images reliably. The inline attachment remains available
+  // for clients that prefer embedded MIME resources.
+  return `<!doctype html><html><body style="margin:0;background:#f4f4f4;font-family:Arial,sans-serif;color:#171717"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4"><tr><td align="center" style="padding:16px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:1055px;background-color:#ffffff"><tr><td style="padding:0"><a href="${letterheadPublicUrl}" style="text-decoration:none"><img src="${letterheadPublicUrl}" alt="Papel timbrado DeliGo Triunfal" width="1055" style="display:block;width:100%;height:auto;border:0;outline:none;text-decoration:none"></a></td></tr><tr><td style="padding:24px 10% 48px;vertical-align:top;font-size:18px;line-height:1.55;word-break:break-word"><div style="white-space:normal">${body}</div></td></tr></table></td></tr></table></body></html>`;
 }
 
 function letterheadAttachment() {
