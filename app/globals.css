@@ -376,6 +376,9 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell :is(.workspaceHead,.workspaceStats,.profileHero,.tableHeader,.institutionalHead,.notificationGroup>header){border-color:var(--hq-border-soft)}
 .shell :is(.analyticsFilters input,.analyticsFilters select,.dashboardFilters select,.institutionalFilters input,.institutionalFilters button,.institutionalWorkspace input,.institutionalWorkspace select,.institutionalWorkspace textarea):focus{border-color:var(--hq-border-active);outline:2px solid #38e8ff33;outline-offset:1px}
 .shell :is(.platformCard:hover,.platformDirectoryCard:hover,.navItem.active){border-color:var(--hq-border-active)!important}
+/* Dense analytical panels use a lighter top accent instead of a full neon outline. */
+.shell :is(.analyticsChartCard,.analyticsDataTable,.institutionalTable,.reportGrid,.notificationCenterWorkspace){border-top:2px solid #38e8ff66!important}
+.shell :is(button,a,input,select,textarea):focus-visible{outline:2px solid #38e8ff88;outline-offset:2px}
 .shell .fieldDecisionRow{background:#193650!important;border:1px solid #3d6488!important;border-radius:12px;color:#eaf2ff!important;box-shadow:none}
 .shell .fieldDecisionRow strong{color:#f7fbff!important;font-size:12px}
 .shell .fieldDecisionRow span,.shell .fieldDecisionRow small{color:#b8cce0!important}
