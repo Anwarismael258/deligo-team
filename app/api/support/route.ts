@@ -138,7 +138,8 @@ export async function GET(request:NextRequest){
   allTickets=allTickets.map(ticket=>{const ticketId=String(ticket.id||"");return ticketId.startsWith("core:")?{...ticket,last_read_at:readAtByCase.get(ticketId.slice(5))||null}:ticket;});
   const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened").map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));
   const legacyHistory=(Array.isArray(events)?events:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened");
-  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:[...legacyMessages,...coreMessages,...publicMessagesMapped],support_attachments:[...(Array.isArray(attachments)?attachments:[]),...publicAttachments],support_escalations:escalations,support_department_assignments:assignments,support_history:[...legacyHistory,...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments},meta:{degraded:!ticketsHealthy&&!publicTicketsHealthy||!publicMessagesHealthy,ticketsHealthy,publicTicketsHealthy,publicMessagesHealthy}},{headers:{"Cache-Control":"private, no-store"}});
+  const orderedConversations=[...legacyMessages,...coreMessages,...publicMessagesMapped].sort((left,right)=>new Date(String((left as Record<string,unknown>).created_at||0)).getTime()-new Date(String((right as Record<string,unknown>).created_at||0)).getTime());
+  return NextResponse.json({data:{support_tickets:allTickets,support_conversations:orderedConversations,support_attachments:[...(Array.isArray(attachments)?attachments:[]),...publicAttachments],support_escalations:escalations,support_department_assignments:assignments,support_history:[...legacyHistory,...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments},meta:{degraded:!ticketsHealthy&&!publicTicketsHealthy||!publicMessagesHealthy,ticketsHealthy,publicTicketsHealthy,publicMessagesHealthy}},{headers:{"Cache-Control":"private, no-store"}});
 }
 
 export async function POST(request:NextRequest){
@@ -206,7 +207,7 @@ export async function PATCH(request:NextRequest){
       const publicId=String(body.ticketId).slice(7),publicTicket=(await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}&select=*`) as Array<Record<string,unknown>>)?.[0];
       if(!publicTicket)return NextResponse.json({error:"Atendimento do aplicativo não encontrado."},{status:404});
       if(body.action==="mark_read"){
-        await stagingRest(`support_messages?ticket_id=eq.${encodeURIComponent(publicId)}&sender_role=eq.client&read_at=is.null`,{method:"PATCH",body:JSON.stringify({read_at:new Date().toISOString()})});
+        await stagingRest(`support_messages?ticket_id=eq.${encodeURIComponent(publicId)}&sender_role=in.(client,customer,user,cliente)&read_at=is.null`,{method:"PATCH",body:JSON.stringify({read_at:new Date().toISOString()})});
         return NextResponse.json({ok:true,readAt:new Date().toISOString()});
       }
       if(!canReplyToTicket(current,{...publicTicket,category:publicTicket.dispute_type,subject:publicTicket.reason,description:publicTicket.reason}))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
