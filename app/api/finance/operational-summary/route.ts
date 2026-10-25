@@ -5,9 +5,6 @@ export const dynamic = "force-dynamic";
 
 const rolePermission: Record<string, string> = {
   SUPERVISOR: "operations.view",
-  CUSTOMER_SUPPORT: "support.viewTickets",
-  MARKETING: "marketing.view",
-  FIELD: "field.view",
 };
 
 export async function GET() {
