@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 type Message = { id:string; subject?:string; from_name?:string; from_email?:string; area?:string; source?:string; body?:string; status?:string; meta?:Record<string,unknown>|null };
 const statuses:Record<string,string>={novo:"Novo",em_tratamento:"Em tratamento",respondido:"Respondido",fechado:"Fechado",spam:"Spam"};
-const emailPattern=/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
+const emailPattern=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 async function readJson(response: Response): Promise<Record<string, any>> {
   const raw = await response.text();
   try { return raw ? JSON.parse(raw) as Record<string, any> : {}; }
