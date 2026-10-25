@@ -22,3 +22,12 @@ test("API usa permissões granulares, auditoria e nunca recebe service role do b
   assert.match(api, /news\.published/);
   assert.doesNotMatch(api, /NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY/);
 });
+
+test("Central pode publicar explicitamente a vaga canónica no site institucional", async () => {
+  const jobsApi = await readFile(new URL("../app/api/institutional/jobs/route.ts", import.meta.url), "utf8");
+  const jobsUi = await readFile(new URL("../components/InstitutionalJobsManager.tsx", import.meta.url), "utf8");
+  assert.match(jobsApi, /action === "publish"/);
+  assert.match(jobsApi, /published: true/);
+  assert.match(jobsUi, /Guardar e publicar no site/);
+  assert.match(jobsUi, /value="publish"/);
+});
