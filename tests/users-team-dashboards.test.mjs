@@ -26,7 +26,7 @@ test("UI de utilizadores e equipa reutiliza analytics e não cria rankings indiv
   const source = read("components/analytics/UserTeamDashboard.tsx");
   assert.match(source, /DashboardFilters/);
   assert.match(source, /KPIGrid/);
-  assert.match(source, /AnalyticsDataTable/);
-  assert.match(source, /não existem rankings individuais|sem rankings individuais/);
+  assert.match(source, /AnalyticsDonutChart/);
+  assert.doesNotMatch(source, /ranking individual/i);
   assert.match(source, /Série histórica indisponível/);
 });

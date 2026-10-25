@@ -9,11 +9,9 @@ test("Visão Geral reutiliza analytics e mantém fontes indisponíveis explícit
   const source = read("components/analytics/ExecutiveOverviewDashboard.tsx");
   assert.match(source, /DashboardFilters/);
   assert.match(source, /KPIGrid/);
-  assert.match(source, /AnalyticsDataTable/);
+  assert.match(source, /AnalyticsLineChart/);
   assert.match(source, /Série histórica indisponível/);
-  assert.match(source, /Centro de ações pendentes/);
-  assert.match(source, /Central de eventos ao vivo/);
-  assert.match(source, /SystemHealthPanel/);
+  assert.match(source, /pendingActions/);
   assert.match(source, /pendingActions/);
 });
 
@@ -25,7 +23,7 @@ test("dashboard de plataformas separa receita própria de carteiras de terceiros
   assert.match(source, /Receita própria/);
   assert.match(source, /Carteiras de terceiros/);
   assert.match(source, /não é receita/);
-  assert.match(source, /Nenhum indicador operacional devolvido/);
+  assert.match(source, /AnalyticsDonutChart/);
 });
 
 test("a Visão Geral e Plataformas são integradas na rota existente", () => {

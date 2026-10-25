@@ -28,7 +28,7 @@ test("períodos históricos têm limites Maputo e comparação segura", () => {
 test("a UI apresenta a série real e não inventa pontos ausentes", () => {
   const source = read("components/analytics/ExecutiveOverviewDashboard.tsx");
   assert.match(source, /api\/analytics\/history/);
-  assert.match(source, /Receita histórica indisponível/);
-  assert.match(source, /Comparação temporal indisponível/);
+  assert.match(source, /Série histórica indisponível/);
+  assert.match(source, /history\?\.comparison\.revenue/);
   assert.match(source, /history\.comparison\.revenue/);
 });

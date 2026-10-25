@@ -43,11 +43,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   let actor;
-  let body: { id?: string; from?: string; to?: string; subject?: string; message?: string };
+  let body: { id?: string; from?: string; to?: string; cc?: string; bcc?: string; subject?: string; message?: string };
   try {
     actor = await corporateActor();
     if (!actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return NextResponse.json({ error: "Apenas o Administrador ou Finanças podem enviar email." }, { status: 403 });
-    body = await request.json() as { id?: string; from?: string; to?: string; subject?: string; message?: string };
+    body = await request.json() as { id?: string; from?: string; to?: string; cc?: string; bcc?: string; subject?: string; message?: string };
   } catch (error) {
     console.error("INBOX_EMAIL_REQUEST_FAILED", errorMessage(error));
     return emailError(error, "Não foi possível preparar o envio de email.");
