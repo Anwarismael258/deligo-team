@@ -658,10 +658,10 @@ export function HQApp() {
       if (!response.ok) { window.location.replace("/login"); return; }
       const session = await response.json() as { user?: SessionUser };
       const sessionPersona = session.user?.hq_role && personaByRole[session.user.hq_role as keyof typeof personaByRole];
-      // FINANCE has the same effective Central capabilities as SUPER_ADMIN.
-      // Keep the real role in sessionUser.hq_role for server/API decisions,
-      // while the legacy UI gates use this effective role for presentation.
-      setSessionRole(session.user?.is_super_admin || session.user?.hq_role === "FINANCE" ? "SUPER_ADMIN" : session.user?.hq_role || "");
+      // Keep the canonical role for presentation as well as server decisions.
+      // FINANCE may have selected administrative permissions, but is never
+      // presented or treated as SUPER_ADMIN by the client.
+      setSessionRole(session.user?.is_super_admin ? "SUPER_ADMIN" : session.user?.hq_role || "");
       setSessionUser(session.user||null);
       if (sessionPersona) setPersona(sessionPersona);
     }).catch(() => window.location.replace("/login"));

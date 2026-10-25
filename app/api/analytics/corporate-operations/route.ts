@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
   const period = (["today", "last_7_days", "last_30_days", "last_90_days", "this_year", "custom"].includes(query.get("period") || "") ? query.get("period") : "last_30_days") as Period;
   const current = range(period, validDate(query.get("from")), validDate(query.get("to")));
   const permission = await corporateAuthorization();
-  const role = String(permission?.actor.role || "").toUpperCase();
-  const allowed = Boolean(permission) && (permission!.isSuperAdmin || (mode === "institutional" || mode === "jobs" ? permission!.permissions.includes("news.view") : ["FINANCE", "ACCOUNTING", "HUMAN_RESOURCES", "LEGAL", "OPERATIONS", "SUPERVISOR", "MARKETING", "FIELD", "CUSTOMER_SUPPORT", "PROCUREMENT", "ASSETS_LOGISTICS"].includes(role)));
+  const requiredPermission = mode === "institutional" || mode === "jobs" ? "news.view" : "reports.view";
+  const allowed = Boolean(permission) && (permission!.isSuperAdmin || permission!.permissions.includes(requiredPermission));
   if (!allowed) return NextResponse.json({ error: "Sem permissão para consultar este dashboard." }, { status: 403 });
   const selectedStatus = (query.get("status") || "").toLowerCase();
   const selectedType = (query.get("type") || "").toLowerCase();
