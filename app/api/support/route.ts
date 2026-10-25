@@ -49,6 +49,28 @@ async function sendWhatsAppReply(channel:unknown, contact:unknown, message:strin
   if(!response.ok)throw new Error(`WHATSAPP_SEND_FAILED: ${result.error?.message||response.status}`);
   return result.messages?.[0]?.id||null;
 }
+async function notifyCoreRequester(key:string, coreCase:Record<string,unknown>, messageId:string){
+  const requesterId=String(coreCase.requester_user_id||"");
+  if(!requesterId)return false;
+  try{
+    const app=coreCase.app&&typeof coreCase.app==="object"?(coreCase.app as Record<string,unknown>):{};
+    await rest(key,"rpc/create_app_notification",{method:"POST",body:JSON.stringify({
+      p_user_id:requesterId,
+      p_type:"SUPPORT_MESSAGE_RECEIVED",
+      p_title:"Nova resposta do suporte",
+      p_body:String(app.name||"Suporte")+": resposta recebida",
+      p_action:"OPEN_SUPPORT_CHAT",
+      p_entity_id:messageId,
+      p_priority:"HIGH",
+      p_channel:"support",
+      p_metadata:{support_case_id:String(coreCase.id||""),support_message_id:messageId,source:"hq_support_reply"}
+    })});
+    return true;
+  }catch(error){
+    console.error("SUPPORT_CORE_REPLY_NOTIFICATION_FAILED",String(error));
+    return false;
+  }
+}
 async function history(key:string,ticketId:string,eventType:string,description:string,actorId:string,metadata:Record<string,unknown>={}){await rest(key,"support_history",{method:"POST",body:JSON.stringify({ticket_id:ticketId,event_type:eventType,description,actor_employee_id:actorId,metadata})})}
 async function audit(key:string,actorId:string,action:string,ticketId:string,metadata:Record<string,unknown>={}){await rest(key,"audit_logs",{method:"POST",body:JSON.stringify({actor_employee_id:actorId,action,legal_entity_id:entity,module:"support",target_type:"support_ticket",target_id:ticketId,result:"success",metadata})})}
 function departmentFor(category:unknown,type:unknown){const value=`${String(category||"")} ${String(type||"")}`.toLowerCase();if(/t[eé]cnic|aplica[cç][aã]o|erro|sistema|api/.test(value))return"TECHNOLOGY";if(/pagamento|dep[oó]sito|levantamento|saldo|cobran[cç]a|reembolso/.test(value))return"FINANCE";if(/trabalhador|motorista|estafeta|agente|comportamento/.test(value))return"HR";if(/contrato|legal|jur[ií]dic|amea[cç]a/.test(value))return"LEGAL";if(/risco|fraude|seguran[cç]a|grave/.test(value))return"COMPLIANCE";return"SUPPORT"}
@@ -178,10 +200,11 @@ export async function POST(request:NextRequest){
       const isInternal=body.record.is_internal==="true"||body.record.is_internal===true;
       const signedBody=`${String(body.record.message||"").trim()}\n\n— ${current.actor.name}`;
       const outboundId=isInternal?null:await sendWhatsAppReply(coreCase.source_channel,coreCase.requester_phone,signedBody);
-      const created=(await coreRest(current.key,"support_case_messages",{method:"POST",body:JSON.stringify({case_id:caseId,author_type:"staff",body:signedBody,is_internal:isInternal,metadata:{hq_employee_id:current.actor.employee_id,source_channel:coreCase.source_channel||"app",whatsapp_message_id:outboundId}})}))?.[0];
+      const created=(await coreRest(current.key,"support_case_messages",{method:"POST",body:JSON.stringify({case_id:caseId,author_user_id:current.actor.authUserId,author_type:"staff",body:signedBody,is_internal:isInternal,metadata:{hq_employee_id:current.actor.employee_id,source_channel:coreCase.source_channel||"app",whatsapp_message_id:outboundId}})}))?.[0];
+      const notificationSent=await notifyCoreRequester(current.key,coreCase,String(created?.id||""));
       await coreRest(current.key,`support_cases?id=eq.${caseId}`,{method:"PATCH",body:JSON.stringify({status:"assigned",updated_at:new Date().toISOString()})});
       await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,event_type:"hq_reply_sent",metadata:{hq_employee_id:current.actor.employee_id,channel:coreCase.source_channel||"app"}})});
-      return NextResponse.json({record:{...created,id:`core-msg:${created.id}`,ticket_id:`core:${caseId}`,sender_type:"agent",message:created.body}},{status:201});
+      return NextResponse.json({record:{...created,id:`core-msg:${created.id}`,ticket_id:`core:${caseId}`,sender_type:"agent",message:created.body},delivery:{notificationSent,channel:coreCase.source_channel||"app"}},{status:201});
     }
     const ticket=(await rest(current.key,`support_tickets?id=eq.${encodeURIComponent(String(body.record.ticket_id||""))}&select=*`))?.[0];if(!ticket||!canReplyToTicket(current,ticket))return NextResponse.json({error:"Sem permissão para responder a este atendimento. O perfil Finance só pode responder a assuntos financeiros."},{status:403});
     const record={...body.record} as Record<string,unknown>;
