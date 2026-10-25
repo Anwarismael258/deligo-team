@@ -17,13 +17,15 @@ export function OperationsDensityHeatmap({ markers }: { markers: OperationsMapMa
     const columns = Array.from({ length: 12 }, (_, index) => `${(minLng + ((index + 0.5) / 12) * lngSpan).toFixed(3)}`);
     const rows = Array.from({ length: 8 }, (_, index) => `${(maxLat - ((index + 0.5) / 8) * latSpan).toFixed(3)}`);
     const counts = new Map<string, number>();
+    const icons: Array<{ value: [number, number]; role: string; platform: string }> = [];
     valid.forEach((marker) => {
       const column = Math.min(11, Math.max(0, Math.floor(((marker.longitude - minLng) / lngSpan) * 12)));
       const row = Math.min(7, Math.max(0, Math.floor(((maxLat - marker.latitude) / latSpan) * 8)));
       const key = `${column}:${row}`;
       counts.set(key, (counts.get(key) || 0) + 1);
+      icons.push({ value: [column, row], role: marker.role, platform: marker.platform });
     });
-    return { columns, rows, data: Array.from(counts.entries()).map(([key, value]) => { const [column, row] = key.split(":").map(Number); return [column, row, value]; }) };
+    return { columns, rows, data: Array.from(counts.entries()).map(([key, value]) => { const [column, row] = key.split(":").map(Number); return [column, row, value]; }), icons };
   }, [markers]);
 
   useEffect(() => {
@@ -38,11 +40,22 @@ export function OperationsDensityHeatmap({ markers }: { markers: OperationsMapMa
       instance.setOption({
         animation: false,
         grid: { top: 8, right: 12, bottom: 42, left: 48 },
-        tooltip: { formatter: (params: { value?: [number, number, number] }) => params.value ? `Posições: ${params.value[2]}` : "Posições" },
+        tooltip: { formatter: (params: { value?: [number, number, number]; role?: string; platform?: string }) => params.role ? `${params.role} · ${params.platform || ""}` : params.value ? `Posições: ${params.value[2]}` : "Posições" },
         xAxis: { type: "category", data: points.columns, name: "longitude", nameLocation: "middle", nameGap: 28, axisLabel: { fontSize: 9 }, splitArea: { show: true } },
         yAxis: { type: "category", data: points.rows, name: "latitude", nameLocation: "middle", nameGap: 34, axisLabel: { fontSize: 9 }, splitArea: { show: true } },
         visualMap: { min: 0, max: Math.max(1, ...points.data.map((item) => item[2])), calculable: false, orient: "horizontal", left: "center", bottom: 0, itemWidth: 120, textStyle: { fontSize: 9 }, inRange: { color: ["#fff4e8", "#f6a24c", "#c5223b"] } },
-        series: [{ type: "heatmap", data: points.data, emphasis: { itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,.25)" } } }],
+        series: [
+          { type: "heatmap", data: points.data, emphasis: { itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,.25)" } } },
+          {
+            type: "scatter",
+            data: points.icons,
+            symbolSize: 22,
+            encode: { x: 0, y: 1 },
+            itemStyle: { color: "#111827", borderColor: "#ffffff", borderWidth: 1 },
+            label: { show: true, position: "inside", color: "#ffffff", fontSize: 13, formatter: (params: { data?: { role?: string } }) => { const role = String(params.data?.role || "").toLowerCase(); return role.includes("restaurante") ? "🍽" : role.includes("cliente") ? "●" : role.includes("pedido") ? "▣" : "🏍"; } },
+            tooltip: { formatter: (params: { data?: { role?: string; platform?: string } }) => params.data ? `${params.data.role || "Posição"} · ${params.data.platform || ""}` : "Posição" },
+          },
+        ],
       });
       window.addEventListener("resize", resize);
     });
@@ -50,5 +63,5 @@ export function OperationsDensityHeatmap({ markers }: { markers: OperationsMapMa
   }, [points]);
 
   if (!points) return <p className="analyticsDataNote">Sem coordenadas atuais verificáveis para calcular a densidade.</p>;
-  return <div ref={container} className="operationsHeatmap" aria-label="Densidade de posições operacionais atuais" />;
+  return <div><div ref={container} className="operationsHeatmap" aria-label="Densidade de posições operacionais atuais" /><p className="analyticsDataNote operationsHeatmapLegend">🏍 Estafeta/driver · 🍽 Restaurante · ▣ Pedido · ● Cliente</p></div>;
 }
