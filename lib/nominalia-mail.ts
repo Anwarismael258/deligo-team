@@ -95,7 +95,7 @@ export function configuredInboxSenders() {
   return configuredAddresses().filter(address => Boolean(smtpMailbox(address)));
 }
 
-export async function sendComposedInboxEmail(input: { from: string; to: string; subject: string; text: string }) {
+export async function sendComposedInboxEmail(input: { from: string; to: string; cc?: string; bcc?: string; subject: string; text: string }) {
   if (!configured()) throw new Error("NOMINALIA_SMTP_NOT_CONFIGURED");
   const from = normalizeAddress(input.from);
   const mailbox = smtpMailbox(from);
@@ -107,6 +107,8 @@ export async function sendComposedInboxEmail(input: { from: string; to: string; 
     envelope: { from: mailbox.user, to: recipient },
     replyTo: mailbox.user,
     to: recipient,
+    ...(input.cc?.trim() ? { cc: input.cc.trim() } : {}),
+    ...(input.bcc?.trim() ? { bcc: input.bcc.trim() } : {}),
     subject: input.subject,
     text: input.text,
   });
