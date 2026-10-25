@@ -19,7 +19,8 @@ test("respostas da Central são entregues à fonte da plataforma e notificam o u
 test("a conversa preserva o nome do trabalhador nas respostas", async () => {
   const route = await read("app/api/support/route.ts");
   const page = await read("app/page.tsx");
-  assert.match(route, /sender_name:senderType==="agent"\?String\(employee\?\.name\|\|row\.sender_name/);
+  assert.match(route, /normalizeSender/);
+  assert.match(route, /sender_name:senderType==="agent"\?String\(employee\?\.name\|\|rawSenderName/);
   assert.match(route, /auth_user_id,employee_code/);
   assert.match(page, /m\.sender_name\|\|\(\(supportData\.employees\|\|\[\]\)\.find\(e=>e\.id===m\.sender_employee_id\|\|e\.auth_user_id===m\.sender_id\)/);
   assert.match(page, /· Trabalhador/);
