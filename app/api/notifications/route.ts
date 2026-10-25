@@ -7,15 +7,16 @@ const inboxRoles=new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","CUSTOMER_SUPPORT
 async function ingestSupportNotifications(employeeId:string,key:string){
   try{
     const messages=await rest(key,"support_conversations?sender_type=eq.customer&is_internal=eq.false&select=id,ticket_id,message,created_at&order=created_at.desc&limit=100") as Array<Record<string,unknown>>;
-    if(!Array.isArray(messages)||!messages.length)return;
-    const ticketIds=[...new Set(messages.map(message=>String(message.ticket_id||"")).filter(Boolean))];
+    const externalMessages=(Array.isArray(messages)?messages:[]).filter(message=>String(message.sender_type||"").toLowerCase()==="customer");
+    if(!externalMessages.length)return;
+    const ticketIds=[...new Set(externalMessages.map(message=>String(message.ticket_id||"")).filter(Boolean))];
     const [tickets,existing]=await Promise.all([
       rest(key,`support_tickets?id=in.(${ticketIds.join(",")})&select=id,platform_id,customer_name,subject&limit=200`) as Promise<Array<Record<string,unknown>>>,
       rest(key,`notifications?employee_id=eq.${encodeURIComponent(employeeId)}&source_type=eq.support_message&select=source_id&limit=1000`) as Promise<Array<Record<string,unknown>>>,
     ]);
     const ticketById=new Map((Array.isArray(tickets)?tickets:[]).map(ticket=>[String(ticket.id),ticket]));
     const known=new Set((Array.isArray(existing)?existing:[]).map(row=>String(row.source_id||"")));
-    const rows=messages.filter(message=>!known.has(String(message.id||""))).map(message=>{
+    const rows=externalMessages.filter(message=>!known.has(String(message.id||""))).map(message=>{
       const ticket=ticketById.get(String(message.ticket_id||""));
       const preview=String(message.message||"Nova mensagem recebida").replace(/\s+/g," ").trim().slice(0,220);
       const customer=String(ticket?.customer_name||"Cliente").trim();
