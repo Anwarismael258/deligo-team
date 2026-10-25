@@ -6,6 +6,17 @@ export const inboxRecipients: Record<string, string> = {
   carreiras: "carreiras@deligotriunfal.site",
 };
 
+const senderDisplayNames: Record<string, string> = {
+  "geral@deligotriunfal.site": "DeliGo Geral",
+  "comercial@deligotriunfal.site": "DeliGo Comercial",
+  "carreiras@deligotriunfal.site": "DeliGo Carreiras",
+};
+
+function displayFrom(address: string) {
+  const normalized = normalizeAddress(address);
+  return `${senderDisplayNames[normalized] || "DeliGo Triunfal"} <${normalized}>`;
+}
+
 type InboxMessage = { id: string; area: string; source: string; subject: string; from_name: string; from_email: string; phone?: string | null; company?: string | null; body: string; created_at: string };
 
 type SmtpMailbox = { address: string; user: string; password: string };
@@ -70,7 +81,7 @@ export async function sendInboxEmail(message: InboxMessage) {
   const transporter = nodemailer.createTransport(transporterOptions(mailbox));
   const lines = [`Área: ${message.area}`, `Origem: ${message.source}`, `Nome: ${message.from_name}`, `Email: ${message.from_email}`, message.phone ? `Telefone: ${message.phone}` : "", message.company ? `Empresa: ${message.company}` : "", `Recebido: ${new Date(message.created_at).toLocaleString("pt-MZ")}`, "", message.body].filter(Boolean);
   const info = await transporter.sendMail({
-    from: mailbox.user,
+    from: displayFrom(mailbox.user),
     envelope: { from: mailbox.user, to: recipient },
     to: recipient,
     replyTo: message.from_email,
@@ -92,7 +103,7 @@ export async function sendComposedInboxEmail(input: { from: string; to: string; 
   const transporter = nodemailer.createTransport(transporterOptions(mailbox));
   const recipient = input.to.trim();
   const info = await transporter.sendMail({
-    from: mailbox.user,
+    from: displayFrom(mailbox.user),
     envelope: { from: mailbox.user, to: recipient },
     replyTo: mailbox.user,
     to: recipient,
