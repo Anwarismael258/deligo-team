@@ -79,7 +79,16 @@ function letterheadHtml(message: string) {
 }
 
 function letterheadAttachment() {
-  return fs.existsSync(letterheadPath) ? [{ filename: "papel-timbrado-deligo.png", path: letterheadPath, cid: "deligo-letterhead" }] : undefined;
+  if (!fs.existsSync(letterheadPath)) return undefined;
+  // Embed the asset in the MIME message instead of relying on the serverless
+  // runtime to resolve a filesystem path after the deployment is packaged.
+  return [{
+    filename: "papel-timbrado-deligo.png",
+    content: fs.readFileSync(letterheadPath),
+    contentType: "image/png",
+    contentDisposition: "inline" as const,
+    cid: "deligo-letterhead",
+  }];
 }
 
 function configuredAddresses() {
