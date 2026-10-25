@@ -31,6 +31,7 @@ import { OperationsMapDashboard } from "@/components/analytics/OperationsMapDash
 import { ExecutiveGlobeWidget } from "@/components/analytics/ExecutiveGlobeWidget";
 import { InstitutionalJobsManager } from "@/components/InstitutionalJobsManager";
 import { InstitutionalNewsManager } from "@/components/InstitutionalNewsManager";
+import { OperationalFundsCard } from "./components/OperationalFundsCard";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 const kycDocumentLinks=(caseId:string,docs:unknown[])=>docs.map((doc,index)=>{const item=doc&&typeof doc==="object"?doc as Record<string,unknown>:null,value=typeof doc==="string"?doc:String(item?.signed_url||item?.url||"");if(!/^https?:\/\//i.test(value))return <span className="kycDocumentUnavailable" key={`${caseId}-doc-${index}`}>Documento {index+1}: indisponível</span>;return <span className="kycDocumentLink" key={`${caseId}-doc-${index}`}><strong>Documento {index+1}</strong><a href={value} target="_blank" rel="noreferrer">Abrir</a><a href={value} download={`documento-${index+1}`} target="_blank" rel="noreferrer">Guardar</a></span>});
@@ -281,7 +282,7 @@ const personas = {
     name: "Sansão Chume",
     role: "Supervisor de Operações",
     initials: "SC",
-    modules: ["Visão geral", "Plataformas", "Marketing", "Operações de Campo", "Apoio ao Cliente", "Projectos e Tarefas", "Centro de Notificações", "Relatórios"],
+    modules: ["Visão geral", "Plataformas", "Marketing", "Vagas", "Caixa de Entrada", "Operações de Campo", "Apoio ao Cliente", "Projectos e Tarefas", "Centro de Notificações", "Relatórios"],
   },
   contabilista: {
     name: "Contabilista",
@@ -295,7 +296,7 @@ const personas = {
     initials: "IT",
     modules: ["Visão geral", "Plataformas", "Tecnologia / IT", "Património", "Projectos e Tarefas", "Apoio Interno", "Relatórios", "Registo de Auditoria"],
   },
-  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Plataformas", "Marketing", "Site Institucional", "Vagas", "Projectos e Tarefas"] },
+  marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Plataformas", "Marketing", "Site Institucional", "Projectos e Tarefas"] },
   field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Plataformas", "Operações de Campo", "Projectos e Tarefas"] },
   support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Plataformas", "Apoio ao Cliente", "Projectos e Tarefas"] },
   hr: { name: "Recursos Humanos", role: "Recursos Humanos", initials: "RH", modules: ["Visão geral", "Pessoas", "Recursos Humanos", "Projectos e Tarefas", "Relatórios"] },
@@ -739,7 +740,7 @@ export function HQApp() {
   const refreshFinance = async () => { const response=await fetch("/api/finance",{cache:"no-store"}); if(!response.ok)throw new Error(); const result=await response.json(); setFinanceData(result.data); };
   useEffect(() => { if(active!=="Finanças")return; refreshFinance().catch(()=>setFinanceNotice("Não foi possível carregar os registos financeiros para este perfil.")); },[active]);
   useEffect(() => {
-    if (active !== "Finanças" || !["SUPER_ADMIN", "FINANCE"].includes(sessionUser?.hq_role || "")) return;
+    if (!["Finanças", "Pessoas"].includes(active) || !["SUPER_ADMIN", "FINANCE", "SUPERVISOR"].includes(sessionUser?.hq_role || "")) return;
     fetch("/api/finance/worker-transfer", { cache: "no-store" })
       .then(async response => { const data = await response.json().catch(() => ({})); if (!response.ok) throw new Error(String(data.error || "Não foi possível carregar os trabalhadores activos.")); return data; })
       .then(data => setWorkerTransferEmployees(Array.isArray(data.employees) ? data.employees : []))
@@ -1342,7 +1343,7 @@ if(active==="Operações de Campo")void refreshField();
               <div className="employeeTable"><div className="employeeAdminRow employeeAdminHeader"><span>Trabalhador</span><span>Role</span><span>Estado</span><span>Acções</span></div>{managedEmployees.map(employee=><div className="employeeAdminRow" key={employee.id}><div className="employeeIdentityCell">{employee.avatar_url?<img className="employeeAvatar" src={employee.avatar_url} alt={`Foto de ${employee.name}`}/>:<span className="employeeAvatar employeeAvatarFallback">{employee.name.split(/\s+/).map(part=>part[0]).join("").slice(0,2).toUpperCase()}</span>}<div><strong>{employee.name}</strong><small>{employee.employee_code} · {employee.phone} · {employee.department}</small></div></div><span>{employee.role||employee.requested_role||"Pendente"}</span><b className={`employeeStatus ${employee.status}`}>{employee.status}</b><div className="employeeActions"><button onClick={()=>{setEditingEmployee(employee);setShowEmployeeForm(false)}}>Editar</button>{sessionRole==="SUPER_ADMIN"&&employee.employee_code!=="DG-0001"&&<>{employee.status==="invited"&&<button onClick={()=>employeeAction(employee.id,"activate")}>Activar</button>}{employee.status==="active"&&<button onClick={()=>employeeAction(employee.id,"suspend")}>Suspender</button>}{employee.status==="suspended"&&<button onClick={()=>employeeAction(employee.id,"reactivate")}>Reactivar</button>}{employee.status!=="offboarded"&&<button onClick={()=>{if(window.confirm(`Arquivar ${employee.name}? O acesso será revogado.`))void employeeAction(employee.id,"archive")}}>Arquivar</button>}</>}</div></div>)}</div>
             </section>
           )}
-          {active === "Pessoas" && <><UserTeamDashboard mode="team" teamDirectory={managedEmployees} /><section className="peopleInspector">
+          {active === "Pessoas" && <><UserTeamDashboard mode="team" teamDirectory={managedEmployees} />{["SUPER_ADMIN", "FINANCE", "SUPERVISOR"].includes(sessionRole) && <section className="financePanel workerTransferPanel"><div className="panelTitle"><div><h2>Transferência para trabalhador</h2><p>Usa apenas a carteira pessoal do trabalhador autenticado. Não acede à receita corporativa.</p></div></div><form className="financeEntryForm" onSubmit={transferToWorker}><label><span>Trabalhador activo</span><select required value={workerTransfer.employeeId} onChange={event => setWorkerTransfer(current => ({ ...current, employeeId: event.target.value }))}><option value="">{workerTransferEmployees.length ? "Seleccionar trabalhador" : "Nenhum trabalhador elegível"}</option>{workerTransferEmployees.map(employee => <option value={employee.id} key={employee.id}>{employee.name} · {employee.employee_code || employee.role || "Trabalhador"}</option>)}</select></label><label><span>Valor da minha carteira pessoal (MZN)</span><input type="number" min="0.01" step="0.01" required value={workerTransfer.amount} onChange={event => setWorkerTransfer(current => ({ ...current, amount: event.target.value }))} /></label><button className="primaryAction" disabled={workerTransferBusy || !workerTransferEmployees.length}>{workerTransferBusy ? "A transferir…" : "Transferir para trabalhador"}</button></form></section>}<section className="peopleInspector">
             <div className="peopleInspectorHead"><div><span>EQUIPA</span><h2>Trabalhadores e acessos</h2><p>Admin, Finance e Supervisor podem adicionar trabalhadores autorizados.</p></div>{canCreateEmployee && <button className="primaryAction" onClick={()=>setShowEmployeeForm(!showEmployeeForm)}>{showEmployeeForm ? "Fechar" : "Adicionar trabalhador"}</button>}</div>
             {canCreateEmployee && showEmployeeForm && <form className="employeeForm" onSubmit={createEmployee}>
               <label><span>Nome completo</span><input name="name" required /></label>
@@ -1569,7 +1570,7 @@ if(active==="Operações de Campo")void refreshField();
               </> : <div className="peopleEmpty">Carteira ainda não disponível para este perfil.</div>}
             </article>
           </section>}
-          {active === "Visão geral" && <><ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} onRefresh={() => { void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} /><p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
+          {active === "Visão geral" && <><OperationalFundsCard role={sessionRole} /><ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} onRefresh={() => { void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} /><p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
           {active === "Utilizadores" && <><UserTeamDashboard mode="users" /><section className="peoplePanel">
             <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
             <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>

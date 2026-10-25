@@ -3,12 +3,12 @@ import { corporateActor, hqRpc } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
-const allowedRoles = new Set(["SUPER_ADMIN", "FINANCE"]);
+const allowedRoles = new Set(["SUPER_ADMIN", "FINANCE", "SUPERVISOR"]);
 
 export async function GET() {
   const actor = await corporateActor();
   if (!actor || !allowedRoles.has(actor.role)) {
-    return NextResponse.json({ error: "Apenas Admin ou Finanças podem transferir para trabalhadores." }, { status: 403 });
+    return NextResponse.json({ error: "Apenas Admin, Finanças ou Supervisor podem transferir para trabalhadores." }, { status: 403 });
   }
   try {
     // Use the same canonical directory as the People module. The direct REST
@@ -37,7 +37,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const actor = await corporateActor();
   if (!actor || !allowedRoles.has(actor.role)) {
-    return NextResponse.json({ error: "Apenas Admin ou Finanças podem transferir para trabalhadores." }, { status: 403 });
+    return NextResponse.json({ error: "Apenas Admin, Finanças ou Supervisor podem transferir para trabalhadores." }, { status: 403 });
   }
   const body = await request.json().catch(() => null) as { employeeId?: string; amount?: number; idempotencyKey?: string } | null;
   const employeeId = String(body?.employeeId || "").trim();
