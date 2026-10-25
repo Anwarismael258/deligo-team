@@ -9,7 +9,7 @@ import type { AnalyticsFilters } from "@/lib/analytics-contracts";
 import { DashboardHeader } from "./DashboardHeader";
 import { OperationsDensityHeatmap } from "./OperationsDensityHeatmap";
 
-type MapPayload = { checkedAt?: string; markers?: OperationsMapMarker[] };
+type MapPayload = { checkedAt?: string; markers?: OperationsMapMarker[]; sourceStatus?: "fresh" | "unavailable"; sourceMessage?: string };
 type HistoryPayload = { series: Array<{ date: string; events: number; created: number; statusChanges: number; cancellations: number; deliveriesCompleted: number; ridesCompleted: number }>; totals?: { deliveriesCompleted?: number; ridesCompleted?: number }; comparison?: { events?: { current: number; previous: number; changePercent: number | null }; deliveriesCompleted?: { current: number; previous: number; changePercent: number | null }; ridesCompleted?: { current: number; previous: number; changePercent: number | null } }; limitations?: string[] };
 
 const platformLabel = (platform: string) => platform === "TaoMoz" ? "DeliGo Market" : platform;
@@ -17,14 +17,14 @@ const statusLabel = (status: string) => ({ disponivel: "Disponível", ocupado: "
 const entityOptions = ["Pedidos", "Estafetas", "Drivers", "Riders", "Clientes", "Restaurantes"];
 const configuredPlatforms = ["DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"];
 const normalizeEntity = (value: string) => value.toLocaleLowerCase("pt").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-const entityMatches = (role: string, entity: string) => {
+const entityMatches = (role: string, service: string, entity: string) => {
   if (entity === "todos") return true;
-  const normalized = normalizeEntity(role);
+  const normalized = normalizeEntity(`${role} ${service}`);
   const aliases: Record<string, string[]> = {
     Pedidos: ["pedido", "order", "delivery", "entrega", "service_request"],
     Estafetas: ["estafeta", "courier", "entregador"],
     Drivers: ["driver", "motorista"],
-    Riders: ["rider", "passageiro"],
+    Riders: ["rider", "passageiro", "rider"],
     Clientes: ["cliente", "customer", "client", "user"],
     Restaurantes: ["restaurante", "restaurant"],
   };
@@ -65,9 +65,11 @@ export function OperationsMapDashboard() {
   const markers = Array.isArray(payload?.markers) ? payload!.markers! : [];
   const filtered = useMemo(() => markers.filter(marker => {
     const matchesPlatform = platform === "Todas as plataformas" || platformLabel(marker.platform) === platform;
-    const matchesEntity = entityMatches(String(marker.role || ""), entity);
-    const matchesStatus = status === "todos" || marker.status === status;
-    const haystack = `${marker.workerName || ""} ${marker.workerId || ""} ${marker.role} ${platformLabel(marker.platform)}`.toLocaleLowerCase("pt");
+    const matchesEntity = entityMatches(String(marker.role || ""), String(marker.service || ""), entity);
+    const markerStatus = normalizeEntity(String(marker.status || ""));
+    const normalizedStatus = status === "todos" ? "todos" : normalizeEntity(status);
+    const matchesStatus = normalizedStatus === "todos" || markerStatus === normalizedStatus || (normalizedStatus === "em_servico" && markerStatus === "em serviço");
+    const haystack = `${marker.workerName || ""} ${marker.workerId || ""} ${marker.role} ${marker.service || ""} ${platformLabel(marker.platform)}`.toLocaleLowerCase("pt");
     return matchesPlatform && matchesEntity && matchesStatus && haystack.includes(search.toLocaleLowerCase("pt"));
   }), [markers, platform, entity, status, search]);
 
@@ -83,7 +85,7 @@ export function OperationsMapDashboard() {
     <DashboardHeader title="Centro de Mapas" description="Mapa operacional e métricas agregadas para trabalhadores autenticados da Central." updatedAt={payload?.checkedAt ? new Date(payload.checkedAt).toLocaleString("pt-MZ") : undefined} />
       <DashboardFilters value={filters} onChange={setFilters} platforms={platforms} /><div className="analyticsFilters" aria-label="Filtros do mapa"><label><span>Plataforma</span><select value={platform} onChange={event => setPlatform(event.target.value)}><option>Todas as plataformas</option>{platforms.map(item => <option key={item}>{item}</option>)}</select></label><label><span>Ver</span><select value={entity} onChange={event => setEntity(event.target.value)}><option value="todos">Todas as entidades</option>{entityOptions.map(item => <option key={item} value={item}>{item}</option>)}</select></label><label><span>Estado</span><select value={status} onChange={event => setStatus(event.target.value)}><option value="todos">Todos os estados</option><option value="disponivel">Disponível</option><option value="ocupado">Ocupado</option><option value="em_servico">Em serviço</option><option value="offline">Offline</option></select></label><label><span>Pesquisar</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, função ou plataforma" /></label></div>
     {error ? <EmptyState title="Mapa operacional indisponível" description={error} /> : <>
-      <div className="analyticsKpiGrid"><article className="analyticsKpiCard analyticsStatus-fresh"><span>Operações activas</span><strong>{filtered.length}</strong><small>Marcadores actuais · GPS desactualizado: {stale}</small></article><article className="analyticsKpiCard analyticsStatus-fresh"><span>Entregas concluídas · 30 dias</span><strong>{history?.totals?.deliveriesCompleted ?? "Indisponível"}</strong><small>Eventos DeliGo de conclusão verificáveis</small></article><article className="analyticsKpiCard analyticsStatus-fresh"><span>Viagens SARCA · 30 dias</span><strong>{history?.totals?.ridesCompleted ?? "Indisponível"}</strong><small>Eventos SARCA concluídos verificáveis</small></article><article className="analyticsKpiCard analyticsStatus-unavailable"><span>Distância percorrida</span><strong>Indisponível</strong><small>Telemetria histórica insuficiente</small></article></div>
+      <div className="analyticsKpiGrid"><article className={`analyticsKpiCard ${payload?.sourceStatus === "unavailable" ? "analyticsStatus-unavailable" : "analyticsStatus-fresh"}`}><span>Operações activas</span><strong>{payload?.sourceStatus === "unavailable" ? "Indisponível" : filtered.length}</strong><small>{payload?.sourceStatus === "unavailable" ? payload.sourceMessage : `Marcadores actuais · GPS desactualizado: ${stale}`}</small></article><article className="analyticsKpiCard analyticsStatus-fresh"><span>Entregas concluídas · 30 dias</span><strong>{history?.totals?.deliveriesCompleted ?? "Indisponível"}</strong><small>Eventos DeliGo de conclusão verificáveis</small></article><article className="analyticsKpiCard analyticsStatus-fresh"><span>Viagens SARCA · 30 dias</span><strong>{history?.totals?.ridesCompleted ?? "Indisponível"}</strong><small>Eventos SARCA concluídos verificáveis</small></article><article className="analyticsKpiCard analyticsStatus-unavailable"><span>Distância percorrida</span><strong>Indisponível</strong><small>Telemetria histórica insuficiente</small></article></div>
       <div className="analyticsExecutiveGrid"><ChartContainer title="Mapa operacional" description="A localização só aparece quando a fonte autorizada devolve coordenadas recentes.">{payload ? <LiveOperationsMap markers={filtered} /> : <div className="analyticsMapLoading">A carregar posições autorizadas…</div>}</ChartContainer><ChartContainer title="Distribuição por plataforma" description="Contagem dos marcadores devolvidos pelo backend."><div className="analyticsBarList">{byPlatform.length ? byPlatform.map(item => <div className="analyticsBarRow" key={item.label}><div><strong>{item.label}</strong><small>Marcadores</small></div><span><i style={{ width: `${Math.max(3, item.value / maxPlatform * 100)}%` }} /><b>{item.value}</b></span></div>) : <EmptyState title="Sem posições disponíveis" description="Nenhuma plataforma devolveu coordenadas verificáveis." />}</div></ChartContainer></div>
       <ChartContainer title="Heatmap de posições atuais" description="Densidade das coordenadas autorizadas na leitura atual; não representa pedidos históricos nem rotas. "><OperationsDensityHeatmap markers={filtered} /></ChartContainer>
       <ChartContainer title="Estados operacionais" description="Resumo dos estados presentes na leitura actual."><div className="analyticsBarList">{byStatus.length ? byStatus.map(item => <div className="analyticsBarRow" key={item.label}><div><strong>{item.label}</strong><small>Marcadores</small></div><span><i style={{ width: `${Math.max(3, item.value / maxStatus * 100)}%` }} /><b>{item.value}</b></span></div>) : <EmptyState title="Estados indisponíveis" description="A fonte não devolveu estados operacionais." />}</div></ChartContainer>

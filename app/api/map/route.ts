@@ -28,8 +28,7 @@ export async function GET() {
     if (!response.ok) throw new Error(`HQ_MAP_RPC_${response.status}`);
     return NextResponse.json(await response.json(), { headers: { "Cache-Control": "private, no-store" } });
   } catch {
-    // Live location is privacy-protected and optional. A stalled adapter must
-    // not make the whole Central appear unavailable.
-    return NextResponse.json({ checkedAt: new Date().toISOString(), markers: [] }, { headers: { "Cache-Control": "private, no-store" } });
+    // Do not turn an unavailable GPS adapter into a misleading zero.
+    return NextResponse.json({ checkedAt: new Date().toISOString(), markers: [], sourceStatus: "unavailable", sourceMessage: "A fonte de localização não respondeu." }, { status: 502, headers: { "Cache-Control": "private, no-store" } });
   }
 }
