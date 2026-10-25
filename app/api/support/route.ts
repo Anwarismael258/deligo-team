@@ -20,6 +20,31 @@ async function coreRest(key:string,path:string,init:RequestInit={}){const respon
 const sourceHeaders=(key:string,schema:string)=>({apikey:key,Authorization:`Bearer ${key}`,"Accept-Profile":schema,"Content-Profile":schema,"Content-Type":"application/json",Prefer:"return=representation"});
 async function sourceRest(key:string,schema:string,path:string,init:RequestInit={}){const response=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{...init,headers:{...sourceHeaders(key,schema),...(init.headers||{})},cache:"no-store"});if(!response.ok)throw new Error(await response.text());return response.status===204?null:response.json()}
 async function safe<T>(operation:Promise<T>,fallback:T):Promise<T>{try{return await operation}catch(error){console.error("SUPPORT_OPTIONAL_SOURCE_FAILED",String(error));return fallback}}
+const uuidPattern=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+async function notifyPlatformRequester(key:string,requesterId:unknown,source:string,messageId:string,ticketId:string){
+  const userId=String(requesterId||"");
+  if(!uuidPattern.test(userId)||!messageId)return false;
+  try{
+    const payload={
+      p_user_id:userId,
+      p_type:"SUPPORT_MESSAGE_RECEIVED",
+      p_title:"Nova resposta do suporte",
+      p_body:`${source}: a Central respondeu ao seu atendimento`,
+      p_action:"OPEN_SUPPORT_CHAT",
+      p_entity_id:messageId,
+      p_priority:"HIGH",
+      p_channel:"support",
+      p_metadata:{support_ticket_id:ticketId,source,message_id:messageId,origin:"hq_support_reply"},
+      p_dispatch_key:`support-reply:${source}:${messageId}`
+    };
+    try{await rest(key,"rpc/create_app_notification",{method:"POST",body:JSON.stringify(payload)});}
+    catch{const {p_dispatch_key:_,...compatiblePayload}=payload;await rest(key,"rpc/create_app_notification",{method:"POST",body:JSON.stringify(compatiblePayload)});}
+    return true;
+  }catch(error){
+    console.error("SUPPORT_PLATFORM_REPLY_NOTIFICATION_FAILED",String(error));
+    return false;
+  }
+}
 async function context(_permission="support.viewTickets",platform?:string){
   const authorization=await corporateAuthorization(),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;
   const role=String(actor?.role||"").toUpperCase();
@@ -42,19 +67,28 @@ async function dispatchLegacyPlatformReply(current:{key:string;actor:{authUserId
     const ticketId=reference.slice("deligo:support:".length);
     const created=(await stagingRest("support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:signed})}) as Array<Record<string,unknown>>)?.[0];
     await stagingRest(`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
-    return {source:"deligo",sourceMessageId:String(created?.id||""),mirrored:true};
+    const notificationSent=await notifyPlatformRequester(current.key,ticket.customer_reference,"DeliGo",String(created?.id||""),ticketId);
+    return {source:"deligo",sourceMessageId:String(created?.id||""),mirrored:true,notificationSent};
   }
   if(reference.startsWith("mestre24:support:")){
     const ticketId=reference.slice("mestre24:support:".length);
-    const created=(await sourceRest(current.key,"mestre24","support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_id:current.actor.authUserId,sender_role:"support",message:signed})}) as Array<Record<string,unknown>>)?.[0];
-    await sourceRest(current.key,"mestre24",`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
-    return {source:"mestre24",sourceMessageId:String(created?.id||""),mirrored:true};
+    let created:Array<Record<string,unknown>>|null=null;
+    try{created=await sourceRest(current.key,"mestre24","support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_id:current.actor.authUserId,sender_role:"support",message:signed})}) as Array<Record<string,unknown>>;}
+    catch{created=await stagingRest("support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:signed})}) as Array<Record<string,unknown>>;}
+    try{await sourceRest(current.key,"mestre24",`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});}
+    catch{await stagingRest(`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});}
+    const notificationSent=await notifyPlatformRequester(current.key,ticket.customer_reference,"Mestre24",String(created?.[0]?.id||""),ticketId);
+    return {source:"mestre24",sourceMessageId:String(created?.[0]?.id||""),mirrored:true,notificationSent};
   }
   if(/^sarca:support:|^sar[a-z-]*:support:/i.test(reference)){
     const ticketId=reference.slice(reference.indexOf(":support:")+9);
-    const created=(await sourceRest(current.key,"sarca","support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_user_id:current.actor.authUserId,sender_role:"support",message:signed})}) as Array<Record<string,unknown>>)?.[0];
-    await sourceRest(current.key,"sarca",`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
-    return {source:"sarca",sourceMessageId:String(created?.id||""),mirrored:true};
+    let created:Array<Record<string,unknown>>|null=null;
+    try{created=await sourceRest(current.key,"sarca","support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_user_id:current.actor.authUserId,sender_role:"support",message:signed})}) as Array<Record<string,unknown>>;}
+    catch{created=await stagingRest("support_messages",{method:"POST",body:JSON.stringify({ticket_id:ticketId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:signed})}) as Array<Record<string,unknown>>;}
+    try{await sourceRest(current.key,"sarca",`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});}
+    catch{await stagingRest(`support_tickets?id=eq.${encodeURIComponent(ticketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});}
+    const notificationSent=await notifyPlatformRequester(current.key,ticket.customer_reference,"SARCA",String(created?.[0]?.id||""),ticketId);
+    return {source:"sarca",sourceMessageId:String(created?.[0]?.id||""),mirrored:true,notificationSent};
   }
   return {source:"hq",sourceMessageId:null,mirrored:false};
 }
@@ -214,7 +248,8 @@ export async function POST(request:NextRequest){
         // The message is already available to the platform after INSERT. Do
         // not make the sender wait for the secondary ticket-state update.
         await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
-        return NextResponse.json({record:{...created,id:`public-msg:${String(created?.id||"")}`,ticket_id:`public:${publicId}`,sender_type:"agent",message:created?.text||record.text,delivered_at:created?.delivered_at||new Date().toISOString()}},{status:201});
+        const notificationSent=await notifyPlatformRequester(current.key,publicTicket.opened_by,"platform",String(created?.id||""),publicId);
+        return NextResponse.json({record:{...created,id:`public-msg:${String(created?.id||"")}`,ticket_id:`public:${publicId}`,sender_type:"agent",message:created?.text||record.text,delivered_at:created?.delivered_at||new Date().toISOString()},delivery:{source:"public_app",sourceMessageId:String(created?.id||""),mirrored:true,notificationSent}},{status:201});
       }
     }
     if(String(body.record.ticket_id||"").startsWith("core:")){
