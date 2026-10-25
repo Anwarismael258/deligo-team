@@ -37,11 +37,24 @@ export function UserTeamDashboard({ mode, teamDirectory = [] }: { mode: Mode; te
     if (filters.department) params.set("department", filters.department);
     if (filters.status) params.set("status", filters.status);
     let cancelled = false;
-    fetch(`/api/analytics/users-team?${params.toString()}`, { cache: "no-store" })
-      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível carregar os indicadores."); return body as Data; })
-      .then(next => { if (!cancelled) { setData(next); setError(""); } })
-      .catch(reason => { if (!cancelled) { setData(null); setError(reason instanceof Error ? reason.message : "Dashboard indisponível."); } });
-    return () => { cancelled = true; };
+    let busy = false;
+    const load = async () => {
+      if (cancelled || busy) return;
+      busy = true;
+      try {
+        const response = await fetch(`/api/analytics/users-team?${params.toString()}`, { cache: "no-store" });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error || "Não foi possível carregar os indicadores.");
+        if (!cancelled) { setData(body as Data); setError(""); }
+      } catch (reason) {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : "Não foi possível actualizar os indicadores.");
+      } finally { busy = false; }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 10_000);
+    const refresh = () => void load();
+    window.addEventListener("focus", refresh);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [filters.period, filters.from, filters.to, filters.platform, filters.department, filters.status]);
 
   const users = data?.users;
@@ -66,7 +79,7 @@ export function UserTeamDashboard({ mode, teamDirectory = [] }: { mode: Mode; te
   return <section className="analyticsDashboardShell userTeamDashboard">
     <style>{userChartStyles}</style>
     {mode === "team" && <div className="analyticsFilters" aria-label="Filtros de equipa"><label><span>Departamento</span><select value={filters.department || ""} onChange={event => setFilters({ ...filters, department: event.target.value || undefined })}><option value="">Todos os departamentos</option>{(data?.filters?.departments || []).map(department => <option value={String(department.code || department.id || "")} key={String(department.id || department.code)}>{String(department.name || department.code || "Departamento")}</option>)}</select></label><label><span>Estado</span><select value={filters.status || ""} onChange={event => setFilters({ ...filters, status: event.target.value || undefined })}><option value="">Todos os estados</option>{["active", "invited", "suspended", "completed", "in_progress", "pending", "cancelled"].map(status => <option value={status} key={status}>{labelize(status)}</option>)}</select></label></div>}
-    {error ? mode === "team" && teamDirectory.length ? <><div className="analyticsExecutiveGrid"><ChartContainer title="Equipa por departamento"><AnalyticsBarChart data={directoryDepartments} label="Trabalhadores" /></ChartContainer><ChartContainer title="Estados da equipa"><AnalyticsDonutChart data={directoryStatuses} /></ChartContainer></div><div className="analyticsDataNote">Resumo da lista autorizada. Analytics histórico indisponível: {error}</div></> : <EmptyState title="Indicadores indisponíveis" description={error} /> : <>
+    {error && !data ? mode === "team" && teamDirectory.length ? <><div className="analyticsExecutiveGrid"><ChartContainer title="Equipa por departamento"><AnalyticsBarChart data={directoryDepartments} label="Trabalhadores" /></ChartContainer><ChartContainer title="Estados da equipa"><AnalyticsDonutChart data={directoryStatuses} /></ChartContainer></div><div className="analyticsDataNote">Resumo da lista autorizada. A leitura analítica será repetida automaticamente.</div></> : <EmptyState title="A carregar indicadores" description={error} /> : <>
       <KPIGrid items={kpis} />
       <DashboardFilters value={filters} onChange={setFilters} platforms={data?.filters?.platforms || []} />
       <div className="analyticsExecutiveGrid">

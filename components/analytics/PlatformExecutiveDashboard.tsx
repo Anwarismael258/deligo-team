@@ -29,7 +29,7 @@ export function PlatformExecutiveDashboard({ dashboard, selectedPlatform }: { da
     { id: "platform-gmv", label: "GMV confirmado", value: money(financeItem?.gross_confirmed), unit: "MZN", sourceStatus: financeItem ? "fresh" : "unavailable", source: "Eventos financeiros confirmados" },
     { id: "platform-wallets", label: "Carteiras de terceiros", value: money(financeItem?.wallet_available), unit: "MZN", sourceStatus: financeItem ? "fresh" : "unavailable", source: "Carteiras disponíveis · não é receita" },
   ];
-  const rows = allPlatforms.map((item) => { const source = finance(financeRows, displaySlug(item.name)); return { id: item.slug, plataforma: item.name, estado: item.platform_status || "Não confirmado", receita: source?.central_revenue_confirmed == null ? "Indisponível" : `${source.central_revenue_confirmed.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT`, gmv: source?.gross_confirmed == null ? "Indisponível" : `${source.gross_confirmed.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT`, dados: item.data_freshness || "Não indicada" }; });
+  const rows = allPlatforms.map((item) => { const source = finance(financeRows, displaySlug(item.name)); return { id: item.slug, plataforma: item.name, estado: item.platform_status || "Não confirmado", receita: source?.central_revenue_confirmed == null ? "—" : `${source.central_revenue_confirmed.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT`, gmv: source?.gross_confirmed == null ? "—" : `${source.gross_confirmed.toLocaleString("pt-MZ", { minimumFractionDigits: 2 })} MT`, dados: item.data_freshness || "Não indicada" }; });
   const revenueChart = allPlatforms.map(item => ({ label: item.name, value: finance(financeRows, displaySlug(item.name))?.central_revenue_confirmed ?? 0 })).filter(item => item.value > 0);
   const operationsChart = allPlatforms.map(item => ({ label: item.name, value: metric(item, ["pedido", "operação", "viagem", "serviço"]) ?? 0 })).filter(item => item.value > 0);
   const statusCounts = Object.entries(allPlatforms.reduce<Record<string, number>>((result, item) => { const status = item.platform_status || "Desconhecido"; result[status] = (result[status] || 0) + 1; return result; }, {})).map(([label, value]) => ({ label, value }));
@@ -39,12 +39,10 @@ export function PlatformExecutiveDashboard({ dashboard, selectedPlatform }: { da
     if (filters.from) params.set("from", filters.from);
     if (filters.to) params.set("to", filters.to);
     if (selected) params.set("platform", selected.name);
-    let cancelled = false;
-    fetch(`/api/analytics/history?${params.toString()}`, { cache: "no-store" })
-      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Série histórica indisponível."); return body as History; })
-      .then(body => { if (!cancelled) { setHistory(body); setHistoryError(""); } })
-      .catch(error => { if (!cancelled) { setHistory(null); setHistoryError(error instanceof Error ? error.message : "Série histórica indisponível."); } });
-    return () => { cancelled = true; };
+    let cancelled = false; let busy = false;
+    const load = async () => { if (cancelled || busy) return; busy = true; try { const response = await fetch(`/api/analytics/history?${params.toString()}`, { cache: "no-store" }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Série histórica indisponível."); if (!cancelled) { setHistory(body as History); setHistoryError(""); } } catch (error) { if (!cancelled) setHistoryError(error instanceof Error ? error.message : "Não foi possível actualizar a série histórica."); } finally { busy = false; } };
+    void load(); const timer = window.setInterval(() => void load(), 10_000); const refresh = () => void load(); window.addEventListener("focus", refresh);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [selectedPlatform, filters.period, filters.from, filters.to]);
   return <section className="platformAnalyticsPanel">
     <DashboardFilters value={filters} onChange={setFilters} platforms={allPlatforms.map(item => item.name)} />

@@ -24,8 +24,8 @@ function unavailable(title: string) {
     <line x1="54" x2="704" y1="208" y2="208" stroke={axis} />
     <line x1="54" x2="54" y1="32" y2="208" stroke={axis} />
     {[0, 1, 2, 3].map(step => <line key={step} x1="54" x2="704" y1={50 + step * 42} y2={50 + step * 42} stroke={grid} strokeDasharray="3 3" />)}
-    <text x="379" y="116" textAnchor="middle" fill={text} fontSize="14" fontWeight="700">Sem dados verificados</text>
-    <text x="379" y="138" textAnchor="middle" fill={text} fontSize="11">A fonte ainda não devolveu valores para este período</text>
+    <text x="379" y="116" textAnchor="middle" fill={text} fontSize="14" fontWeight="700">A aguardar dados confirmados</text>
+    <text x="379" y="138" textAnchor="middle" fill={text} fontSize="11">O gráfico actualiza automaticamente quando a fonte responde</text>
   </ChartFrame>;
 }
 

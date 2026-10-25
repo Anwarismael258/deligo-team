@@ -25,9 +25,10 @@ export function CorporateOperationsAnalyticsDashboard({ mode }: { mode: Mode }) 
   useEffect(() => {
     const params = new URLSearchParams({ mode, period: filters.period });
     if (filters.from) params.set("from", filters.from); if (filters.to) params.set("to", filters.to); if (filters.platform) params.set("platform", filters.platform); if (filters.department) params.set("department", filters.department); if (filters.status) params.set("status", filters.status); if (filters.eventType) params.set("type", filters.eventType);
-    let cancelled = false;
-    fetch(`/api/analytics/corporate-operations?${params}`, { cache: "no-store" }).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível carregar o dashboard."); return body as Payload; }).then(body => { if (!cancelled) { setPayload(body); setError(""); } }).catch(reason => { if (!cancelled) { setError(reason instanceof Error ? reason.message : "Dashboard indisponível."); setPayload(null); } });
-    return () => { cancelled = true; };
+    let cancelled = false; let busy = false;
+    const load = async () => { if (cancelled || busy) return; busy = true; try { const response = await fetch(`/api/analytics/corporate-operations?${params}`, { cache: "no-store" }); const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível carregar o dashboard."); if (!cancelled) { setPayload(body as Payload); setError(""); } } catch (reason) { if (!cancelled) setError(reason instanceof Error ? reason.message : "Não foi possível actualizar o dashboard."); } finally { busy = false; } };
+    void load(); const timer = window.setInterval(() => void load(), 10_000); const refresh = () => void load(); window.addEventListener("focus", refresh);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [mode, filters.period, filters.from, filters.to, filters.platform, filters.department, filters.status, filters.eventType]);
   const data = payload?.data;
   const kpis: KPIResult[] = (data?.kpis || []).map(item => ({ id: item.id, label: item.label, value: item.value, unit: item.unit as KPIResult["unit"], sourceStatus: item.status === "fresh" ? "fresh" : "unavailable", source: `${item.source} · ${item.formula}` }));
