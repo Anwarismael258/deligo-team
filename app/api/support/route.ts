@@ -177,9 +177,12 @@ export async function GET(request:NextRequest){
   const coreTickets: Array<{id:string}> = [];
   const publicTicketRows=publicTickets;
   const publicTicketIds=new Set(publicTicketRows.map(row=>String(row.id||"")));
-  const publicTicketMapped=publicTicketRows.map(row=>{const meta=(row.metadata&&typeof row.metadata==="object"?row.metadata:{}) as Record<string,unknown>;const source=String(row.external_source||meta.platform||"app");return {id:`public:${String(row.id)}`,source:"public_app",ticket_number:`${source.toUpperCase()}-${String(row.external_id||row.id).slice(0,8)}`,platform_id:null,platform_slug:String(meta.platform_slug||source),platform_name:String(meta.platform_name||source),subject:String(row.reason||"Pedido de suporte"),description:String(row.reason||""),status:String(row.status||"open"),priority:String(meta.priority||"normal"),ticket_type:"app_message",category:String(row.dispute_type||"support"),customer_name:String(row.customer_name||"Utilizador"),customer_contact:String(row.customer_phone||row.customer_email||""),customer_reference:String(row.opened_by||""),assigned_to:row.assigned_to||null,created_at:String(row.created_at||""),updated_at:String(row.updated_at||row.created_at||""),external_reference:`public-support:${String(row.id)}`,source_channel:source};});
-  const publicMessagesMapped=publicMessages.filter(row=>publicTicketIds.has(String(row.ticket_id||""))).map(row=>{const senderRole=String(row.sender_role||"").toLowerCase();const senderType=["client","customer","user","cliente"].includes(senderRole)?"customer":"agent";return {id:`public-msg:${String(row.id)}`,ticket_id:`public:${String(row.ticket_id)}`,sender_type:senderType,sender_id:row.sender_id||null,sender_name:senderType==="agent"?String(row.sender_name||"").trim()||null:null,sender_role:row.sender_role||null,sender_employee_id:null,message:String(row.text||""),is_internal:false,created_at:String(row.created_at||""),is_read:Boolean(row.read_at)}});
-  const publicAttachments=publicMessages.filter(row=>publicTicketIds.has(String(row.ticket_id||""))&&row.attachment_url).map(row=>({id:`public-attachment:${String(row.id)}`,ticket_id:`public:${String(row.ticket_id)}`,file_name:"Anexo do utilizador",mime_type:row.attachment_type||"ficheiro",storage_reference:row.attachment_url}));
+  const publicIdentityKey=(row:Record<string,unknown>)=>{const openedBy=String(row.opened_by||"").trim().toLowerCase();if(openedBy)return `user:${openedBy}`;const phone=String(row.customer_phone||"").replace(/\D/g,"");if(phone)return `phone:${phone}`;const email=String(row.customer_email||"").trim().toLowerCase();return email?`email:${email}`:`ticket:${String(row.id||"")}`;};
+  const publicCanonicalIdById=new Map<string,string>();
+  const publicCanonicalRows=Array.from(publicTicketRows.reduce((groups,row)=>{const key=publicIdentityKey(row);const current=groups.get(key)||[];current.push(row);groups.set(key,current);return groups;},new Map<string,Array<Record<string,unknown>>>()).values()).map(rows=>{const sorted=[...rows].sort((left,right)=>{const leftApp=String(left.external_source||"").toLowerCase()==="deligo_chat"?1:0;const rightApp=String(right.external_source||"").toLowerCase()==="deligo_chat"?1:0;if(leftApp!==rightApp)return rightApp-leftApp;return new Date(String(right.updated_at||right.created_at||0)).getTime()-new Date(String(left.updated_at||left.created_at||0)).getTime();});const canonical=sorted[0];for(const row of rows)publicCanonicalIdById.set(String(row.id),String(canonical.id));return canonical;});
+  const publicTicketMapped=publicCanonicalRows.map(row=>{const meta=(row.metadata&&typeof row.metadata==="object"?row.metadata:{}) as Record<string,unknown>;const source=String(row.external_source||meta.platform||"app");return {id:`public:${String(row.id)}`,source:"public_app",ticket_number:`${source.toUpperCase()}-${String(row.external_id||row.id).slice(0,8)}`,platform_id:null,platform_slug:String(meta.platform_slug||source),platform_name:String(meta.platform_name||source),subject:String(row.reason||"Pedido de suporte"),description:String(row.reason||""),status:String(row.status||"open"),priority:String(meta.priority||"normal"),ticket_type:"app_message",category:String(row.dispute_type||"support"),customer_name:String(row.customer_name||"Utilizador"),customer_contact:String(row.customer_phone||row.customer_email||""),customer_reference:String(row.opened_by||""),assigned_to:row.assigned_to||null,created_at:String(row.created_at||""),updated_at:String(row.updated_at||row.created_at||""),external_reference:`public-support:${String(row.id)}`,source_channel:source,merged_ticket_count:publicTicketRows.filter(candidate=>publicCanonicalIdById.get(String(candidate.id))===String(row.id)).length};});
+  const publicMessagesMapped=publicMessages.filter(row=>publicTicketIds.has(String(row.ticket_id||""))).map(row=>{const senderRole=String(row.sender_role||"").toLowerCase();const senderType=["client","customer","user","cliente"].includes(senderRole)?"customer":"agent";const canonicalId=publicCanonicalIdById.get(String(row.ticket_id))||String(row.ticket_id);return {id:`public-msg:${String(row.id)}`,ticket_id:`public:${canonicalId}`,sender_type:senderType,sender_id:row.sender_id||null,sender_name:null,sender_role:row.sender_role||null,sender_employee_id:null,message:String(row.text||""),is_internal:false,created_at:String(row.created_at||""),is_read:Boolean(row.read_at)}});
+  const publicAttachments=publicMessages.filter(row=>publicTicketIds.has(String(row.ticket_id||""))&&row.attachment_url).map(row=>{const canonicalId=publicCanonicalIdById.get(String(row.ticket_id))||String(row.ticket_id);return {id:`public-attachment:${String(row.id)}`,ticket_id:`public:${canonicalId}`,file_name:"Anexo do utilizador",mime_type:row.attachment_type||"ficheiro",storage_reference:row.attachment_url};});
   const publicExternalReferences=new Set(publicTicketRows.flatMap(row=>[String(row.id||""),String(row.external_id||"")].filter(Boolean).flatMap(value=>[value,`public-support:${value}`])));
   // The bridge mirrors public app tickets into HQ. Prefer the public record
   // for those mirrored tickets so the queue does not show duplicates or two
@@ -243,14 +246,33 @@ export async function POST(request:NextRequest){
       const publicId=String(body.record.ticket_id).slice(7),publicTicket=(await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}&select=*`) as Array<Record<string,unknown>>)?.[0];
       if(!publicTicket)return NextResponse.json({error:"Atendimento do aplicativo não encontrado."},{status:404});
       if(!canReplyToTicket(current,{...publicTicket,category:publicTicket.dispute_type,subject:publicTicket.reason,description:publicTicket.reason}))return NextResponse.json({error:"Sem permissão para responder a este atendimento."},{status:403});
+      // A mesma pessoa pode ter um ticket legado e o ticket que o aplicativo
+      // acompanha (deligo_chat). Use sempre o ticket do aplicativo para que a
+      // resposta seja entregue no canal correto, sem duplicar a mensagem.
+      let deliveryTicketId=publicId;
+      let deliveryTicket=publicTicket;
+      if(publicTicket.opened_by){
+        try{
+          const related=await stagingRest(`support_tickets?opened_by=eq.${encodeURIComponent(String(publicTicket.opened_by))}&status=in.(open,in_progress)&select=*&limit=50`) as Array<Record<string,unknown>>;
+          const candidates=[publicTicket,...(Array.isArray(related)?related:[])].filter((row,index,rows)=>rows.findIndex(item=>String(item.id)===String(row.id))===index);
+          candidates.sort((left,right)=>{
+            const leftApp=String(left.external_source||"").toLowerCase()==="deligo_chat"?1:0;
+            const rightApp=String(right.external_source||"").toLowerCase()==="deligo_chat"?1:0;
+            if(leftApp!==rightApp)return rightApp-leftApp;
+            return new Date(String(right.updated_at||right.created_at||0)).getTime()-new Date(String(left.updated_at||left.created_at||0)).getTime();
+          });
+          deliveryTicket=candidates[0]||publicTicket;
+          deliveryTicketId=String(deliveryTicket.id||publicId);
+        }catch{}
+      }
       if(body.resource==="message"||body.resource==="attachment"){
-        const record=body.resource==="message"?{ticket_id:publicId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:`${String(body.record.message||"").trim()}\n\n— ${current.actor.name}`}:{ticket_id:publicId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:`Anexo enviado por ${current.actor.name}`,attachment_url:body.record.storage_reference||null,attachment_type:body.record.mime_type||null};
+        const record=body.resource==="message"?{ticket_id:deliveryTicketId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:`${String(body.record.message||"").trim()}\n\n— ${current.actor.name}`}:{ticket_id:deliveryTicketId,sender_id:current.actor.authUserId,sender_name:current.actor.name,sender_role:"support_agent",text:`Anexo enviado por ${current.actor.name}`,attachment_url:body.record.storage_reference||null,attachment_type:body.record.mime_type||null};
         const created=(await stagingRest("support_messages",{method:"POST",body:JSON.stringify({...record,delivered_at:new Date().toISOString()})}) as Array<Record<string,unknown>>)?.[0];
         // The message is already available to the platform after INSERT. Do
         // not make the sender wait for the secondary ticket-state update.
-        await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
-        const notificationSent=await notifyPlatformRequester(current.key,publicTicket.opened_by,"platform",String(created?.id||""),publicId);
-        return NextResponse.json({record:{...created,id:`public-msg:${String(created?.id||"")}`,ticket_id:`public:${publicId}`,sender_type:"agent",message:created?.text||record.text,delivered_at:created?.delivered_at||new Date().toISOString()},delivery:{source:"public_app",sourceMessageId:String(created?.id||""),mirrored:true,notificationSent}},{status:201});
+        await stagingRest(`support_tickets?id=eq.${encodeURIComponent(deliveryTicketId)}`,{method:"PATCH",body:JSON.stringify({status:"in_progress",updated_at:new Date().toISOString()})});
+        const notificationSent=await notifyPlatformRequester(current.key,deliveryTicket.opened_by,"platform",String(created?.id||""),deliveryTicketId);
+        return NextResponse.json({record:{...created,id:`public-msg:${String(created?.id||"")}`,ticket_id:`public:${deliveryTicketId}`,sender_type:"agent",message:created?.text||record.text,delivered_at:created?.delivered_at||new Date().toISOString()},delivery:{source:"public_app",sourceMessageId:String(created?.id||""),mirrored:true,notificationSent,canonicalTicketId:deliveryTicketId}},{status:201});
       }
     }
     if(String(body.record.ticket_id||"").startsWith("core:")){
@@ -302,7 +324,16 @@ export async function PATCH(request:NextRequest){
         // Mark the whole conversation read by ticket. Platform adapters use
         // different sender_role labels, so filtering on a fixed role list
         // could leave messages unread and make them reappear on the next poll.
-        await stagingRest(`support_messages?ticket_id=eq.${encodeURIComponent(publicId)}&read_at=is.null`,{method:"PATCH",body:JSON.stringify({read_at:new Date().toISOString()})});
+        const relatedIds=new Set<string>([publicId]);
+        if(publicTicket.opened_by){
+          try{
+            const related=await stagingRest(`support_tickets?opened_by=eq.${encodeURIComponent(String(publicTicket.opened_by))}&status=in.(open,in_progress)&select=id&limit=50`) as Array<Record<string,unknown>>;
+            for(const row of Array.isArray(related)?related:[]){if(row.id)relatedIds.add(String(row.id));}
+          }catch{}
+        }
+        for(const relatedId of relatedIds){
+          await stagingRest(`support_messages?ticket_id=eq.${encodeURIComponent(relatedId)}&read_at=is.null`,{method:"PATCH",body:JSON.stringify({read_at:new Date().toISOString()})});
+        }
         return NextResponse.json({ok:true,readAt:new Date().toISOString()});
       }
       if(!canReplyToTicket(current,{...publicTicket,category:publicTicket.dispute_type,subject:publicTicket.reason,description:publicTicket.reason}))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
