@@ -109,7 +109,7 @@ export async function GET(request:NextRequest){
   let publicMessages: Array<Record<string,unknown>>=[];
   if(publicIds.length){
     try {
-      publicMessages=await stagingRest(`support_messages?ticket_id=in.(${publicIds.join(",")})&select=*&order=created_at.asc&limit=1000`) as Array<Record<string,unknown>>;
+      publicMessages=await stagingRest("support_messages?select=id,ticket_id,sender_id,sender_role,sender_name,text,attachment_url,attachment_type,created_at,read_at&order=created_at.desc&limit=1000") as Array<Record<string,unknown>>;
     } catch(error) {
       publicMessagesHealthy=false;
       console.error("SUPPORT_PUBLIC_MESSAGES_SOURCE_FAILED",String(error));
