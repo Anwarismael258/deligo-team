@@ -31,24 +31,34 @@ export async function GET() {
     return NextResponse.json({ error: "Sessao corporativa necessaria." }, { status: 401 });
   }
 
-  const anonKey = process.env.SUPABASE_ANON_KEY;
-  const integrationSecret = process.env.DELIGO_STAGING_DB_PASSWORD;
-  if (!anonKey || !integrationSecret) {
-    return NextResponse.json({ error: "Integracao de localizacao nao configurada." }, { status: 503 });
-  }
-
   try {
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    const integrationSecret = process.env.DELIGO_STAGING_DB_PASSWORD;
     const centralUrl = process.env.SUPABASE_URL?.trim();
-    if (!centralUrl) return NextResponse.json({ error: "Mapa operacional não configurado para produção." }, { status: 503 });
-    const response = await fetch(`${centralUrl.replace(/\/$/, "")}/rest/v1/rpc/hq_live_map_v1`, {
-      method: "POST",
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json", "x-hq-integration-secret": integrationSecret },
-      body: "{}",
-      cache: "no-store",
-      signal: AbortSignal.timeout(12_000),
-    });
-    if (!response.ok) throw new Error(`HQ_MAP_RPC_${response.status}`);
-    const base = await response.json() as { checkedAt?: string; markers?: MapMarker[]; sourceStatus?: string; sourceMessage?: string };
+    // The central live-location adapter is optional. Do not make the whole
+    // map unusable when that adapter is not configured; platform sources can
+    // still provide verified orders, trips and places.
+    let base: { checkedAt?: string; markers?: MapMarker[]; sourceStatus?: string; sourceMessage?: string } = {
+      checkedAt: new Date().toISOString(),
+      markers: [],
+      sourceStatus: "unavailable",
+      sourceMessage: "A integração de localização ao vivo não está configurada; a consultar as fontes autorizadas.",
+    };
+    if (centralUrl && anonKey && integrationSecret) {
+      try {
+        const response = await fetch(`${centralUrl.replace(/\/$/, "")}/rest/v1/rpc/hq_live_map_v1`, {
+          method: "POST",
+          headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json", "x-hq-integration-secret": integrationSecret },
+          body: "{}",
+          cache: "no-store",
+          signal: AbortSignal.timeout(12_000),
+        });
+        if (response.ok) base = await response.json() as typeof base;
+        else base.sourceMessage = `A fonte de localização ao vivo respondeu com ${response.status}.`;
+      } catch {
+        base.sourceMessage = "A fonte de localização ao vivo não respondeu; as fontes autorizadas continuam disponíveis.";
+      }
+    }
     const checkedAt = base.checkedAt || new Date().toISOString();
     const markers = Array.isArray(base.markers) ? [...base.markers] : [];
     const routes: MapRoute[] = [];
