@@ -1043,10 +1043,13 @@ if(active==="Operações de Campo")void refreshField();
   };
   const navigate = (label: string) => {
     const route = routeByModule[label] || "/";
-    // A full route transition prevents the old shell from being left mounted
-    // after pushState, which caused blank Reports/Projects/CMS screens.
-    setRouteTransition(true);
-    window.location.assign(route);
+    // Keep the authenticated shell mounted while changing modules. A full
+    // document navigation used to re-run session bootstrap on every tab click
+    // and briefly showed the login/session preparation screen.
+    setRouteTransition(false);
+    window.history.pushState({}, "", route);
+    setActive(label);
+    setSubArea(moduleDetails[label]?.[0] || "");
     const ids = label === "Centro de Notificações"
       ? unreadNotifications.map(notification => String(notification.id))
       : unreadNotifications.filter(notification => notificationModuleFor(notification) === label).map(notification => String(notification.id));

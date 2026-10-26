@@ -54,7 +54,16 @@ function mailboxFor(area: Mailbox["area"]): Mailbox | null {
     || process.env["NOMINALIA_" + key + "_PASS"];
   return user && password ? { area, user: user.trim(), password } : null;
 }
-function safeError(error: unknown) { const message = error instanceof Error ? error.message : String(error || "unknown"); if (/authentication|login|invalid credentials|auth/i.test(message)) return "autenticação IMAP recusada"; if (/timeout|timed out|ETIMEDOUT|ECONNRESET/i.test(message)) return "tempo esgotado na ligação IMAP"; if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED/i.test(message)) return "servidor IMAP indisponível"; return "ligação IMAP falhou"; }
+function safeError(error: unknown) {
+  const value = error && typeof error === "object" ? error as { message?: unknown; code?: unknown; name?: unknown } : {};
+  const message = String(value.message || error || "unknown");
+  const code = String(value.code || "").toUpperCase();
+  if (/authentication|login|invalid credentials|auth|AUTHENTICATIONFAILED/i.test(message) || /AUTH|LOGIN|INVALID/i.test(code)) return "autenticação IMAP recusada";
+  if (/certificate|TLS|SSL|handshake/i.test(message) || /CERT|TLS|SSL/i.test(code)) return "certificado/TLS IMAP recusado";
+  if (/timeout|timed out|ETIMEDOUT|ECONNRESET/i.test(message) || /TIMEOUT|ETIMEDOUT|ECONNRESET/i.test(code)) return "tempo esgotado na ligação IMAP";
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|EHOSTUNREACH/i.test(message) || /ENOTFOUND|EAI_AGAIN|ECONNREFUSED|EHOSTUNREACH/i.test(code)) return "servidor IMAP indisponível";
+  return "ligação IMAP falhou";
+}
 export async function syncNominaliaMailboxes(): Promise<ImapResult[]> {
   const existing = await stagingRest("inbox_messages?select=meta&source=eq.nominalia_imap&limit=3000") as Array<{ meta?: Record<string, unknown> | null }>; const known = new Set(existing.map(row => String(row.meta?.message_id || "")).filter(Boolean));
   const results = await Promise.all((["geral", "comercial", "carreiras"] as const).map(async area => {
