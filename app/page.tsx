@@ -408,6 +408,7 @@ export function HQApp() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [subArea, setSubArea] = useState("");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
   const [realtimeVersion,setRealtimeVersion]=useState(0);
   const [routeTransition,setRouteTransition]=useState(false);
   const [liveMap, setLiveMap] = useState<LiveMapData | null>(null);
@@ -933,6 +934,7 @@ const attachToSelectedSupport=async(event:React.ChangeEvent<HTMLInputElement>)=>
     if (!sessionUser) return;
     let cancelled = false;
     const loadDashboard = async () => {
+      setDashboardLoading(true);
       try {
         const response = await fetch("/api/dashboard", { cache: "no-store" });
         if (!response.ok) throw new Error((await response.json()).error || "Falha de ligação");
@@ -940,6 +942,8 @@ const attachToSelectedSupport=async(event:React.ChangeEvent<HTMLInputElement>)=>
         if (!cancelled) { setDashboard(normalizeDashboardNames(data)); setConnectionError(""); }
       } catch (error) {
         if (!cancelled) setConnectionError(error instanceof Error ? error.message : "A Central ainda não recebeu dados.");
+      } finally {
+        if (!cancelled) setDashboardLoading(false);
       }
     };
     void loadDashboard();
@@ -1609,7 +1613,7 @@ if(active==="Operações de Campo")void refreshField();
               </> : <div className="peopleEmpty">Carteira ainda não disponível para este perfil.</div>}
             </article>
           </section>}
-          {active === "Visão geral" && <>{["SUPER_ADMIN", "SUPERVISOR"].includes(sessionRole) && <OperationalFundsCard role={sessionRole} />}<ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} refreshKey={realtimeVersion} onRefresh={() => { setRealtimeVersion(value => value + 1); void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} /><p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
+          {active === "Visão geral" && <>{["SUPER_ADMIN", "SUPERVISOR"].includes(sessionRole) && <OperationalFundsCard role={sessionRole} />}{dashboardLoading && !dashboard ? <section className="analyticsDashboardShell dashboardPreparingState"><div className="dashboardPreparingCard"><strong>A preparar os indicadores</strong><span>A Central está a carregar os dados autorizados…</span></div></section> : <ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} refreshKey={realtimeVersion} onRefresh={() => { setRealtimeVersion(value => value + 1); void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} />}<p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
           {active === "Utilizadores" && <><UserTeamDashboard mode="users" /><section className="peoplePanel">
             <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
             <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>

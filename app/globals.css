@@ -549,3 +549,6 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell .financeChartEmpty{display:grid;place-items:center;min-height:190px;padding:20px;border:1px dashed #3b5c7b;border-radius:12px;color:#9eb6cd;text-align:center;font-size:.8rem}
 @media (max-width:900px){.shell .financeVisualGrid{grid-template-columns:1fr}.shell .financeDonutLayout{justify-content:flex-start}}
 @media (max-width:650px){.shell .financeOverviewKpis{grid-template-columns:1fr}.shell .financeOverviewKpi{padding:15px}.shell .financeRevenueRow{grid-template-columns:minmax(92px,1fr) minmax(0,1.3fr);gap:8px}.shell .financeRevenueRow strong{grid-column:2;text-align:left}.shell .financeRevenueTrack{grid-column:2;grid-row:1}.shell .financeRevenueLabel{grid-column:1;grid-row:1}.shell .financeDonutLayout{flex-direction:column;align-items:flex-start}.shell .financeDonutLegend{width:100%}}
+.dashboardPreparingState{min-height:260px;display:grid;place-items:center;border:1px solid #294766;border-radius:14px;background:linear-gradient(145deg,#10253b,#0b1727)!important}
+.dashboardPreparingCard{display:grid;gap:8px;text-align:center;padding:22px 28px;border:1px solid #315174;border-radius:12px;background:#0d2035;color:#f4f8ff;box-shadow:0 16px 40px #02071155}
+.dashboardPreparingCard span{font-size:12px;color:#9db6ce}
