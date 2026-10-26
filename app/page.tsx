@@ -418,6 +418,7 @@ export function HQApp() {
   const [selectedMapWorker, setSelectedMapWorker] = useState<LiveMapMarker | null>(null);
   const [sessionRole, setSessionRole] = useState("");
   const [sessionUser,setSessionUser]=useState<SessionUser|null>(null);
+  const [sessionResolved,setSessionResolved]=useState(false);
   const [ownProfile,setOwnProfile]=useState<Record<string,unknown>|null>(null);
   const [profileBiography,setProfileBiography]=useState("");
   const [profileEditing,setProfileEditing]=useState(false);
@@ -675,6 +676,7 @@ export function HQApp() {
             setSessionRole(session.user?.is_super_admin ? "SUPER_ADMIN" : session.user?.hq_role || "");
             setSessionUser(session.user||null);
             if (sessionPersona) setPersona(sessionPersona);
+            setSessionResolved(true);
             return;
           }
           // 401 is definitive; a 5xx/transport failure may be a cold start or
@@ -1177,6 +1179,15 @@ if(active==="Operações de Campo")void refreshField();
     @media(max-width:480px){.shell .analyticsKpiGrid{grid-template-columns:1fr!important}.shell .platformAdminStats{grid-template-columns:1fr}.shell .platformAdminHead{padding:14px}.shell .platformAdminQueueTitle{align-items:flex-start;flex-direction:column;gap:4px}}
     @media(max-width:650px){.shell .platformDetailHead{align-items:flex-start;flex-direction:column}.shell .platformDetailHead button{width:100%}}
   `;
+
+  if (!sessionResolved) {
+    return <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#07101c", color: "#eaf2ff", fontFamily: "Inter, system-ui, sans-serif" }}>
+      <div style={{ padding: "24px 30px", border: "1px solid #294766", borderRadius: 16, background: "linear-gradient(145deg,#10253b,#0b1727)", textAlign: "center", boxShadow: "0 18px 50px #02071166" }}>
+        <strong style={{ display: "block", fontSize: 16 }}>A preparar a Central</strong>
+        <span style={{ display: "block", marginTop: 8, color: "#9db6ce", fontSize: 12 }}>A validar a sessão e o cargo…</span>
+      </div>
+    </main>;
+  }
 
   return (
     <main className="shell">
