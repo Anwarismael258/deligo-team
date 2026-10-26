@@ -60,10 +60,10 @@ export async function POST(request:NextRequest){
       } else {
       // The phone used for OTP is the canonical identity. Query it first so a
       // stale or missing Auth link cannot block an otherwise valid HQ worker.
-      let contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?auth_user_id=eq.${encodeURIComponent(payload.user.id)}&status=in.(active,invited)&select=id,employee_code,display_name,status,requested_role,auth_user_id,phone_e164,employee_roles(roles(code))&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(2500)});
+      let contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?auth_user_id=eq.${encodeURIComponent(payload.user.id)}&status=in.(active,invited)&select=id,employee_code,display_name,status,requested_role,auth_user_id,phone_e164,employee_roles:employee_roles!employee_roles_employee_id_fkey(roles(code))&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(2500)});
       let rows=contextResponse.ok?await contextResponse.json() as Array<Record<string,unknown>>:[];
       if(!rows.length){
-        contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?phone_e164=eq.${encodeURIComponent(normalized)}&status=in.(active,invited)&select=id,employee_code,display_name,status,requested_role,auth_user_id,phone_e164,employee_roles(roles(code))&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(2500)});
+        contextResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?phone_e164=eq.${encodeURIComponent(normalized)}&status=in.(active,invited)&select=id,employee_code,display_name,status,requested_role,auth_user_id,phone_e164,employee_roles:employee_roles!employee_roles_employee_id_fkey(roles(code))&limit=1`,{method:"GET",headers:employeeHeaders,cache:"no-store",signal:AbortSignal.timeout(2500)});
         if(contextResponse.ok) rows=await contextResponse.json() as Array<Record<string,unknown>>;
       }
       if(contextResponse.ok){
