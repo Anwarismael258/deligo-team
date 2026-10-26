@@ -514,3 +514,38 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell footer{background:#06111f!important;color:#9bb2c9!important;border-color:#294766!important}
 .shell footer a{color:#74e7ff!important;text-decoration:none}
 .shell footer a:hover{text-decoration:underline}
+
+/* Finance overview: compact, accessible and responsive visual language. */
+.shell .financeOverviewKpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0 0 14px}
+.shell .financeOverviewKpi{display:flex;align-items:center;gap:14px;min-width:0;padding:18px;border:1px solid #294f70;border-radius:15px;background:linear-gradient(145deg,#102942,#0b1d31)!important;box-shadow:0 8px 22px #02071138!important}
+.shell .financeOverviewKpiIcon{display:grid;place-items:center;flex:0 0 50px;width:50px;height:50px;border:1px solid currentColor;border-radius:14px;background:#122f49;color:#22d3ee}
+.shell .financeOverviewKpi-violet .financeOverviewKpiIcon{color:#a78bfa;background:#241d4b;border-color:#5842a8}
+.shell .financeOverviewKpi-cyan .financeOverviewKpiIcon{color:#22d3ee;background:#123b4b;border-color:#226b7c}
+.shell .financeOverviewKpi-blue .financeOverviewKpiIcon{color:#60a5fa;background:#142f52;border-color:#3168a0}
+.shell .financeOverviewKpiBody{min-width:0;display:grid;gap:4px}
+.shell .financeOverviewKpiLabel{display:flex;align-items:center;gap:7px;color:#b8cde2;font-size:.82rem}
+.shell .financeOverviewKpiBody strong{color:#f5f9ff!important;font-size:clamp(1.35rem,2vw,1.9rem);letter-spacing:-.02em;line-height:1.1}
+.shell .financeOverviewKpiBody small{color:#8fa9c2!important;font-size:.7rem;line-height:1.35}
+.shell .financeInfoHint{display:grid;place-items:center;width:16px;height:16px;border:1px solid #5d7d9b;border-radius:50%;font-size:.65rem;color:#a9c4dc;cursor:help}
+.shell .financeVisualGrid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(300px,.9fr);gap:14px;margin-bottom:16px}
+.shell .financeVisualCard{min-width:0;padding:20px;border:1px solid #294f70;border-radius:15px;background:linear-gradient(145deg,#102942,#0b1d31)!important;color:#edf6ff;box-shadow:0 8px 22px #02071138!important}
+.shell .financeVisualHeading{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:20px}
+.shell .financeVisualHeading h2{margin:2px 0 0;color:#f4f8ff!important;font-size:1.2rem}
+.shell .financeEyebrow{color:#22d3ee;font-size:.66rem;font-weight:700;letter-spacing:.13em}
+.shell .financeChartLegend{color:#91abc3;font-size:.72rem;padding-top:5px}
+.shell .financeRevenueRows{display:grid;gap:16px}
+.shell .financeRevenueRow{display:grid;grid-template-columns:minmax(100px,135px) minmax(0,1fr) minmax(84px,112px);align-items:center;gap:12px}
+.shell .financeRevenueLabel{color:#d9e9f8;font-size:.86rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.shell .financeRevenueTrack{height:16px;overflow:hidden;border-radius:999px;background:#142f4c;border:1px solid #1f4566}
+.shell .financeRevenueFill{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#22d3ee,#8b5cf6);box-shadow:0 0 14px #22d3ee55;transition:width .35s ease}
+.shell .financeRevenueRow strong{text-align:right;color:#f4f8ff;font-size:.82rem;white-space:nowrap}
+.shell .financeUnavailableValue{color:#8fa9c2!important;font-weight:500}
+.shell .financeChartFootnote{display:block;margin-top:18px;color:#8fa9c2!important;font-size:.7rem;line-height:1.45}
+.shell .financeDonutLayout{display:flex;align-items:center;justify-content:center;gap:22px;min-height:190px}
+.shell .financeDonut{display:grid;place-items:center;flex:0 0 158px;width:158px;height:158px;border-radius:50%;box-shadow:0 0 24px #22d3ee22}
+.shell .financeDonutHole{display:grid;place-items:center;align-content:center;width:102px;height:102px;border-radius:50%;background:#0b1d31;text-align:center}
+.shell .financeDonutHole span{color:#8fa9c2;font-size:.7rem}.shell .financeDonutHole strong{color:#f4f8ff;font-size:1.05rem}
+.shell .financeDonutLegend{display:grid;gap:14px;min-width:0;flex:1}.shell .financeDonutLegend>div{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;color:#d9e9f8;font-size:.78rem}.shell .financeDonutLegend span{min-width:0}.shell .financeDonutLegend span small{display:block;color:#8fa9c2;font-size:.68rem;margin-top:2px}.shell .financeDonutLegend strong{color:#f4f8ff;white-space:nowrap}.shell .financeLegendDot{display:block;width:10px;height:10px;border-radius:50%}.shell .financeLegendDot-violet{background:#8b5cf6;box-shadow:0 0 9px #8b5cf677}.shell .financeLegendDot-cyan{background:#22d3ee;box-shadow:0 0 9px #22d3ee77}
+.shell .financeChartEmpty{display:grid;place-items:center;min-height:190px;padding:20px;border:1px dashed #3b5c7b;border-radius:12px;color:#9eb6cd;text-align:center;font-size:.8rem}
+@media (max-width:900px){.shell .financeVisualGrid{grid-template-columns:1fr}.shell .financeDonutLayout{justify-content:flex-start}}
+@media (max-width:650px){.shell .financeOverviewKpis{grid-template-columns:1fr}.shell .financeOverviewKpi{padding:15px}.shell .financeRevenueRow{grid-template-columns:minmax(92px,1fr) minmax(0,1.3fr);gap:8px}.shell .financeRevenueRow strong{grid-column:2;text-align:left}.shell .financeRevenueTrack{grid-column:2;grid-row:1}.shell .financeRevenueLabel{grid-column:1;grid-row:1}.shell .financeDonutLayout{flex-direction:column;align-items:flex-start}.shell .financeDonutLegend{width:100%}}
