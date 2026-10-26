@@ -10,5 +10,5 @@ function formatValue(kpi: KPIResult) {
 export function KPICard({ kpi }: { kpi: KPIResult }) {
   if (kpi.sourceStatus === "unavailable") return null;
   const trend = kpi.changePercent == null ? null : `${kpi.changePercent >= 0 ? "+" : ""}${kpi.changePercent.toFixed(1)}%`;
-  return <article className={`analyticsKpiCard analyticsStatus-${kpi.sourceStatus}`}><span>{kpi.label}</span><strong>{formatValue(kpi)}</strong>{trend && <small className={kpi.changePercent! >= 0 ? "analyticsTrendPositive" : "analyticsTrendNegative"}>{trend} versus período anterior</small>}{kpi.source && <small>{kpi.source}</small>}</article>;
+  return <article className={`analyticsKpiCard analyticsStatus-${kpi.sourceStatus}`}><span>{kpi.label}</span><strong>{formatValue(kpi)}</strong>{trend && <small className={kpi.changePercent! >= 0 ? "analyticsTrendPositive" : "analyticsTrendNegative"}>{trend} vs. período anterior</small>}{kpi.source && <small className="analyticsSource" title={kpi.source} aria-label={`Fonte: ${kpi.source}`}>ⓘ</small>}</article>;
 }
