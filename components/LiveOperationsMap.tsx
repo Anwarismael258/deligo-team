@@ -41,9 +41,11 @@ export default function LiveOperationsMap({ markers, routes = [], onSelect }: { 
       if (disposed || !container.current) return;
       instance = L.map(container.current, { zoomControl: false, attributionControl: true }).setView([-25.965, 32.575], 13);
       L.control.zoom({ position: "topright" }).addTo(instance);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      // Public OSM tiles keep the operational map usable without a provider API key.
+      // The application data remains protected by the map API route; only tiles are public.
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
-        attribution: "© OpenStreetMap contributors © CARTO",
+        attribution: "© OpenStreetMap contributors",
       }).addTo(instance);
       map.current = instance;
       markerLayer.current = L.layerGroup().addTo(instance);

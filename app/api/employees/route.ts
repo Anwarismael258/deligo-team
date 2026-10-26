@@ -19,6 +19,19 @@ function resolveCargo(input: { cargo?: string; role?: string; jobTitle?: string 
   return match || null;
 }
 
+async function readAuthError(response: Response) {
+  const raw = await response.text().catch(() => "");
+  try {
+    const parsed = JSON.parse(raw) as { code?: string; error_code?: string; msg?: string; message?: string; error_description?: string };
+    return {
+      code: String(parsed.code || parsed.error_code || "").toLowerCase(),
+      message: String(parsed.msg || parsed.message || parsed.error_description || "").toLowerCase(),
+    };
+  } catch {
+    return { code: "", message: raw.toLowerCase() };
+  }
+}
+
 export async function GET() {
   const authorization = await requireCorporatePermission("users.view"),actor=authorization?.actor;
   if (!actor) return NextResponse.json({ error: "Sem permissão para consultar colaboradores." }, { status: 403 });
@@ -51,8 +64,8 @@ export async function POST(request: NextRequest) {
   if (!input.name?.trim() || !cargo || !/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "Indique o nome, o telefone moçambicano e um cargo válido." }, { status: 400 });
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) return NextResponse.json({ error: "Configuração de contas indisponível." }, { status: 503 });
-  const existing = await hqRest(`employees?phone_e164=eq.${encodeURIComponent(phone)}&select=id,display_name,status&limit=1`) as Array<Record<string, unknown>>;
-  if (existing?.[0]) return NextResponse.json({ error: `Este número já está registado para ${String(existing[0].display_name || "um trabalhador")}. Função actual: ${String(existing[0].role || "pendente")} · estado: ${String(existing[0].status || "não indicado")}.` }, { status: 409 });
+  const existing = await hqRest(`employees?phone_e164=eq.${encodeURIComponent(phone)}&select=id,display_name,status,requested_role_code&limit=1`) as Array<Record<string, unknown>>;
+  if (existing?.[0]) return NextResponse.json({ error: `Este número já está registado para ${String(existing[0].display_name || "um trabalhador")}. Função actual: ${String(existing[0].requested_role_code || "pendente")} · estado: ${String(existing[0].status || "não indicado")}.` }, { status: 409 });
   const bootstrapPassword = randomBytes(32).toString("base64url");
   let authResponse: Response;
   try {
@@ -61,10 +74,21 @@ export async function POST(request: NextRequest) {
     console.error("EMPLOYEE_AUTH_CREATE_FAILED", error instanceof Error ? error.message : "unknown");
     return NextResponse.json({ error: "O serviço de autenticação não respondeu. Tente novamente em alguns segundos." }, { status: 504 });
   }
-  if (!authResponse.ok) return NextResponse.json({ error: "O número já existe ou não pôde ser criado." }, { status: 409 });
+  if (!authResponse.ok) {
+    const authError = await readAuthError(authResponse);
+    const isDuplicate = /already|exists|duplicate|registered|phone_exists|user_already_exists/.test(`${authError.code} ${authError.message}`);
+    if (isDuplicate) {
+      return NextResponse.json({ error: "Este número já tem uma conta de autenticação e não pode ser associado automaticamente a um novo trabalhador. Confirme primeiro se não pertence a outro utilizador." }, { status: 409 });
+    }
+    console.error("EMPLOYEE_AUTH_CREATE_REJECTED", { code: authError.code || "unknown" });
+    return NextResponse.json({ error: "A autenticação recusou o cadastro deste número. Verifique o formato e tente novamente." }, { status: 409 });
+  }
   const authUser = await authResponse.json() as { id: string };
   try {
-    const employee = await hqRpc("hq_create_employee_v1", { p_actor_auth_user_id: fallbackActor.authUserId, p_auth_user_id: authUser.id, p_display_name: input.name.trim(), p_phone_e164: phone, p_job_title: cargo.title, p_department_code: cargo.department, p_requested_role_code: cargo.role, p_activate: fallbackActor.role === "SUPER_ADMIN" });
+    const employee = await Promise.race([
+      hqRpc("hq_create_employee_v1", { p_actor_auth_user_id: fallbackActor.authUserId, p_auth_user_id: authUser.id, p_display_name: input.name.trim(), p_phone_e164: phone, p_job_title: cargo.title, p_department_code: cargo.department, p_requested_role_code: cargo.role, p_activate: fallbackActor.role === "SUPER_ADMIN" }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("HQ_EMPLOYEE_CREATE_TIMEOUT")), 15_000)),
+    ]);
     return NextResponse.json({ employee }, { status: 201 });
   } catch (error) {
     await fetch(`${supabaseUrl()}/auth/v1/admin/users/${authUser.id}`, { method: "DELETE", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, signal: AbortSignal.timeout(5_000) }).catch(() => undefined);
@@ -72,6 +96,7 @@ export async function POST(request: NextRequest) {
     if (message.includes("SENSITIVE_ROLE")) return NextResponse.json({ error: "Este cargo só pode ser criado pelo CEO." }, { status: 403 });
     if (message.includes("INVALID_DEPARTMENT_OR_ROLE")) return NextResponse.json({ error: "O cargo não está disponível no catálogo do backend." }, { status: 409 });
     if (message.includes("EMPLOYEE_ADMIN_FORBIDDEN")) return NextResponse.json({ error: "Este perfil não pode cadastrar trabalhadores." }, { status: 403 });
+    if (message.includes("EMPLOYEE_CREATE_TIMEOUT")) return NextResponse.json({ error: "O backend demorou a responder. O cadastro não foi confirmado; actualize a equipa antes de tentar novamente." }, { status: 504 });
     return NextResponse.json({ error: "Não foi possível concluir o cadastro." }, { status: 400 });
   }
 }
