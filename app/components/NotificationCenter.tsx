@@ -3,52 +3,131 @@
 import { useEffect, useMemo, useState } from "react";
 
 type Row = Record<string, unknown>;
-const text = (value: unknown, fallback = "") => String(value ?? fallback);
-const platformOf = (item: Row) => text(item.platform_name || item.platform || item.source_platform, "Central");
-const priorityOf = (item: Row) => text(item.priority, "normal").toLowerCase();
-const destinationOf = (item: Row) => {
-  const direct = text(item.target_url).trim();
+type ViewFilter = "all" | "unread" | "urgent";
+const value = (row: Row, key: string, fallback = "") => String(row[key] ?? fallback);
+const sourceText = (row: Row) => value(row, "source_type") + " " + value(row, "type") + " " + value(row, "title") + " " + value(row, "body");
+const priority = (row: Row) => value(row, "priority", "normal").toLowerCase();
+
+function platformOf(row: Row) {
+  const source = (value(row, "platform_name") + " " + value(row, "platform") + " " + value(row, "platform_slug") + " " + sourceText(row)).toLowerCase();
+  if (source.includes("mestre24") || source.includes("mestre 24")) return "Mestre24";
+  if (source.includes("sarca")) return "SARCA";
+  if (source.includes("comunhao") || source.includes("comunhão") || source.includes("igreja")) return "Comunhão";
+  if (source.includes("taomoz") || source.includes("market")) return "DeliGo Market";
+  if (source.includes("deligo") || source.includes("eats")) return "DeliGo";
+  return "Central";
+}
+
+function moduleOf(row: Row) {
+  const target = value(row, "target_url").toLowerCase();
+  const source = sourceText(row).toLowerCase();
+  if (target.startsWith("/apoio-cliente") || /support|ticket|complaint|whatsapp|dispute/.test(source)) return "Apoio ao Cliente";
+  if (target.startsWith("/caixa-de-entrada") || source.includes("inbox")) return "Caixa de Entrada";
+  if (target.startsWith("/field") || /kyc|field/.test(source)) return "Operações de Campo";
+  if (target.startsWith("/financas") || /finance|payment|withdrawal/.test(source)) return "Finanças";
+  if (target.startsWith("/microcredito") || /loan|credit/.test(source)) return "Triunfal Microcrédito";
+  if (target.startsWith("/projectos-tarefas") || /task|project/.test(source)) return "Projectos e Tarefas";
+  if (target.startsWith("/relatorios") || source.includes("report")) return "Relatórios";
+  if (target.startsWith("/marketing/vagas") || /vacancy|job/.test(source)) return "Vagas";
+  if (target.startsWith("/marketing") || /marketing|campaign/.test(source)) return "Marketing";
+  if (target.startsWith("/utilizadores") || /user|profile/.test(source)) return "Utilizadores";
+  return "Centro de Notificações";
+}
+
+function hrefOf(row: Row) {
+  const direct = value(row, "target_url").trim();
   if (direct.startsWith("/") && direct !== "/" && !direct.startsWith("//")) return direct;
-  const source = `${text(item.source_type)} ${text(item.type)} ${text(item.title)} ${text(item.body)}`.toLowerCase();
-  if (["order", "delivery", "ride", "trip", "journey", "travel"].some(value => source.includes(value))) return "/mapa-operacional";
-  if (["dispute", "complaint", "support", "ticket", "whatsapp", "message"].some(value => source.includes(value))) return "/apoio-cliente";
-  if (["kyc", "field", "courier", "restaurant"].some(value => source.includes(value))) return "/field";
-  if (["service_request", "service request", "booking", "appointment", "professional_request"].some(value => source.includes(value))) return "/plataformas?platform=mestre24&tab=pedidos";
-  if (source.includes("task") || source.includes("project")) return "/projectos-tarefas";
-  if (["finance", "withdraw", "payment"].some(value => source.includes(value))) return "/financas";
-  if (source.includes("loan") || source.includes("credit")) return "/microcredito";
-  if (source.includes("user") || source.includes("profile")) return "/utilizadores";
+  const source = sourceText(row).toLowerCase();
+  if (/support|ticket|complaint|whatsapp|dispute|message/.test(source)) return "/apoio-cliente";
+  if (/kyc|field|courier|restaurant/.test(source)) return "/field";
+  if (/order|delivery|ride|trip|journey|travel/.test(source)) return "/mapa-operacional";
+  if (/service_request|booking|appointment|professional_request/.test(source)) return "/plataformas?platform=mestre24&tab=pedidos";
+  if (/task|project/.test(source)) return "/projectos-tarefas";
+  if (/finance|withdraw|payment/.test(source)) return "/financas";
+  if (/loan|credit/.test(source)) return "/microcredito";
   return "/notificacoes";
-};
-const actionLabelOf = (item: Row) => {
-  const source = `${text(item.source_type)} ${text(item.type)} ${text(item.title)} ${text(item.body)}`.toLowerCase();
-  if (source.includes("kyc") || source.includes("field")) return "Rever KYC";
-  if (["support", "ticket", "message", "whatsapp", "dispute"].some(value => source.includes(value))) return "Abrir mensagem";
-  if (["order", "delivery", "ride", "trip", "journey", "travel"].some(value => source.includes(value))) return "Acompanhar rota";
-  if (["service_request", "service request", "booking", "appointment", "professional_request"].some(value => source.includes(value))) return "Abrir pedido";
+}
+
+function actionOf(row: Row) {
+  const source = sourceText(row).toLowerCase();
+  if (/kyc|field/.test(source)) return "Rever KYC";
+  if (/support|ticket|message|whatsapp|dispute/.test(source)) return "Abrir conversa";
+  if (/order|delivery|ride|trip|journey|travel/.test(source)) return "Acompanhar rota";
+  if (/service_request|booking|appointment|professional_request/.test(source)) return "Abrir pedido";
   return "Abrir origem";
-};
-const summaryOf = (item: Row) => {
-  const source = `${text(item.source_type)} ${text(item.type)}`.toLowerCase();
-  const title = text(item.title, "Notificação").trim();
-  const body = text(item.body).trim();
-  const platform = platformOf(item);
-  const reference = text(item.source_id).trim();
-  if (source.includes("kyc") || source.includes("field")) return `Novo KYC para revisão · ${platform}${reference ? ` · #${reference.slice(0, 12)}` : ""}`;
-  if (["support", "ticket", "message", "whatsapp"].some(value => source.includes(value))) return `${title} · ${platform}${body ? ` · ${body}` : ""}`;
-  if (["platform_event", "order", "delivery", "ride", "trip"].some(value => source.includes(value))) return `${title} · ${platform}${reference ? ` · #${reference.slice(0, 12)}` : body ? ` · ${body}` : ""}`;
-  return body || `${title}${reference ? ` · #${reference.slice(0, 12)}` : ""}`;
-};
+}
+
+function summaryOf(row: Row) {
+  const title = value(row, "title", "Notificação").trim();
+  const body = value(row, "body").replace(/\s+/g, " ").trim();
+  const source = sourceText(row).toLowerCase();
+  const platform = platformOf(row);
+  const reference = value(row, "source_id").trim();
+  if (/kyc|field/.test(source)) return title + " · " + platform + (reference ? " · #" + reference.slice(0, 12) : "");
+  if (/order|delivery|ride|trip|journey|travel/.test(source)) return title + " · " + platform + (reference ? " · #" + reference.slice(0, 12) : "");
+  return body ? title + " · " + platform + " · " + body : title + " · " + platform;
+}
+
+function uniqueRows(rows: Row[]) {
+  const seen = new Set<string>();
+  return rows.filter(row => {
+    const key = value(row, "id") || value(row, "dedupe_key") || value(row, "source_type") + ":" + value(row, "source_id") + ":" + value(row, "employee_id");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 export function NotificationCenter() {
   const [data, setData] = useState<Row[]>([]);
+  const [view, setView] = useState<ViewFilter>("all");
+  const [area, setArea] = useState("Todas as áreas");
+  const [platform, setPlatform] = useState("Todas as plataformas");
+  const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
-  const load = async () => { try { const response = await fetch("/api/notifications", { cache: "no-store" }); const result = await response.json(); if (!response.ok) throw new Error(result.error || "Não foi possível actualizar as notificações."); setData(Array.isArray(result.notifications) ? result.notifications : []); setNotice(""); } catch (error) { setNotice(error instanceof Error ? error.message : "Não foi possível actualizar as notificações."); } finally { setLoading(false); } };
-  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 10000); return () => window.clearInterval(timer); }, []);
-  const mark = async (id?: string) => { const response = await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(id ? { id } : { all: true }) }); if (!response.ok) { setNotice("Não foi possível actualizar o estado da notificação."); return; } await load(); };
-  const groups = useMemo(() => { const grouped = new Map<string, Row[]>(); [...data].sort((a, b) => Date.parse(text(b.created_at)) - Date.parse(text(a.created_at))).forEach(item => { const key = platformOf(item); grouped.set(key, [...(grouped.get(key) || []), item]); }); return [...grouped.entries()].sort(([a], [b]) => a === "Central" ? 1 : b === "Central" ? -1 : a.localeCompare(b, "pt")); }, [data]);
-  const unread = data.filter(item => !item.read_at).length;
-  const open = (item: Row) => { if (!item.read_at) void mark(text(item.id)); window.location.assign(destinationOf(item)); };
-  return <section className="notificationCenterWorkspace"><div className="notificationCenterHead"><div><span>INBOX INTERNA</span><h2>Notificações</h2></div><button className="notificationMarkAll" onClick={() => void mark()} disabled={!unread}>Ler tudo</button></div><div className="notificationSummary"><article><span>Total</span><strong>{data.length}</strong></article><article className={unread ? "hasUnread" : ""}><span>Não lidas</span><strong>{unread}</strong></article><article><span>Plataformas</span><strong>{groups.length}</strong></article></div>{notice && <div className="operationalNotice">{notice}</div>}{loading ? <div className="notificationEmpty">A carregar…</div> : !data.length ? <div className="notificationEmpty">Sem notificações.</div> : <div className="notificationGroups">{groups.map(([platform, items]) => <section className="notificationGroup" key={platform}><header><div><span>PLATAFORMA</span><h3>{platform}</h3></div><b>{items.filter(item => !item.read_at).length || ""}</b></header><div className="notificationList">{items.map(item => { const isUnread = !item.read_at; const priority = priorityOf(item); return <article className={`notificationItem ${isUnread ? "isUnread" : ""}`} key={text(item.id)} onClick={() => open(item)} role="button" tabIndex={0} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") open(item); }}><i className={`notificationDot priority-${priority}`} aria-hidden="true" /><div className="notificationItemBody"><div className="notificationItemTitle"><strong>{summaryOf(item)}</strong><span className={`notificationPriority priority-${priority}`}>{priority}</span></div><small>{new Date(text(item.created_at)).toLocaleString("pt-MZ")}</small></div><div className="notificationItemActions"><button type="button" onClick={event => { event.stopPropagation(); open(item); }}>{actionLabelOf(item)}</button>{isUnread && <button type="button" onClick={event => { event.stopPropagation(); void mark(text(item.id)); }}>Ler</button>}</div></article>; })}</div></section>)}</div>}</section>;
+
+  const load = async () => {
+    try {
+      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Não foi possível actualizar as notificações.");
+      setData(uniqueRows(Array.isArray(result.notifications) ? result.notifications : []));
+      setNotice("");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível actualizar as notificações.");
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 5000); return () => window.clearInterval(timer); }, []);
+
+  const mark = async (id?: string) => {
+    const body = id ? { id } : { all: true };
+    setData(rows => id ? rows.map(row => value(row, "id") === id ? { ...row, read_at: new Date().toISOString() } : row) : rows.map(row => ({ ...row, read_at: new Date().toISOString() })));
+    const response = await fetch("/api/notifications", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!response.ok) { setNotice("Não foi possível actualizar o estado da notificação."); await load(); }
+  };
+
+  const areas = useMemo(() => ["Todas as áreas"].concat(Array.from(new Set(data.map(moduleOf))).sort((a, b) => a.localeCompare(b, "pt"))), [data]);
+  const platforms = useMemo(() => ["Todas as plataformas"].concat(Array.from(new Set(data.map(platformOf))).sort((a, b) => a.localeCompare(b, "pt"))), [data]);
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return data.filter(row => {
+      if (view === "unread" && value(row, "read_at")) return false;
+      if (view === "urgent" && !["high", "urgent", "critical"].includes(priority(row))) return false;
+      if (area !== "Todas as áreas" && moduleOf(row) !== area) return false;
+      if (platform !== "Todas as plataformas" && platformOf(row) !== platform) return false;
+      return !needle || (summaryOf(row) + " " + moduleOf(row) + " " + platformOf(row)).toLowerCase().includes(needle);
+    }).sort((a, b) => Date.parse(value(b, "created_at")) - Date.parse(value(a, "created_at")));
+  }, [area, data, platform, query, view]);
+  const unread = data.filter(row => !value(row, "read_at")).length;
+  const open = (row: Row) => { const id = value(row, "id"); if (!value(row, "read_at") && id) void mark(id); window.location.assign(hrefOf(row)); };
+  const grouped = useMemo(() => { const groups = new Map<string, Row[]>(); filtered.forEach(row => { const key = platformOf(row); groups.set(key, (groups.get(key) || []).concat(row)); }); return Array.from(groups.entries()); }, [filtered]);
+
+  return <section className="notificationCenterWorkspace">
+    <header className="notificationCenterHead"><div><span>CENTRAL HQ · COMUNICAÇÕES</span><h2>Centro de Notificações</h2><p>Eventos reais da Central, organizados por área e plataforma.</p></div><div className="notificationHeadActions"><span className="notificationLiveState"><i />Tempo real</span><button className="notificationMarkAll" onClick={() => void mark()} disabled={!unread}>✓ Marcar todas como lidas</button></div></header>
+    <nav className="notificationFilters" aria-label="Filtros de notificações"><div className="notificationFilterTabs">{([["all", "Todas"], ["unread", "Não lidas"], ["urgent", "Urgentes"]] as const).map(([key, label]) => <button key={key} className={view === key ? "active" : ""} onClick={() => setView(key)}>{label}{key === "unread" && unread ? " · " + unread : ""}</button>)}</div><div className="notificationFilterSelects"><select value={area} onChange={event => setArea(event.target.value)} aria-label="Filtrar por área">{areas.map(item => <option key={item}>{item}</option>)}</select><select value={platform} onChange={event => setPlatform(event.target.value)} aria-label="Filtrar por plataforma">{platforms.map(item => <option key={item}>{item}</option>)}</select><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Pesquisar notificações…" aria-label="Pesquisar notificações" /></div></nav>
+    <div className="notificationSummary"><article><span>Total</span><strong>{data.length}</strong></article><article className={unread ? "hasUnread" : ""}><span>Não lidas</span><strong>{unread}</strong></article><article><span>Áreas activas</span><strong>{new Set(data.map(moduleOf)).size}</strong></article></div>
+    {notice && <div className="operationalNotice">{notice}</div>}
+    {loading ? <div className="notificationEmpty">A carregar notificações reais…</div> : !filtered.length ? <div className="notificationEmpty"><strong>{data.length ? "Nenhuma notificação corresponde aos filtros." : "Sem notificações."}</strong><span>Quando um evento autorizado chegar, aparecerá aqui automaticamente.</span></div> : <div className="notificationGroups">{grouped.map(([name, rows]) => <section className="notificationGroup" key={name}><header><div><span>ORIGEM</span><h3>{name}</h3></div><b>{rows.filter(row => !value(row, "read_at")).length || ""}</b></header><div className="notificationList">{rows.map(row => { const unreadRow = !value(row, "read_at"); const level = priority(row); return <article className={"notificationItem " + (unreadRow ? "isUnread " : "") + "priority-" + level} key={value(row, "id") || value(row, "dedupe_key")} onClick={() => open(row)} role="button" tabIndex={0} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") open(row); }}><span className="notificationIcon" aria-hidden="true">{level === "critical" || level === "urgent" ? "!" : "•"}</span><div className="notificationItemBody"><strong>{summaryOf(row)}</strong><small>{moduleOf(row)} · {new Date(value(row, "created_at")).toLocaleString("pt-MZ", { dateStyle: "short", timeStyle: "short" })}</small></div><div className="notificationItemActions"><button type="button" onClick={event => { event.stopPropagation(); open(row); }}>{actionOf(row)} <span>→</span></button>{unreadRow && <button type="button" className="notificationReadButton" onClick={event => { event.stopPropagation(); void mark(value(row, "id")); }}>Marcar lida</button>}</div></article>; })}</div></section>)}</div>}
+  </section>;
 }
