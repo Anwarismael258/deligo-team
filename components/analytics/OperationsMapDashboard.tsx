@@ -1,108 +1,42 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import LiveOperationsMap, { type OperationsMapMarker, type OperationsMapRoute } from "@/components/LiveOperationsMap";
-import { ChartContainer } from "./ChartContainer";
 import { DashboardFilters } from "./DashboardFilters";
-import { EmptyState } from "./EmptyState";
-import type { AnalyticsFilters } from "@/lib/analytics-contracts";
-import { DashboardHeader } from "./DashboardHeader";
 import { OperationsDensityHeatmap } from "./OperationsDensityHeatmap";
+import type { AnalyticsFilters } from "@/lib/analytics-contracts";
 
-type MapPayload = { checkedAt?: string; markers?: OperationsMapMarker[]; routes?: OperationsMapRoute[]; sourceStatus?: "fresh" | "unavailable"; sourceMessage?: string };
-type HistoryPayload = { series: Array<{ date: string; events: number; created: number; statusChanges: number; cancellations: number; deliveriesCompleted: number; ridesCompleted: number }>; totals?: { deliveriesCompleted?: number; ridesCompleted?: number }; comparison?: { events?: { current: number; previous: number; changePercent: number | null }; deliveriesCompleted?: { current: number; previous: number; changePercent: number | null }; ridesCompleted?: { current: number; previous: number; changePercent: number | null } }; limitations?: string[] };
-
-const platformLabel = (platform: string) => platform === "TaoMoz" ? "DeliGo Market" : platform;
-const statusLabel = (status: string) => ({ disponivel: "Disponível", ocupado: "Ocupado", em_servico: "Em serviço", offline: "Offline" }[status] || status || "Não indicado");
-const entityOptions = ["Pedidos", "Viagens", "Rotas", "Estafetas", "Drivers", "Riders", "Clientes", "Restaurantes"];
-const configuredPlatforms = ["DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"];
-const normalizeEntity = (value: string) => value.toLocaleLowerCase("pt").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-const entityMatches = (role: string, service: string, entity: string) => {
-  if (entity === "todos") return true;
-  const normalized = normalizeEntity(`${role} ${service}`);
-  const aliases: Record<string, string[]> = {
-    Pedidos: ["pedido", "order", "delivery", "entrega", "service_request"],
-    Estafetas: ["estafeta", "courier", "entregador"],
-    Drivers: ["driver", "motorista"],
-    Riders: ["rider", "passageiro", "rider"],
-    Clientes: ["cliente", "customer", "client", "user"],
-    Restaurantes: ["restaurante", "restaurant"],
-    Viagens: ["viagem", "trip", "ride"],
-    Rotas: ["rota", "route"],
-  };
-  return (aliases[entity] || []).some(alias => normalized.includes(alias));
-};
+type MapPayload = { checkedAt?: string; markers?: OperationsMapMarker[]; routes?: OperationsMapRoute[]; sourceStatus?: "fresh" | "unavailable" };
+type HistoryPayload = { series: Array<{ date: string; events: number; deliveriesCompleted: number; ridesCompleted: number; cancellations: number }>; totals?: { deliveriesCompleted?: number; ridesCompleted?: number } };
+type Selection = { kind: "marker" | "route"; id: string };
+const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"];
+const entities = ["Todas as entidades", "Pedidos", "Viagens", "Rotas", "Estafetas", "Drivers", "Riders", "Clientes", "Restaurantes"];
+const statuses = ["Todos os estados", "Disponível", "Ocupado", "Em serviço", "Offline"];
+const normalize = (value: string) => value.toLocaleLowerCase("pt-MZ").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+const platformName = (value: string) => value === "TaoMoz" ? "DeliGo Market" : value;
+const statusName = (value?: string) => ({ disponivel: "Disponível", ocupado: "Ocupado", em_servico: "Em serviço", offline: "Offline" }[value || ""] || value || "Não indicado");
+const entityMatches = (marker: OperationsMapMarker, entity: string) => { if (entity === entities[0]) return true; const aliases: Record<string, string[]> = { Pedidos: ["pedido", "order", "delivery", "entrega"], Viagens: ["viagem", "trip", "ride"], Rotas: ["rota", "route"], Estafetas: ["estafeta", "courier", "entregador"], Drivers: ["driver", "motorista"], Riders: ["rider", "passageiro"], Clientes: ["cliente", "customer", "client"], Restaurantes: ["restaurante", "restaurant"] }; return (aliases[entity] || []).some(alias => normalize((marker.role || "") + " " + (marker.service || "")).includes(alias)); };
 
 export function OperationsMapDashboard() {
   const [filters, setFilters] = useState<AnalyticsFilters>({ period: "last_30_days", timezone: "Africa/Maputo" });
-  const [payload, setPayload] = useState<MapPayload | null>(null);
-  const [error, setError] = useState("");
-  const [history, setHistory] = useState<HistoryPayload | null>(null);
-  const [platform, setPlatform] = useState("Todas as plataformas");
-  const [entity, setEntity] = useState("todos");
-  const [status, setStatus] = useState("todos");
-  const [search, setSearch] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const historyParams = new URLSearchParams({ period: filters.period });
-        if (filters.from) historyParams.set("from", filters.from);
-        if (filters.to) historyParams.set("to", filters.to);
-        const [response, historyResponse] = await Promise.all([fetch("/api/map", { cache: "no-store" }), fetch(`/api/analytics/map?${historyParams.toString()}`, { cache: "no-store" })]);
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(String(body.error || "Mapa operacional indisponível."));
-        const historyBody = await historyResponse.json().catch(() => ({}));
-        if (!cancelled) { setPayload(body); setHistory(historyResponse.ok ? historyBody : null); setError(""); }
-      } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Mapa operacional indisponível.");
-      }
-    };
-    void load();
-    const timer = window.setInterval(() => void load(), 10_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-    }, [filters.period, filters.from, filters.to]);
-
-  const markers = Array.isArray(payload?.markers) ? payload!.markers! : [];
-  const filtered = useMemo(() => markers.filter(marker => {
-    const matchesPlatform = platform === "Todas as plataformas" || platformLabel(marker.platform) === platform;
-    const matchesEntity = entityMatches(String(marker.role || ""), String(marker.service || ""), entity);
-    const markerStatus = normalizeEntity(String(marker.status || ""));
-    const normalizedStatus = status === "todos" ? "todos" : normalizeEntity(status);
-    const matchesStatus = normalizedStatus === "todos" || markerStatus === normalizedStatus || (normalizedStatus === "em_servico" && markerStatus === "em serviço");
-    const haystack = `${marker.workerName || ""} ${marker.workerId || ""} ${marker.role} ${marker.service || ""} ${platformLabel(marker.platform)}`.toLocaleLowerCase("pt");
-    return matchesPlatform && matchesEntity && matchesStatus && haystack.includes(search.toLocaleLowerCase("pt"));
-  }), [markers, platform, entity, status, search]);
-  const filteredRoutes = useMemo(() => (Array.isArray(payload?.routes) ? payload.routes : []).filter(route => {
-    const matchesPlatform = platform === "Todas as plataformas" || platformLabel(route.platform) === platform;
-    const matchesEntity = entity === "todos" || ["Pedidos", "Viagens", "Rotas", "Drivers", "Riders", "Estafetas"].includes(entity);
-    return matchesPlatform && matchesEntity && `${route.label} ${route.platform}`.toLocaleLowerCase("pt").includes(search.toLocaleLowerCase("pt"));
-  }), [payload?.routes, platform, entity, search]);
-
-  const platforms = useMemo(() => Array.from(new Set([...configuredPlatforms, ...markers.map(marker => platformLabel(marker.platform)).filter(Boolean)])).sort((a, b) => a.localeCompare(b, "pt")), [markers]);
-  const byPlatform = useMemo(() => platforms.map(label => ({ label, value: filtered.filter(marker => platformLabel(marker.platform) === label).length })).filter(item => item.value > 0), [filtered, platforms]);
-  const byStatus = useMemo(() => ["disponivel", "ocupado", "em_servico", "offline"].map(value => ({ label: statusLabel(value), value: filtered.filter(marker => marker.status === value).length })).filter(item => item.value > 0), [filtered]);
-  const stale = markers.filter(marker => { const timestamp = Date.parse(marker.updatedAt); return Number.isFinite(timestamp) && Date.now() - timestamp > 5 * 60_000; }).length;
-  const maxPlatform = Math.max(1, ...byPlatform.map(item => item.value));
-  const maxStatus = Math.max(1, ...byStatus.map(item => item.value));
-  const maxHistory = Math.max(1, ...(history?.series || []).map(item => item.events));
-  const mapKpis = [
-    { label: "Operações activas", value: payload?.sourceStatus === "unavailable" ? null : filtered.length, detail: payload?.sourceStatus === "unavailable" ? "A aguardar leitura autorizada" : `Marcadores actuais · GPS desactualizado: ${stale}` },
-    { label: "Entregas concluídas · 30 dias", value: history?.totals?.deliveriesCompleted ?? null, detail: "Eventos DeliGo de conclusão verificáveis" },
-    { label: "Viagens SARCA · 30 dias", value: history?.totals?.ridesCompleted ?? null, detail: "Eventos SARCA concluídos verificáveis" },
-  ].filter(item => item.value != null);
-
-  return <section className="analyticsDashboardShell operationsMapDashboard">
-    <DashboardHeader title="Centro de Mapas" description="Mapa operacional e métricas agregadas para trabalhadores autenticados da Central." updatedAt={payload?.checkedAt ? new Date(payload.checkedAt).toLocaleString("pt-MZ") : undefined} />
-      <DashboardFilters value={filters} onChange={setFilters} platforms={platforms} /><div className="analyticsFilters" aria-label="Filtros do mapa"><label><span>Plataforma</span><select value={platform} onChange={event => setPlatform(event.target.value)}><option>Todas as plataformas</option>{platforms.map(item => <option key={item}>{item}</option>)}</select></label><label><span>Ver</span><select value={entity} onChange={event => setEntity(event.target.value)}><option value="todos">Todas as entidades</option>{entityOptions.map(item => <option key={item} value={item}>{item}</option>)}</select></label><label><span>Estado</span><select value={status} onChange={event => setStatus(event.target.value)}><option value="todos">Todos os estados</option><option value="disponivel">Disponível</option><option value="ocupado">Ocupado</option><option value="em_servico">Em serviço</option><option value="offline">Offline</option></select></label><label><span>Pesquisar</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Nome, função ou plataforma" /></label></div>
-    {error ? <EmptyState title="Mapa operacional indisponível" description={error} /> : <>
-      <div className="analyticsKpiGrid">{mapKpis.map(item => <article className="analyticsKpiCard analyticsStatus-fresh" key={item.label}><span>{item.label}</span><strong>{item.value}</strong><small>{item.detail}</small></article>)}</div>
-      <div className="analyticsExecutiveGrid"><ChartContainer title="Mapa operacional" description="Posições, origens, destinos e rotas apenas quando existem coordenadas autorizadas.">{payload ? <LiveOperationsMap markers={filtered} routes={filteredRoutes} /> : <div className="analyticsMapLoading">A carregar posições autorizadas…</div>}</ChartContainer><ChartContainer title="Distribuição por plataforma" description="Contagem de marcadores e rotas devolvidos pelo backend."><div className="analyticsBarList">{byPlatform.length ? byPlatform.map(item => <div className="analyticsBarRow" key={item.label}><div><strong>{item.label}</strong><small>{item.value} marcadores · {filteredRoutes.filter(route => platformLabel(route.platform) === item.label).length} rotas</small></div><span><i style={{ width: `${Math.max(3, item.value / maxPlatform * 100)}%` }} /><b>{item.value}</b></span></div>) : <EmptyState title="Sem posições disponíveis" description="Nenhuma plataforma devolveu coordenadas verificáveis." />}</div></ChartContainer></div>
-      <ChartContainer title="Heatmap de posições atuais" description="Densidade das coordenadas autorizadas na leitura atual; não representa pedidos históricos nem rotas. "><OperationsDensityHeatmap markers={filtered} /></ChartContainer>
-      <ChartContainer title="Estados operacionais" description="Resumo dos estados presentes na leitura actual."><div className="analyticsBarList">{byStatus.length ? byStatus.map(item => <div className="analyticsBarRow" key={item.label}><div><strong>{item.label}</strong><small>Marcadores</small></div><span><i style={{ width: `${Math.max(3, item.value / maxStatus * 100)}%` }} /><b>{item.value}</b></span></div>) : <EmptyState title="Estados indisponíveis" description="A fonte não devolveu estados operacionais." />}</div></ChartContainer>
-      <ChartContainer title="Actividade operacional histórica" description="Eventos reais de hq.platform_events · últimos 30 dias versus período anterior.">{history?.series?.length ? <div className="analyticsBarList">{history.series.map(item => <div className="analyticsBarRow" key={item.date}><div><strong>{item.date}</strong><small>{item.deliveriesCompleted} entregas · {item.ridesCompleted} viagens · {item.cancellations} cancelamentos</small></div><span><i style={{ width: `${Math.max(2, item.events / maxHistory * 100)}%` }} /><b>{item.events}</b></span></div>)}</div> : <EmptyState title="Histórico indisponível" description="Não existe uma fonte histórica operacional verificável neste momento." />}</ChartContainer>
-      <p className="analyticsDataNote">Acesso limitado a sessões corporativas autenticadas. O mapa é somente leitura neste painel; reatribuições e outras ações operacionais continuam sujeitas às permissões específicas.</p>
-    </>}
+  const [payload, setPayload] = useState<MapPayload | null>(null); const [history, setHistory] = useState<HistoryPayload | null>(null); const [error, setError] = useState("");
+  const [platform, setPlatform] = useState(platforms[0]); const [entity, setEntity] = useState(entities[0]); const [status, setStatus] = useState(statuses[0]); const [search, setSearch] = useState("");
+  const [view, setView] = useState<"live" | "history">("live"); const [densityOpen, setDensityOpen] = useState(false); const [selected, setSelected] = useState<Selection | null>(null);
+  const load = useCallback(async () => { try { const params = new URLSearchParams({ period: filters.period }); if (filters.from) params.set("from", filters.from); if (filters.to) params.set("to", filters.to); const result = await Promise.all([fetch("/api/map", { cache: "no-store" }), fetch("/api/analytics/map?" + params, { cache: "no-store" })]); const mapBody = await result[0].json().catch(() => ({})); if (!result[0].ok) throw new Error(String(mapBody.error || "A fonte operacional não respondeu.")); setPayload(mapBody); setHistory(result[1].ok ? await result[1].json() : null); setError(""); } catch (reason) { setError(reason instanceof Error ? reason.message : "A fonte operacional não respondeu."); } }, [filters.from, filters.period, filters.to]);
+  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 10000); return () => window.clearInterval(timer); }, [load]);
+  const markers = Array.isArray(payload?.markers) ? payload.markers : []; const routes = Array.isArray(payload?.routes) ? payload.routes : [];
+  const visibleMarkers = useMemo(() => markers.filter(marker => { const okPlatform = platform === platforms[0] || platformName(marker.platform) === platform; const okStatus = status === statuses[0] || statusName(marker.status) === status; const text = normalize([marker.workerName, marker.workerId, marker.role, marker.service, platformName(marker.platform)].filter(Boolean).join(" ")); return okPlatform && okStatus && entityMatches(marker, entity) && text.includes(normalize(search)); }), [entity, markers, platform, search, status]);
+  const visibleRoutes = useMemo(() => routes.filter(route => (platform === platforms[0] || platformName(route.platform) === platform) && (entity === entities[0] || ["Pedidos", "Viagens", "Rotas"].includes(entity)) && normalize(route.label + " " + route.platform).includes(normalize(search))), [entity, platform, routes, search]);
+  const recentUnique = useMemo(() => { const seen = new Set<string>(); return visibleMarkers.filter(marker => { const time = Date.parse(marker.updatedAt); if (!Number.isFinite(time) || Date.now() - time > 600000) return false; const key = marker.workerId || marker.service || marker.id; if (seen.has(key)) return false; seen.add(key); return true; }); }, [visibleMarkers]);
+  const unavailable = payload?.sourceStatus === "unavailable" && markers.length === 0; const selectedMarker = selected?.kind === "marker" ? markers.find(marker => marker.id === selected.id) : undefined; const selectedRoute = selected?.kind === "route" ? routes.find(route => route.id === selected.id) : undefined;
+  const listItems = useMemo(() => [...visibleRoutes.map(route => ({ id: route.id, kind: "route" as const, title: route.label, subtitle: platformName(route.platform), state: "Em serviço" })), ...visibleMarkers.filter(marker => marker.role !== "Cliente").map(marker => ({ id: marker.id, kind: "marker" as const, title: marker.service || marker.workerName || marker.role, subtitle: marker.role + " · " + platformName(marker.platform), state: statusName(marker.status) }))], [visibleMarkers, visibleRoutes]);
+  const selectOnMap = useCallback((value: Selection) => setSelected(value), []);
+  const kpis = [["Entregas activas", visibleMarkers.filter(marker => /pedido|entrega/i.test(marker.role)).length, "cyan"], ["Viagens em curso", visibleRoutes.filter(route => platformName(route.platform) === "SARCA").length, "violet"], ["Disponíveis", visibleMarkers.filter(marker => marker.status === "disponivel").length, "green"], ["Sem sinal recente", visibleMarkers.filter(marker => { const time = Date.parse(marker.updatedAt); return Number.isFinite(time) && Date.now() - time > 600000; }).length, "orange"]];
+  const detail = (selectedMarker || selectedRoute) ? <div className="operationDetail"><div className="operationDetailHead"><div><span>SELECCIONADO</span><strong>{selectedRoute?.label || selectedMarker?.service || selectedMarker?.workerName || selectedMarker?.role}</strong></div><button onClick={() => setSelected(null)}>×</button></div><p>{selectedRoute ? platformName(selectedRoute.platform) + " · rota operacional" : selectedMarker?.role + " · " + platformName(selectedMarker?.platform || "")}</p><dl>{selectedMarker && <><dt>Estado</dt><dd>{statusName(selectedMarker.status)}</dd><dt>Localização</dt><dd>{selectedMarker.latitude.toFixed(6)}, {selectedMarker.longitude.toFixed(6)}</dd></>}{selectedRoute && <><dt>Coordenadas</dt><dd>{selectedRoute.coordinates.length} pontos verificados</dd></>}</dl><button className="operationFollow" onClick={() => setSelected(selectedRoute ? { kind: "route", id: selectedRoute.id } : { kind: "marker", id: selectedMarker!.id })}>Acompanhar no mapa</button></div> : null;
+  return <section className="operationsControlRoom"><header className="operationsRoomHeader"><div><span className="operationsRoomEyebrow">CENTRAL HQ · OPERAÇÕES</span><h2>Centro de Operações <i>● Ao vivo</i></h2><p>Mapas e acompanhamento</p></div><div className="operationsRoomHeaderActions"><small>{payload?.checkedAt ? "Actualizado " + new Date(payload.checkedAt).toLocaleTimeString("pt-MZ") : "A preparar leitura"}</small><button onClick={() => void load}>↻ Actualizar</button></div></header>
+    <nav className="operationsPlatformTabs" aria-label="Plataformas operacionais">{platforms.map(item => <button key={item} className={platform === item ? "active" : ""} onClick={() => setPlatform(item)}>{item}</button>)}<span className="operationsViewTabs"><button className={view === "live" ? "active" : ""} onClick={() => setView("live")}>Ao vivo</button><button className={view === "history" ? "active" : ""} onClick={() => setView("history")}>Histórico</button></span></nav>
+    <div className="operationsRoomFilters"><input aria-label="Pesquisar pedido, viagem ou pessoa" value={search} onChange={event => setSearch(event.target.value)} placeholder="⌕  Pesquisar pedido, viagem ou pessoa…" /><label>Estado<select value={status} onChange={event => setStatus(event.target.value)}>{statuses.map(item => <option key={item}>{item}</option>)}</select></label><label>Entidade<select value={entity} onChange={event => setEntity(event.target.value)}>{entities.map(item => <option key={item}>{item}</option>)}</select></label></div><DashboardFilters value={filters} onChange={setFilters} platforms={[]} />{error && <div className="operationsRoomNotice error">{error}</div>}
+    <div className="operationsKpis">{kpis.map(([label, value, color]) => <article className={String(color)} key={String(label)}><span>{label}</span><strong>{error || unavailable ? "—" : value}</strong><b>{error || unavailable ? "Indisponível" : "fonte autorizada"}</b></article>)}</div>
+    {view === "live" ? <><div className="operationsStateChips"><strong>Estados operacionais</strong>{statuses.slice(1).map(item => <button key={item} className={status === item ? "active" : ""} onClick={() => setStatus(status === item ? statuses[0] : item)}><span>{item}</span><b>{unavailable ? "—" : visibleMarkers.filter(marker => statusName(marker.status) === item).length}</b></button>)}</div><div className="operationsRoomGrid"><div className="operationsMapStage"><div className="operationsMapStageHead"><div><strong>Mapa ao vivo</strong><small>{visibleMarkers.length} marcadores · {visibleRoutes.length} rotas</small></div><div className="operationsMapControls"><button className={densityOpen ? "active" : ""} onClick={() => setDensityOpen(open => !open)} disabled={!recentUnique.length}>Densidade</button><span>{unavailable ? "Fonte GPS indisponível" : "Dados autorizados"}</span></div></div>{payload ? <LiveOperationsMap markers={visibleMarkers} routes={visibleRoutes} onSelect={selectOnMap} /> : <div className="operationsMapEmpty">A preparar o mapa…</div>}{densityOpen && <div className="operationsDensityPanel"><strong>Densidade de posições recentes</strong><small>Uma posição por entidade · últimos 10 minutos</small><OperationsDensityHeatmap markers={recentUnique} /></div>}<div className="operationsLegend"><span><i className="legend-cyan" />DeliGo Eats</span><span><i className="legend-violet" />SARCA</span><span><i className="legend-orange" />DeliGo Market</span><span><i className="legend-line" />Rota verificada</span></div></div><aside className="operationsSidePanel"><div className="operationsSideTitle"><h3>Operações activas</h3><small>{listItems.length} em leitura</small></div><div className="operationsList">{listItems.length ? listItems.map(item => <button key={item.kind + ":" + item.id} className={selected?.id === item.id ? "selected" : ""} onClick={() => setSelected({ kind: item.kind, id: item.id })}><span className={"operationGlyph " + (item.kind === "route" ? "route" : "entity")}>{item.kind === "route" ? "⌁" : "•"}</span><span><strong>{item.title}</strong><small>{item.subtitle}</small></span><em>{item.state}</em><b>›</b></button>) : <div className="operationsRoomNotice">Sem operações com coordenadas nesta leitura.</div>}</div>{detail}</aside></div><div className="operationsHistoryStrip"><strong>Densidade</strong><span>{recentUnique.length ? recentUnique.length + " entidades com posição recente, sem duplicação." : "Sem coordenadas recentes válidas; o controlo está desactivado."}</span></div></> : <section className="operationsHistoryPanel"><div><h3>Histórico operacional</h3><p>Eventos históricos por período e plataforma. Esta vista não reconstrói posições GPS sem telemetria registada.</p></div>{history?.series?.length ? <div className="operationsHistoryList">{history.series.map(item => <button key={item.date} onClick={() => setSelected(null)}><strong>{item.date}</strong><span>{item.events} eventos · {item.deliveriesCompleted} entregas · {item.ridesCompleted} viagens · {item.cancellations} cancelamentos</span><b>Ver detalhes</b></button>)}</div> : <div className="operationsRoomNotice">Histórico indisponível para o período seleccionado.</div>}</section>}
   </section>;
 }

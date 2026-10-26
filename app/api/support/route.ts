@@ -174,7 +174,28 @@ export async function GET(request:NextRequest){
       console.error("SUPPORT_PUBLIC_MESSAGES_SOURCE_FAILED",String(error));
     }
   }
-  const coreTickets: Array<{id:string}> = [];
+  // Mestre24 and the other cross-platform apps write support into the
+  // canonical `core` tables.  Notifications are generated from those rows,
+  // so the support queue must read the same source instead of waiting for a
+  // legacy HQ mirror to exist.
+  let coreTickets: Array<Record<string,unknown>> = [];
+  try {
+    coreTickets = await coreRest(current.key, "support_cases?select=*,app:apps(slug,name)&order=updated_at.desc&limit=300") as Array<Record<string,unknown>>;
+    if (requestedPlatform) {
+      coreTickets = coreTickets.filter((row) => {
+        const appValue = Array.isArray(row.app) ? row.app[0] : row.app;
+        const app = appValue && typeof appValue === "object" ? appValue as Record<string,unknown> : {};
+        return String(app.slug || row.app_slug || "").toLowerCase() === requestedPlatform;
+      });
+    }
+  } catch(error) {
+    console.error("SUPPORT_CORE_TICKETS_SOURCE_FAILED", String(error));
+    try {
+      coreTickets = await coreRest(current.key, "support_cases?select=*&order=updated_at.desc&limit=300") as Array<Record<string,unknown>>;
+    } catch(retryError) {
+      console.error("SUPPORT_CORE_TICKETS_FALLBACK_FAILED", String(retryError));
+    }
+  }
   const publicTicketRows=publicTickets;
   const publicTicketIds=new Set(publicTicketRows.map(row=>String(row.id||"")));
   const publicIdentityKeys=(row:Record<string,unknown>)=>{const keys:string[]=[];const add=(prefix:string,value:unknown)=>{const normalized=String(value||"").trim().toLowerCase();if(normalized)keys.push(`${prefix}:${normalized}`);};add("user",row.opened_by);const phone=String(row.customer_phone||"").replace(/\D/g,"");if(phone)keys.push(`phone:${phone}`);add("email",row.customer_email);add("name",row.customer_name);return keys.length?keys:[`ticket:${String(row.id||"")}`];};
@@ -194,10 +215,10 @@ export async function GET(request:NextRequest){
   // for those mirrored tickets so the queue does not show duplicates or two
   // competing message histories.
   const hqTickets=tickets.filter(ticket=>!publicExternalReferences.has(String(ticket.external_reference||"")));
-  let allTickets: Array<Record<string,unknown>>=[...hqTickets,...coreTickets,...publicTicketMapped];
+  let allTickets: Array<Record<string,unknown>>=[...hqTickets,...publicTicketMapped];
   const ids=tickets.map(row=>String(row.id||"")),ticketFilter=ids.length?`ticket_id=in.(${ids.join(",")})`:"ticket_id=eq.00000000-0000-0000-0000-000000000000";
   const caseIds=tickets.map(row=>String(row.workflow_case_id||"")).filter(Boolean);
-  const coreIds=coreTickets.map((row:{id:string})=>row.id.slice(5));
+  const coreIds=coreTickets.map((row)=>String(row.id||"")).filter(Boolean);
   const coreFilter=coreIds.length?`case_id=in.(${coreIds.join(",")})`:"case_id=eq.00000000-0000-0000-0000-000000000000";
   const legacyDetail=Boolean(requestedTicket)&&!requestedTicket.startsWith("core:")&&!requestedTicket.startsWith("public:")?requestedTicket:"";
   const legacyWorkflowCaseId=legacyDetail?String((tickets as Array<{id?:string;workflow_case_id?:string}>).find(row=>String(row.id)===legacyDetail)?.workflow_case_id||""):"";
@@ -211,7 +232,7 @@ export async function GET(request:NextRequest){
     legacyWorkflowCaseId?safe(rest(current.key,`workflow_cases?id=eq.${encodeURIComponent(legacyWorkflowCaseId)}&select=*&limit=1`),[]):[],
     legacyWorkflowCaseId?safe(rest(current.key,`workflow_steps?case_id=eq.${encodeURIComponent(legacyWorkflowCaseId)}&select=*&order=step_order&limit=100`),[]):[],
     safe(rest(current.key,"employees?select=id,auth_user_id,employee_code,name:display_name,job_title,status,department_id&limit=300"),[]),safe(rest(current.key,"platforms?select=id,slug,name&limit=20"),[]),safe(rest(current.key,"departments?select=id,code,name&active=eq.true&limit=100"),[]),
-    safe(coreDetail?coreRest(current.key,`support_case_messages?select=*&case_id=eq.${encodeURIComponent(coreDetail)}&order=created_at.asc&limit=300`):Promise.resolve([]),[]),safe(coreDetail?coreRest(current.key,`support_case_events?select=*&case_id=eq.${encodeURIComponent(coreDetail)}&order=created_at.desc&limit=300`):Promise.resolve([]),[])
+    safe(coreIds.length?coreRest(current.key,`support_case_messages?select=*&case_id=in.(${coreIds.join(",")})&order=created_at.asc&limit=3000`):Promise.resolve([]),[]),safe(coreIds.length?coreRest(current.key,`support_case_events?select=*&case_id=in.(${coreIds.join(",")})&order=created_at.desc&limit=3000`):Promise.resolve([]),[])
   ]);
   employeesByAuthUserId=new Map((Array.isArray(employees)?employees:[]).map((employee:Record<string,unknown>)=>[String(employee.auth_user_id||""),employee]));
   const employeeRows=(Array.isArray(employees)?employees:[]).filter((employee:Record<string,unknown>)=>String(employee.name||"").trim());
@@ -230,6 +251,8 @@ export async function GET(request:NextRequest){
     if(!previous || new Date(event.created_at).getTime()>new Date(previous).getTime())readAtByTicket.set(event.ticket_id,event.created_at);
   }
   const legacyMessages=(Array.isArray(conversations)?conversations:[]).map((item:Record<string,unknown>)=>({...item,is_read:item.sender_type!=="customer"||Boolean(readAtByTicket.get(String(item.ticket_id))&&new Date(String(item.created_at)).getTime()<=new Date(readAtByTicket.get(String(item.ticket_id)) as string).getTime())}));
+  const coreTicketMapped=coreTickets.map((row)=>{const appValue=Array.isArray(row.app)?row.app[0]:row.app;const app=appValue&&typeof appValue==="object"?appValue as Record<string,unknown>:{};const slug=String(app.slug||row.app_slug||"").toLowerCase();const platformName=String(app.name|| (slug==="mestre24"?"Mestre24":slug||"Plataforma"));const id=String(row.id||"");return {id:`core:${id}`,source:"core",ticket_number:`${platformName.toUpperCase()}-${String(row.case_number||id).slice(0,12)}`,platform_id:null,platform_slug:slug,platform_name:platformName,subject:String(row.subject||"Pedido de apoio"),description:String(row.description||""),status:String(row.status||"open"),priority:String(row.priority||"normal"),ticket_type:"app_message",category:String(row.category||"general"),customer_name:String(row.requester_name||"Utilizador"),customer_contact:String(row.requester_phone||row.requester_email||""),customer_reference:String(row.requester_user_id||""),assigned_to:row.assigned_user_id||null,created_at:String(row.created_at||""),updated_at:String(row.updated_at||row.created_at||""),external_reference:`core-support:${id}`,source_channel:String(row.source_channel||"app")};});
+  allTickets=[...allTickets,...coreTicketMapped];
   const coreMessages=(Array.isArray(coreConversations)?coreConversations:[]).map((item:{id:string;case_id:string;author_type:string;author_user_id?:string;body:string;is_internal:boolean;created_at:string;metadata?:Record<string,unknown>})=>{const author=employeesByAuthUserId.get(String(item.author_user_id||""));const senderType=item.author_type==="staff"?"agent":"customer";return {id:`core-msg:${item.id}`,ticket_id:`core:${item.case_id}`,sender_type:senderType,sender_id:item.author_user_id||null,sender_name:senderType==="agent"?String(author?.name||"").trim()||null:null,sender_employee_id:author?.id||item.metadata?.hq_employee_id||null,message:item.body,is_internal:item.is_internal,created_at:item.created_at,is_read:item.author_type!=="customer"||Boolean(readAtByCase.get(item.case_id)&&new Date(item.created_at).getTime()<=new Date(readAtByCase.get(item.case_id) as string).getTime())};});
   allTickets=allTickets.map(ticket=>{const ticketId=String(ticket.id||"");return ticketId.startsWith("core:")?{...ticket,last_read_at:readAtByCase.get(ticketId.slice(5))||null}:ticket;});
   const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened").map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));

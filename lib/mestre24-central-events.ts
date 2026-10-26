@@ -92,7 +92,10 @@ function eventText(event: Row) {
   return {
     title: type.includes("message") ? "Nova mensagem de suporte Mestre24" : "Novo atendimento Mestre24",
     body: "A Central recebeu uma nova mensagem ou atualização de suporte.",
-    target: "/apoio-cliente?platform=mestre24",
+    // Keep the notification actionable: the support queue uses the core
+    // case id as its stable selection key.  Without it the bell only opened
+    // the generic queue and the operator could not read or answer the case.
+    target: `/apoio-cliente?platform=mestre24${reference ? `&ticket=core:${encodeURIComponent(String(current.case_id || current.ticket_id || event.entity_id || reference))}` : ""}`,
     audience: "support",
   };
 }

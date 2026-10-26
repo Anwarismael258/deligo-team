@@ -6,7 +6,7 @@ import "leaflet/dist/leaflet.css";
 
 export type OperationsMapMarker = {
   id: string;
-  platform: "DeliGo" | "SARCA" | "TaoMoz";
+  platform: string;
   role: string;
   workerId?: string;
   workerName?: string;
@@ -25,7 +25,9 @@ export type OperationsMapRoute = {
   updatedAt: string;
 };
 
-export default function LiveOperationsMap({ markers, routes = [] }: { markers: OperationsMapMarker[]; routes?: OperationsMapRoute[] }) {
+type MapSelection = { kind: "marker" | "route"; id: string };
+
+export default function LiveOperationsMap({ markers, routes = [], onSelect }: { markers: OperationsMapMarker[]; routes?: OperationsMapRoute[]; onSelect?: (selection: MapSelection) => void }) {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<LeafletMap | null>(null);
   const markerLayer = useRef<LayerGroup | null>(null);
@@ -39,9 +41,9 @@ export default function LiveOperationsMap({ markers, routes = [] }: { markers: O
       if (disposed || !container.current) return;
       instance = L.map(container.current, { zoomControl: false, attributionControl: true }).setView([-25.965, 32.575], 13);
       L.control.zoom({ position: "topright" }).addTo(instance);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         maxZoom: 19,
-        attribution: "© OpenStreetMap contributors",
+        attribution: "© OpenStreetMap contributors © CARTO",
       }).addTo(instance);
       map.current = instance;
       markerLayer.current = L.layerGroup().addTo(instance);
@@ -61,16 +63,19 @@ export default function LiveOperationsMap({ markers, routes = [] }: { markers: O
       const points: LatLngTuple[] = [];
       routes.forEach((route) => {
         const color = route.platform === "SARCA" ? "#f97316" : "#dc2626";
-        L.polyline(route.coordinates, { color, weight: 3, opacity: 0.8, dashArray: "7 6" })
+        L.polyline(route.coordinates, { color, weight: 4, opacity: 0.9, dashArray: "8 7" })
           .bindTooltip(route.label, { sticky: true })
+          .on("click", () => onSelect?.({ kind: "route", id: route.id }))
           .addTo(markerLayer.current!);
         route.coordinates.forEach((point) => points.push(point));
       });
       markers.forEach((marker) => {
-      const colorClass = marker.platform.toLowerCase();
-      const icon = L.divIcon({ className: "", html: `<span class="operations-map-pin ${colorClass}" aria-label="${marker.role} ${marker.platform}"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] });
+      const colorClass = marker.platform.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const roleClass = marker.role.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const icon = L.divIcon({ className: "", html: `<span class="operations-map-pin ${colorClass} ${roleClass}" aria-label="${marker.role} ${marker.platform}"></span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
         L.marker([marker.latitude, marker.longitude], { icon, title: `${marker.role} · ${marker.platform}` })
           .bindTooltip(`${marker.role} · ${marker.platform}`, { direction: "top", offset: [0, -10] })
+          .on("click", () => onSelect?.({ kind: "marker", id: marker.id }))
           .addTo(markerLayer.current!);
         points.push([marker.latitude, marker.longitude]);
       });
@@ -78,7 +83,7 @@ export default function LiveOperationsMap({ markers, routes = [] }: { markers: O
       if (points.length > 1) map.current.fitBounds(points, { padding: [30, 30], maxZoom: 15 });
     });
     return () => { disposed = true; };
-  }, [markers, routes, mapReady]);
+  }, [markers, routes, mapReady, onSelect]);
 
   return <div ref={container} className="operationsMap" aria-label="Mapa operacional em tempo real" />;
 }

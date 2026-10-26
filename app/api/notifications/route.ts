@@ -6,7 +6,7 @@ async function rest(k:string,p:string,i:RequestInit={}){const r=await fetch(`${s
 const inboxRoles=new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","CUSTOMER_SUPPORT","MARKETING"]);
 async function ingestSupportNotifications(employeeId:string,key:string){
   try{
-    const messages=await rest(key,"support_conversations?sender_type=eq.customer&is_internal=eq.false&select=id,ticket_id,message,created_at&order=created_at.desc&limit=100") as Array<Record<string,unknown>>;
+    const messages=await rest(key,"support_conversations?sender_type=eq.customer&is_internal=eq.false&select=id,ticket_id,sender_type,message,created_at&order=created_at.desc&limit=100") as Array<Record<string,unknown>>;
     const externalMessages=(Array.isArray(messages)?messages:[]).filter(message=>String(message.sender_type||"").toLowerCase()==="customer");
     if(!externalMessages.length)return;
     const ticketIds=[...new Set(externalMessages.map(message=>String(message.ticket_id||"")).filter(Boolean))];

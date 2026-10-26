@@ -43,14 +43,37 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   let actor;
-  let body: { id?: string; from?: string; to?: string; cc?: string; bcc?: string; subject?: string; message?: string };
+  let body: { id?: string; replyToId?: string; from?: string; to?: string; cc?: string; bcc?: string; subject?: string; message?: string };
   try {
     actor = await corporateActor();
     if (!actor || !["SUPER_ADMIN", "FINANCE"].includes(actor.role)) return NextResponse.json({ error: "Apenas o Administrador ou Finanças podem enviar email." }, { status: 403 });
-    body = await request.json() as { id?: string; from?: string; to?: string; cc?: string; bcc?: string; subject?: string; message?: string };
+    body = await request.json() as { id?: string; replyToId?: string; from?: string; to?: string; cc?: string; bcc?: string; subject?: string; message?: string };
   } catch (error) {
     console.error("INBOX_EMAIL_REQUEST_FAILED", errorMessage(error));
     return emailError(error, "Não foi possível preparar o envio de email.");
+  }
+  if (body.replyToId) {
+    if (!body.from?.trim() || !body.to?.trim() || !body.subject?.trim() || !body.message?.trim()) return NextResponse.json({ error: "Remetente, destinatário, assunto e mensagem são obrigatórios." }, { status: 400 });
+    if (!validAddressList(body.to) || body.to.length > 320) return NextResponse.json({ error: "Destinatário inválido." }, { status: 400 });
+    if (body.subject.length > 200 || body.message.length > 10000) return NextResponse.json({ error: "Assunto ou mensagem demasiado longos." }, { status: 400 });
+    try {
+      const original = (await stagingRest(`inbox_messages?id=eq.${encodeURIComponent(body.replyToId)}&select=*`))?.[0] as { area?: string; subject?: string; body?: string } | undefined;
+      if (!original) return NextResponse.json({ error: "Mensagem original não encontrada." }, { status: 404 });
+      const quoted = [`${body.message.trim()}`, "", "--- Mensagem original ---", original.body?.trim() || "Sem conteúdo."].join("\n");
+      const delivery = await sendComposedInboxEmail({ from: body.from, to: body.to, subject: body.subject.trim(), text: quoted });
+      const replyMeta = { reply_smtp_accepted_at: new Date().toISOString(), reply_recipient: delivery.recipient, reply_smtp_message_id: delivery.messageId, reply_smtp_response: delivery.response, reply_smtp_accepted: delivery.accepted, reply_smtp_rejected: delivery.rejected };
+      try {
+        await stagingRest("inbox_replies", { method: "POST", body: JSON.stringify({ message_id: body.replyToId, author_id: actor.authUserId, kind: "resposta", body: body.message.trim(), send_status: "smtp_accepted" }) });
+        const source = (await stagingRest(`inbox_messages?id=eq.${encodeURIComponent(body.replyToId)}&select=meta`))?.[0] as { meta?: Record<string, unknown> | null } | undefined;
+        await stagingRest(`inbox_messages?id=eq.${encodeURIComponent(body.replyToId)}`, { method: "PATCH", body: JSON.stringify({ status: "respondido", meta: { ...(source?.meta || {}), ...replyMeta } }) });
+      } catch (persistenceError) {
+        console.error("INBOX_REPLY_PERSIST_FAILED", persistenceError instanceof Error ? persistenceError.message : "unknown");
+      }
+      return NextResponse.json({ ok: true, recipient: delivery.recipient, delivery: { status: "smtp_accepted", messageId: delivery.messageId, response: delivery.response, accepted: delivery.accepted, rejected: delivery.rejected } });
+    } catch (error) {
+      console.error("INBOX_REPLY_SEND_FAILED", errorMessage(error));
+      return emailError(error, "Não foi possível enviar a resposta por email.");
+    }
   }
   if (body.to || body.subject || body.message || body.from) {
     if (!body.from?.trim() || !body.to?.trim() || !body.subject?.trim() || !body.message?.trim()) return NextResponse.json({ error: "Remetente, destinatário, assunto e mensagem são obrigatórios." }, { status: 400 });

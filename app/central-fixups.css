@@ -58,3 +58,16 @@
   .shell .microcreditPreviewBackdrop { padding: 8px; }
   .shell .microcreditPreview { width: 100%; }
 }
+
+/* Inbox detail keeps the decision controls and reply composer visible before the long message body. */
+.shell .inboxWorkspace .employeeDetail { display: flex; flex-direction: column; }
+.shell .inboxWorkspace .employeeDetailHead { order: 1; }
+.shell .inboxWorkspace .inboxStatuses { order: 2; }
+.shell .inboxWorkspace .inboxReplyComposer { order: 3; }
+.shell .inboxWorkspace .inboxBody { order: 4; }
+.shell .inboxWorkspace .employeeDetail > h3 { order: 5; }
+.shell .inboxWorkspace .employeeDetail > .procurementList { order: 6; }
+.shell .inboxWorkspace .employeeDetail > textarea { order: 7; }
+.shell .inboxWorkspace .inboxReplyActions { order: 8; }
+.shell .inboxWorkspace .inboxStatuses > button { border: 1px solid #315b88; background: #102942; color: #d9efff; }
+.shell .inboxWorkspace .inboxStatuses > button:disabled { border-color: #22d3ee; background: #0b5364; color: #f2ffff; opacity: 1; }

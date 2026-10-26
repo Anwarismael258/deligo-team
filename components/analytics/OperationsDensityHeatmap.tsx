@@ -6,7 +6,16 @@ import type { OperationsMapMarker } from "@/components/LiveOperationsMap";
 export function OperationsDensityHeatmap({ markers }: { markers: OperationsMapMarker[] }) {
   const container = useRef<HTMLDivElement | null>(null);
   const points = useMemo(() => {
-    const valid = markers.filter((marker) => Number.isFinite(marker.latitude) && Number.isFinite(marker.longitude));
+    const seen = new Set<string>();
+    const valid = markers.filter((marker) => {
+      if (!Number.isFinite(marker.latitude) || !Number.isFinite(marker.longitude)) return false;
+      const timestamp = Date.parse(marker.updatedAt);
+      if (!Number.isFinite(timestamp) || Date.now() - timestamp > 10 * 60_000) return false;
+      const entityKey = marker.workerId || marker.service || marker.id;
+      if (seen.has(entityKey)) return false;
+      seen.add(entityKey);
+      return true;
+    });
     if (!valid.length) return null;
     const minLat = Math.min(...valid.map((marker) => marker.latitude));
     const maxLat = Math.max(...valid.map((marker) => marker.latitude));
@@ -43,7 +52,7 @@ export function OperationsDensityHeatmap({ markers }: { markers: OperationsMapMa
         tooltip: { formatter: (params: { value?: [number, number, number]; role?: string; platform?: string }) => params.role ? `${params.role} · ${params.platform || ""}` : params.value ? `Posições: ${params.value[2]}` : "Posições" },
         xAxis: { type: "category", data: points.columns, name: "longitude", nameLocation: "middle", nameGap: 28, axisLabel: { fontSize: 9 }, splitArea: { show: true } },
         yAxis: { type: "category", data: points.rows, name: "latitude", nameLocation: "middle", nameGap: 34, axisLabel: { fontSize: 9 }, splitArea: { show: true } },
-        visualMap: { min: 0, max: Math.max(1, ...points.data.map((item) => item[2])), calculable: false, orient: "horizontal", left: "center", bottom: 0, itemWidth: 120, textStyle: { fontSize: 9 }, inRange: { color: ["#fff4e8", "#f6a24c", "#c5223b"] } },
+        visualMap: { min: 0, max: Math.max(1, ...points.data.map((item) => item[2])), calculable: false, orient: "horizontal", left: "center", bottom: 0, itemWidth: 120, textStyle: { fontSize: 9, color: "#b8cce0" }, inRange: { color: ["#102941", "#19cfe2", "#a06cff"] } },
         series: [
           { type: "heatmap", data: points.data, emphasis: { itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,.25)" } } },
           {

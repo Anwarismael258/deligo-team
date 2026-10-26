@@ -33,6 +33,7 @@ import { InstitutionalJobsManager } from "@/components/InstitutionalJobsManager"
 import { InstitutionalNewsManager } from "@/components/InstitutionalNewsManager";
 import { OperationalFundsCard } from "./components/OperationalFundsCard";
 import { FinanceCustodyDonut, FinanceKpi, FinanceRevenueBars } from "@/components/finance/FinanceVisuals";
+import { ModuleErrorBoundary } from "@/components/ModuleErrorBoundary";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 const kycDocumentLinks=(caseId:string,docs:unknown[])=>docs.map((doc,index)=>{const item=doc&&typeof doc==="object"?doc as Record<string,unknown>:null,value=typeof doc==="string"?doc:String(item?.signed_url||item?.url||"");if(!/^https?:\/\//i.test(value))return <span className="kycDocumentUnavailable" key={`${caseId}-doc-${index}`}>Documento {index+1}: indisponível</span>;return <span className="kycDocumentLink" key={`${caseId}-doc-${index}`}><strong>Documento {index+1}</strong><a href={value} target="_blank" rel="noreferrer">Abrir</a><a href={value} download={`documento-${index+1}`} target="_blank" rel="noreferrer">Guardar</a></span>});
@@ -84,6 +85,11 @@ const notificationModuleFor = (notification: FinanceRecord) => {
 };
 const notificationHref = (notification: FinanceRecord) => {
   const direct = String(notification.target_url || "").trim();
+  const metadata = notification.metadata && typeof notification.metadata === "object" ? notification.metadata as Record<string, unknown> : {};
+  const coreCaseId = String(metadata.support_case_id || metadata.case_id || "").trim();
+  if (direct.startsWith("/apoio-cliente") && !/[?&]ticket=/.test(direct) && coreCaseId) {
+    return `${direct}${direct.includes("?") ? "&" : "?"}ticket=core:${encodeURIComponent(coreCaseId)}`;
+  }
   if (direct.startsWith("/") && direct !== "/" && !direct.startsWith("//")) return direct;
   const source = `${String(notification.source_type || notification.type || "")} ${String(notification.title || "")} ${String(notification.body || "")}`.toLowerCase();
   if (["order", "delivery", "ride", "trip", "journey", "travel"].some(value => source.includes(value))) return "/mapa-operacional";
@@ -380,6 +386,7 @@ const normalizeDashboardNames = (data:DashboardData):DashboardData => ({...data,
 type SessionUser = { id:string; hq_role:string; name:string; employee_code:string; email:string|null; phone:string|null; job_title:string|null; status:string; joined_on:string|null; last_login_at:string|null; department_id:string|null; manager_id:string|null; permissions:string[]; platform_ids:string[]; platform_slugs:string[]; is_super_admin:boolean };
 type GlobalPerson = { user_id:string; full_name?:string|null; display_name?:string|null; primary_phone?:string|null; primary_email?:string|null; profile_status?:string|null; apps:Array<{slug?:string;name?:string;role?:unknown;status?:string}>; kyc?:unknown[]; activity?:unknown[] };
 type CommandCenterData = { summary:{gmvToday:number;revenueToday:number;operationsToday:number;pendingKyc:number;openSupport:number;notificationWork:number}; liveFeed:Array<{id:string;event_type:string;entity_type:string;occurred_at:string;platforms?:{name?:string;platform_code?:string}}> };
+type RealtimeMonitorState = "operational" | "degraded" | "offline" | "checking" | "unknown";
 
 const metricFor = (platform: DashboardPlatform | undefined, labels: string[]) =>
   platform?.metrics.find((metric) => labels.some((label) => metric.label.toLowerCase().includes(label)))?.value ?? 0;
@@ -410,6 +417,7 @@ export function HQApp() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
   const [realtimeVersion,setRealtimeVersion]=useState(0);
+  const [realtimeMonitor,setRealtimeMonitor]=useState<{state:RealtimeMonitorState;checkedAt?:string}>({state:"checking"});
   const [routeTransition,setRouteTransition]=useState(false);
   const [liveMap, setLiveMap] = useState<LiveMapData | null>(null);
   const [connectionError, setConnectionError] = useState("");
@@ -605,7 +613,7 @@ export function HQApp() {
     return Array.from(groups.entries()).sort(([a], [b]) => a === "Central" ? 1 : b === "Central" ? -1 : a.localeCompare(b, "pt"));
   }, [notifications]);
   const notificationPreviewGroups = useMemo(() => {
-    let remaining = 8;
+    let remaining = 5;
     return notificationGroups.map(([platformName, items]) => {
       const preview = items.slice(0, Math.max(0, remaining));
       remaining -= preview.length;
@@ -954,7 +962,7 @@ const attachToSelectedSupport=async(event:React.ChangeEvent<HTMLInputElement>)=>
   useEffect(()=>{
     if(!sessionUser)return;
     let cancelled=false,cursor=0,busy=false;
-    const poll=async()=>{if(busy||cancelled)return;busy=true;try{const response=await fetch(`/api/realtime?after=${cursor}`,{cache:"no-store"});if(!response.ok)return;const result=await response.json() as{cursor?:number;events?:unknown[]};cursor=Math.max(cursor,Number(result.cursor||0));if(result.events?.length)setRealtimeVersion(value=>value+1)}finally{busy=false}};
+    const poll=async()=>{if(busy||cancelled)return;busy=true;try{const response=await fetch(`/api/realtime?after=${cursor}`,{cache:"no-store"});if(!response.ok){setRealtimeMonitor({state:"degraded",checkedAt:new Date().toISOString()});return}const result=await response.json() as{cursor?:number;events?:unknown[]};cursor=Math.max(cursor,Number(result.cursor||0));setRealtimeMonitor({state:"operational",checkedAt:new Date().toISOString()});if(result.events?.length)setRealtimeVersion(value=>value+1)}catch{setRealtimeMonitor({state:"offline",checkedAt:new Date().toISOString()})}finally{busy=false}};
     void poll();const timer=window.setInterval(()=>void poll(),2500);
     return()=>{cancelled=true;window.clearInterval(timer)};
   },[sessionUser?.id]);
@@ -1260,6 +1268,7 @@ if(active==="Operações de Campo")void refreshField();
             </div>
             <div className="live"><i /> Central operacional</div>
           </div>
+          <ModuleErrorBoundary resetKey={active}>
           {active === "Relatórios" && <CorporateOperationsAnalyticsDashboard mode="reports" />}
           {active === "Projectos e Tarefas" && <CorporateOperationsAnalyticsDashboard mode="projects" />}
           {active === "Site Institucional" && <><CorporateOperationsAnalyticsDashboard mode="institutional" /><InstitutionalNewsManager /></>}
@@ -1612,7 +1621,7 @@ if(active==="Operações de Campo")void refreshField();
               </> : <div className="peopleEmpty">Carteira ainda não disponível para este perfil.</div>}
             </article>
           </section>}
-          {active === "Visão geral" && <>{["SUPER_ADMIN", "SUPERVISOR"].includes(sessionRole) && <OperationalFundsCard role={sessionRole} />}{dashboardLoading && !dashboard ? <section className="analyticsDashboardShell dashboardPreparingState"><div className="dashboardPreparingCard"><strong>A preparar os indicadores</strong><span>A Central está a carregar os dados autorizados…</span></div></section> : <ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} refreshKey={realtimeVersion} onRefresh={() => { setRealtimeVersion(value => value + 1); void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} />}<p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
+          {active === "Visão geral" && <>{["SUPER_ADMIN", "SUPERVISOR"].includes(sessionRole) && <OperationalFundsCard role={sessionRole} />}{dashboardLoading && !dashboard ? <section className="analyticsDashboardShell dashboardPreparingState"><div className="dashboardPreparingCard"><strong>A preparar os indicadores</strong><span>A Central está a carregar os dados autorizados…</span></div></section> : <ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} realtimeState={realtimeMonitor.state} realtimeCheckedAt={realtimeMonitor.checkedAt} refreshKey={realtimeVersion} onRefresh={() => { setRealtimeVersion(value => value + 1); void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} />}<p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
           {active === "Utilizadores" && <><UserTeamDashboard mode="users" /><section className="peoplePanel">
             <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
             <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
@@ -1622,6 +1631,7 @@ if(active==="Operações de Campo")void refreshField();
               {filteredOverviewPeople.length > 100 && <div className="peopleEmpty">A mostrar os primeiros 100 resultados. Use a pesquisa para localizar uma conta.</div>}
             </div>
           </section></>}
+          </ModuleErrorBoundary>
           <footer><span>DeliGo Triunfal HQ</span><a href="https://www.deligotriunfal.site" target="_blank" rel="noreferrer">www.deligotriunfal.site</a></footer>
         </div>
       </section>
