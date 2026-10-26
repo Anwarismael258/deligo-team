@@ -76,9 +76,18 @@ export type CorporateAuthorization = {actor:NonNullable<Awaited<ReturnType<typeo
 export async function corporateAuthorization():Promise<CorporateAuthorization|null>{
   const actor=await corporateActor();
   if(!actor)return null;
-  const result=await hqRpc("hq_actor_authorization_v1",{p_employee_id:actor.employee_id}) as {permissions?:string[];platform_ids?:string[];platform_slugs?:string[];is_super_admin?:boolean};
-  const isSuperAdmin=Boolean(result.is_super_admin)||actor.role==="SUPER_ADMIN";
-  return{actor,permissions:isSuperAdmin?[...(result.permissions||[]),"platform.manage"]:result.permissions||[],platformIds:result.platform_ids||[],platformSlugs:result.platform_slugs||[],isSuperAdmin};
+  try {
+    const result=await hqRpc("hq_actor_authorization_v1",{p_employee_id:actor.employee_id}) as {permissions?:string[];platform_ids?:string[];platform_slugs?:string[];is_super_admin?:boolean}|null;
+    const isSuperAdmin=Boolean(result?.is_super_admin)||actor.role==="SUPER_ADMIN";
+    return{actor,permissions:isSuperAdmin?[...(result?.permissions||[]),"platform.manage"]:result?.permissions||[],platformIds:result?.platform_ids||[],platformSlugs:result?.platform_slugs||[],isSuperAdmin};
+  } catch (error) {
+    // A temporary authorization-RPC failure must not destroy an already
+    // authenticated session. Keep the fallback least-privileged for regular
+    // workers; SUPER_ADMIN remains identified by the canonical actor role.
+    console.error("HQ_AUTHORIZATION_RPC_FAILED", error instanceof Error ? error.message : "unknown");
+    const isSuperAdmin=actor.role==="SUPER_ADMIN";
+    return{actor,permissions:isSuperAdmin?["platform.manage"]:[],platformIds:[],platformSlugs:[],isSuperAdmin};
+  }
 }
 
 export async function requireCorporatePermission(permission:string,platform?:string){

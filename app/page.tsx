@@ -660,17 +660,35 @@ export function HQApp() {
   };
 
   useEffect(() => {
-    fetch("/api/auth/session", { cache: "no-store" }).then(async (response) => {
-      if (!response.ok) { window.location.replace("/login"); return; }
-      const session = await response.json() as { user?: SessionUser };
-      const sessionPersona = session.user?.hq_role && personaByRole[session.user.hq_role as keyof typeof personaByRole];
-      // Keep the canonical role for presentation as well as server decisions.
-      // FINANCE may have selected administrative permissions, but is never
-      // presented or treated as SUPER_ADMIN by the client.
-      setSessionRole(session.user?.is_super_admin ? "SUPER_ADMIN" : session.user?.hq_role || "");
-      setSessionUser(session.user||null);
-      if (sessionPersona) setPersona(sessionPersona);
-    }).catch(() => window.location.replace("/login"));
+    let cancelled = false;
+    const loadSession = async () => {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        try {
+          const response = await fetch("/api/auth/session", { cache: "no-store", credentials: "include" });
+          if (response.ok) {
+            const session = await response.json() as { user?: SessionUser };
+            if (cancelled) return;
+            const sessionPersona = session.user?.hq_role && personaByRole[session.user.hq_role as keyof typeof personaByRole];
+            // Keep the canonical role for presentation as well as server decisions.
+            // FINANCE may have selected administrative permissions, but is never
+            // presented or treated as SUPER_ADMIN by the client.
+            setSessionRole(session.user?.is_super_admin ? "SUPER_ADMIN" : session.user?.hq_role || "");
+            setSessionUser(session.user||null);
+            if (sessionPersona) setPersona(sessionPersona);
+            return;
+          }
+          // 401 is definitive; a 5xx/transport failure may be a cold start or
+          // an authorization dependency recovering immediately after login.
+          if (response.status === 401) { window.location.replace("/login"); return; }
+        } catch {
+          if (attempt === 1 && !cancelled) window.location.replace("/login");
+        }
+        await new Promise(resolve => window.setTimeout(resolve, 350));
+      }
+      if (!cancelled) window.location.replace("/login");
+    };
+    void loadSession();
+    return () => { cancelled = true; };
   }, []);
   useEffect(() => {
     if (!sessionUser) return;
