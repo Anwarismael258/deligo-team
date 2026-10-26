@@ -99,7 +99,12 @@ function eventText(event: Row) {
 
 function recipients(employees: Row[], audience: string) {
   return employees.filter((employee) => {
-    const role = canonicalCorporateRole(employee.role);
+    const roleLinks = Array.isArray(employee.employee_roles) ? employee.employee_roles as Row[] : [];
+    const linkedRole = roleLinks.map(link => {
+      const roles = link.roles && typeof link.roles === "object" ? link.roles as Row : {};
+      return String(roles.code || link.role_code || "");
+    }).find(Boolean);
+    const role = canonicalCorporateRole(String(employee.role || linkedRole || ""));
     if (!inboxRoles.has(role)) return false;
     if (role === "SUPER_ADMIN" || role === "SUPERVISOR") return true;
     if (audience === "support") return ["CUSTOMER_SUPPORT", "SUPERVISOR", "MARKETING"].includes(role);
@@ -118,7 +123,7 @@ export async function ingestMestre24CentralEvents() {
 
   const [events, employees, existing] = await Promise.all([
     rest(serviceKey, "mestre24", "central_events?app_slug=eq.mestre24&select=id,event_type,entity_type,entity_id,payload,created_at&order=created_at.desc&limit=100") as Promise<Row[]>,
-    rest(serviceKey, "hq", "employees?status=eq.active&select=id,role&limit=1000") as Promise<Row[]>,
+    rest(serviceKey, "hq", "employees?status=eq.active&select=id,employee_roles(roles(code))&limit=1000") as Promise<Row[]>,
     rest(serviceKey, "hq", "notifications?type=eq.mestre24_central_event&select=target_url&order=created_at.desc&limit=5000") as Promise<Row[]>,
   ]);
   const known = new Set((existing || []).map((row) => String(row.target_url || "").match(/central_event_id=([^&]+)/)?.[1]).filter(Boolean));

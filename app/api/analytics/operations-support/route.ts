@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       hqRest("acquisition_leads?select=*&limit=1500") as Promise<Row[]>,
       hqRest("acquisition_partners?select=*&limit=1500") as Promise<Row[]>,
       hqRest("tasks?select=id,status,task_type,assigned_to,department_id,due_at,created_at,completed_at,updated_at&limit=1500") as Promise<Row[]>,
-      hqRest("employees?select=id,employee_code,display_name,status,department_id&limit=600") as Promise<Row[]>, hqRest("departments?select=id,code,name&limit=100") as Promise<Row[]>,
+      hqRest("employees?select=id,employee_code,display_name,status,department_id&limit=600").catch(() => []) as Promise<Row[]>, hqRest("departments?select=id,code,name&limit=100") as Promise<Row[]>,
       hqRest("support_tickets?select=*&limit=1500") as Promise<Row[]>,
       hqRest("support_conversations?select=ticket_id,sender_type,created_at&limit=3000") as Promise<Row[]>,
       hqRest("support_history?select=ticket_id,event_type,created_at&limit=3000") as Promise<Row[]>,

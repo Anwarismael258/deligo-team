@@ -26,7 +26,7 @@ const money = (value: number | null) => value == null ? null : Number(value.toFi
 const numberValue = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
 const overviewVisualStyles = `.executiveOverviewDashboard .analyticsKpiCard{background:linear-gradient(145deg,#10253b,#0b1727);border-color:#315174;color:#eaf2ff;box-shadow:0 10px 24px #02071155}.executiveOverviewDashboard .analyticsKpiCard>span{color:#9db6ce}.executiveOverviewDashboard .analyticsKpiCard>strong{color:#f5f9ff}.executiveOverviewDashboard .analyticsKpiCard>small{color:#86a1bd}.executiveOverviewDashboard .analyticsChartContainer{background:linear-gradient(145deg,#10253b,#0b1727);border-color:#315174;color:#eaf2ff}.executiveOverviewDashboard .analyticsChartHeading h3{color:#f5f9ff}.executiveOverviewDashboard .analyticsChartHeading p{color:#9db6ce}.executiveOverviewDashboard .overviewConsolidatedLabel{margin:0;padding:12px 14px;border:1px solid #315174;border-radius:10px;background:#0b1b2d;color:#9db6ce;font-size:11px;text-align:right;box-shadow:0 8px 20px #02071144}`;
 
-export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh }: { dashboard: ExecutiveDashboardData | null; commandCenter: CommandCenter | null; onRefresh: () => void }) {
+export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh, refreshKey = 0 }: { dashboard: ExecutiveDashboardData | null; commandCenter: CommandCenter | null; onRefresh: () => void; refreshKey?: number }) {
   const [filters, setFilters] = useState<AnalyticsFilters>({ period: "last_30_days", timezone: "Africa/Maputo" });
   const [history, setHistory] = useState<HistoryData | null>(null);
   const [historyError, setHistoryError] = useState("");
@@ -42,7 +42,7 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     let cancelled = false;
     fetch(`/api/analytics/history?${params.toString()}`, { cache: "no-store" }).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível carregar a série histórica."); return body as HistoryData; }).then(data => { if (!cancelled) { setHistory(data); setHistoryError(""); } }).catch(error => { if (!cancelled) { setHistory(null); setHistoryError(error instanceof Error ? error.message : "Não foi possível carregar a série histórica."); } });
     return () => { cancelled = true; };
-  }, [filters.period, filters.from, filters.to, filters.platform]);
+  }, [filters.period, filters.from, filters.to, filters.platform, refreshKey]);
   const pendingAlerts = [commandCenter?.summary?.pendingKyc, commandCenter?.summary?.openSupport, commandCenter?.summary?.notificationWork].reduce<number | null>((sum, value) => {
     const numeric = numberValue(value);
     return numeric == null ? sum : (sum ?? 0) + numeric;

@@ -462,6 +462,26 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .supportTicketOpen .supportTicketPlatform{display:none}
 .supportTicketOpen{grid-template-columns:1fr!important;gap:0!important}
 .shell .supportTicketOpen .supportTicketMeta b,.shell .supportUnreadCount{color:#ff3658!important;background:#3b1422;border:1px solid #ff3658;border-radius:999px;padding:3px 7px;font-weight:900}
+.shell .supportWorkspace{background:#0b1b2d!important;border:1px solid #294766;border-radius:14px;padding:12px;color:#eaf2ff}
+.shell .supportWorkspace .supportQueueView,.shell .supportWorkspace .supportTicketList{background:#102238!important;border-color:#294766!important}
+.shell .supportWorkspace .supportTicketOpen{background:transparent!important;color:#eaf2ff!important}
+.shell .supportWorkspace .supportTicketOpen:hover,.shell .supportWorkspace .supportTicketOpen:focus-visible{background:#173653!important}
+.shell .supportWorkspace .panelTitle h2,.shell .supportWorkspace .panelTitle p{color:#f4f8ff!important}
+.shell .supportWorkspace .panelTitle p{color:#9db6ce!important}
+.shell .analyticsLineSeries{stroke-dasharray:1200;stroke-dashoffset:0;animation:analyticsLineReveal .75s ease-out both}
+.shell .analyticsLineSeriesSecondary{animation-delay:90ms}
+.shell .analyticsLinePoint{animation:analyticsPointReveal .45s ease-out both}
+.shell .analyticsBarGroup{transform-box:fill-box;transform-origin:center bottom;animation:analyticsBarReveal .55s cubic-bezier(.22,.8,.25,1) both}
+.shell .navItem{transition:background .2s ease,color .2s ease,transform .2s ease,box-shadow .2s ease}
+.shell .navItem:hover{transform:translateX(3px)}
+.shell .navItem.active{animation:navActivePulse .36s ease-out both}
+.shell .routeTransitionActive{animation:routeContentReveal .32s ease-out both}
+@keyframes analyticsLineReveal{from{stroke-dashoffset:1200;opacity:.35}to{stroke-dashoffset:0;opacity:1}}
+@keyframes analyticsPointReveal{from{transform:scale(.55);opacity:.15}to{transform:scale(1);opacity:1}}
+@keyframes analyticsBarReveal{from{transform:scaleY(.08);opacity:.2}to{transform:scaleY(1);opacity:1}}
+@keyframes navActivePulse{0%{filter:brightness(1.45)}100%{filter:brightness(1)}}
+@keyframes routeContentReveal{from{opacity:.55;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.shell .analyticsLineSeries,.shell .analyticsLinePoint,.shell .analyticsBarGroup,.shell .navItem.active,.shell .routeTransitionActive{animation:none!important}.shell .navItem{transition:none!important}.shell .navItem:hover{transform:none}}
 .shell .operationalNotice:empty{display:none}
 .shell .supportCaseDetail{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .shell .supportCaseHead{position:sticky;top:0;z-index:2;gap:14px;padding-bottom:10px;border-bottom:1px solid #315174;background:#0d1b2d}
@@ -477,3 +497,20 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell .supportCaseColumns article:first-child p:nth-of-type(even){padding-left:9px;padding-right:9px;background:#173450;border-radius:7px}
 .shell .supportCaseColumns article:first-child p:nth-of-type(odd){padding-left:9px;padding-right:9px;background:#10263e;border-radius:7px}
 .shell .supportReplyComposer{position:sticky;bottom:0;z-index:3;margin:12px -16px -16px;padding:8px 16px;background:#0d1b2d;border-top:1px solid #315174;box-shadow:0 -10px 24px #02071166}
+
+/* Central HQ visual contract: dark, readable surfaces on every route. */
+.shell,.shell .workspace,.shell .content{background:#06111f!important;color:#eaf2ff!important}
+.shell .sidebar,.shell header{background:#081a2b!important;border-color:#294766!important}
+.shell .content :is(.moduleWorkspace,.platformWorkspace,.peoplePanel,.reportsWorkspace,.financeWorkspace,.fieldWorkspace,.supportWorkspace,.notificationCenterWorkspace,.internalInboxWorkspace,.institutionalWorkspace,.microcreditWorkspace,.workspaceTable,.profileCard,.permissionCard,.settingsCard,.securityCard,.sessionsCard,.financeEntryForm,.platformCard,.reportGrid>article,.reportSaved>article,.analyticsChartContainer,.analyticsKpiCard,.analyticsFilters,.analyticsEmptyState,.analyticsErrorState,.moduleContext,.microcreditDetail,.microcreditDocuments,.microcreditDocumentCard){background:linear-gradient(145deg,#10263e,#0b1c30)!important;border-color:#345879!important;color:#eaf2ff!important;box-shadow:0 8px 24px #02071138!important}
+.shell .content :is(.tableHeader,.tableRow,.workspaceStats>article,.financeKpis>article,.supportTicket,.supportTicketList,.fieldDetailGrid>article,.fieldMissionList article,.marketingSimpleGrid>article){background:#0d2035!important;border-color:#294b6a!important;color:#eaf2ff!important}
+.shell .content :is(input,select,textarea){background:#0b1d31!important;color:#f1f7ff!important;border-color:#3a5d7e!important}
+.shell .content :is(input,select,textarea)::placeholder{color:#9bb2c9!important}
+.shell .content button:not(.primaryAction):not(.navItem){background:#173452!important;color:#edf6ff!important;border-color:#3a5d7e!important}
+.shell .content .primaryAction{background:linear-gradient(100deg,#ff3f68,#9c4dff)!important;color:#fff!important;border:0!important;box-shadow:0 8px 22px #ff3f6840!important}
+.shell .iconButton,.shell .notificationButton{background:#142f49!important;color:#9ff7ff!important;border-color:#3d698c!important;box-shadow:0 0 16px #00e5ff33!important}
+.shell .notificationButton.hasUnread,.shell .notificationBadge{background:#ef3157!important;color:#fff!important;box-shadow:0 0 14px #ef315799!important}
+.shell .content :is(.safeNotice,.operationalNotice,.analyticsDataNote){background:#102942!important;color:#b8d0e7!important;border-color:#345879!important}
+.shell .content :is(.emptyState,.emptyPanel,.analyticsEmptyState,.analyticsErrorState){background:#0b1d31!important;color:#dcecff!important;border-color:#345879!important}
+.shell footer{background:#06111f!important;color:#9bb2c9!important;border-color:#294766!important}
+.shell footer a{color:#74e7ff!important;text-decoration:none}
+.shell footer a:hover{text-decoration:underline}

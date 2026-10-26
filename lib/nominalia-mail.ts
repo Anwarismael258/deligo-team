@@ -1,6 +1,4 @@
 import nodemailer from "nodemailer";
-import fs from "node:fs";
-import path from "node:path";
 
 export const inboxRecipients: Record<string, string> = {
   geral: "geral@deligotriunfal.site",
@@ -66,32 +64,13 @@ function smtpMailbox(address: string): SmtpMailbox | null {
   return null;
 }
 
-const letterheadPath = path.join(process.cwd(), "public", "deligo-letterhead.png");
-const letterheadPublicUrl = "https://www.deligoteam.online/deligo-letterhead.png";
-
 function escapeHtml(value: string) {
   return value.replace(/[&<>\"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '\"': "&quot;", "'": "&#39;" }[character] || character));
 }
 
 function letterheadHtml(message: string) {
   const body = escapeHtml(message).replace(/\r?\n/g, "<br>");
-  // Use the public image as the primary source because some mail clients do
-  // not render CID images reliably. The inline attachment remains available
-  // for clients that prefer embedded MIME resources.
-  return `<!doctype html><html><body style="margin:0;background:#f4f4f4;font-family:Arial,sans-serif;color:#171717"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4"><tr><td align="center" style="padding:16px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:1055px;background-color:#ffffff"><tr><td style="padding:0"><a href="${letterheadPublicUrl}" style="text-decoration:none"><img src="${letterheadPublicUrl}" alt="Papel timbrado DeliGo Triunfal" width="1055" style="display:block;width:100%;height:auto;border:0;outline:none;text-decoration:none"></a></td></tr><tr><td style="padding:24px 10% 48px;vertical-align:top;font-size:18px;line-height:1.55;word-break:break-word"><div style="white-space:normal">${body}</div></td></tr></table></td></tr></table></body></html>`;
-}
-
-function letterheadAttachment() {
-  if (!fs.existsSync(letterheadPath)) return undefined;
-  // Embed the asset in the MIME message instead of relying on the serverless
-  // runtime to resolve a filesystem path after the deployment is packaged.
-  return [{
-    filename: "papel-timbrado-deligo.png",
-    content: fs.readFileSync(letterheadPath),
-    contentType: "image/png",
-    contentDisposition: "inline" as const,
-    cid: "deligo-letterhead",
-  }];
+  return `<!doctype html><html><body style="margin:0;background:#f4f6f8;font-family:Arial,sans-serif;color:#17202b"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8"><tr><td align="center" style="padding:16px 8px"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:760px;background:#ffffff;border:1px solid #d9e0e7"><tr><td style="padding:18px 24px 14px;border-top:5px solid #b8172b;border-bottom:2px solid #d9a400"><div style="font-size:24px;font-weight:800;letter-spacing:1px;color:#171717">DELIGO</div><div style="margin-top:2px;font-size:13px;font-weight:700;letter-spacing:2px;color:#b8172b">TRIUNFAL, LDA.</div><div style="margin-top:9px;font-size:11px;color:#5f6b76">Technology · Digital Solutions · Innovation</div><div style="margin-top:7px;font-size:10px;color:#5f6b76">geral@deligotriunfal.site · comercial@deligotriunfal.site · carreiras@deligotriunfal.site</div></td></tr><tr><td style="padding:24px;vertical-align:top;font-size:16px;line-height:1.55;word-break:break-word"><div style="white-space:normal">${body}</div></td></tr><tr><td style="padding:12px 24px;border-top:1px solid #e6eaee;font-size:10px;color:#687582">DeliGo Triunfal, Lda. · Maputo, Moçambique</td></tr></table></td></tr></table></body></html>`;
 }
 
 function configuredAddresses() {
@@ -118,7 +97,6 @@ export async function sendInboxEmail(message: InboxMessage) {
     subject: `[DeliGo Central] ${message.subject}`,
     text: lines.join("\n"),
     html: letterheadHtml(lines.join("\n")),
-    attachments: letterheadAttachment(),
   });
   return { recipient, messageId: info.messageId, response: info.response, accepted: info.accepted, rejected: info.rejected };
 }
@@ -144,7 +122,6 @@ export async function sendComposedInboxEmail(input: { from: string; to: string; 
     subject: input.subject,
     text: input.text,
     html: letterheadHtml(input.text),
-    attachments: letterheadAttachment(),
   });
   return { recipient, messageId: info.messageId, response: info.response, accepted: info.accepted, rejected: info.rejected };
 }

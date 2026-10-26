@@ -407,6 +407,7 @@ export function HQApp() {
   const [subArea, setSubArea] = useState("");
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [realtimeVersion,setRealtimeVersion]=useState(0);
+  const [routeTransition,setRouteTransition]=useState(false);
   const [liveMap, setLiveMap] = useState<LiveMapData | null>(null);
   const [connectionError, setConnectionError] = useState("");
   const [peopleSearch, setPeopleSearch] = useState("");
@@ -824,8 +825,10 @@ export function HQApp() {
   const refreshEmployees = async () => { const response=await fetch("/api/employees",{cache:"no-store"}); if(response.ok){const data=await response.json();setManagedEmployees(data.employees||[]);setEmployeeHistory(data.history||[]);setEmployeeAccess(data.access||[]);setEmployeePermissions(data.permissions||[]);} };
   const createEmployee = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setEmployeeNotice("A criar cadastro…"); const form=new FormData(event.currentTarget);
-    const response=await fetch("/api/employees",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:form.get("name"),phone:form.get("phone"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),activate:form.get("activate")==="on"})});
-    const result=await response.json(); setEmployeeNotice(response.ok ? `Cadastro ${result.employee.status === "active" ? "activo" : "enviado para aprovação"}.` : result.error); if(response.ok){setShowEmployeeForm(false);await refreshEmployees();}
+    try {
+      const response=await fetch("/api/employees",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:form.get("name"),phone:form.get("phone"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),activate:form.get("activate")==="on"}),signal:AbortSignal.timeout(20_000)});
+      const result=await response.json().catch(()=>({error:"O servidor devolveu uma resposta inválida."})); setEmployeeNotice(response.ok ? `Cadastro ${result.employee?.status === "active" ? "activo" : "enviado para aprovação"}.` : result.error||"Não foi possível criar o trabalhador."); if(response.ok){setShowEmployeeForm(false);await refreshEmployees();}
+    } catch { setEmployeeNotice("Não foi possível concluir o cadastro. Verifique a ligação e tente novamente."); }
   };
   const employeeAction = async (employeeId:string, action:string) => { setEmployeeNotice("A processar…"); const response=await fetch("/api/employees",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId,action})});const result=await response.json();setEmployeeNotice(response.ok?"Conta actualizada e auditada.":result.error);if(response.ok)await refreshEmployees(); };
   const updateEmployee = async (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); if (!editingEmployee) return; setEmployeeNotice("A guardar alterações…"); const form=new FormData(event.currentTarget); const response=await fetch("/api/employees",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({employeeId:editingEmployee.id,name:form.get("name"),jobTitle:form.get("jobTitle"),department:form.get("department"),role:form.get("role"),updatedAt:editingEmployee.updated_at})}); const result=await response.json(); setEmployeeNotice(response.ok?"Trabalhador actualizado e auditado.":result.error); if(response.ok){setEditingEmployee(null);await refreshEmployees();} };
@@ -1014,6 +1017,8 @@ if(active==="Operações de Campo")void refreshField();
       window.location.assign(routeByModule[label]);
       return;
     }
+    setRouteTransition(true);
+    window.setTimeout(() => setRouteTransition(false), 320);
     setActive(label);
     setSubArea(moduleDetails[label]?.[0] || "");
     setMenuOpen(false);
@@ -1211,7 +1216,7 @@ if(active==="Operações de Campo")void refreshField();
         </header>
         {notificationToast&&<div className="notificationToast" role="alert"><button className="notificationToastMain" onClick={()=>{if(!notificationToast.read_at)void markNotifications(String(notificationToast.id));window.location.assign(notificationHref(notificationToast))}}><span className="notificationToastKicker">{notificationPlatformFor(notificationToast)} · novo aviso</span><strong>{notificationSummary(notificationToast)}</strong><small>{notificationActionLabel(notificationToast)}</small></button><button className="notificationToastClose" aria-label="Fechar aviso" onClick={()=>setNotificationToast(null)}>×</button></div>}
 
-        <div className="content">
+        <div className={`content ${routeTransition ? "routeTransitionActive" : ""}`}>
           <div className="eyebrow"><span>HQ</span> / {displayModuleLabel(active)}</div>
           <div className="frozenBanner"><i /> {dashboard ? `Dados reais ligados a ${dashboard.environment} · actualizados ${new Date(dashboard.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}` : connectionError || "A ligar ao backend Deligo Staging ou produção configurada…"}</div>
           <div className="titleRow">
@@ -1570,7 +1575,7 @@ if(active==="Operações de Campo")void refreshField();
               </> : <div className="peopleEmpty">Carteira ainda não disponível para este perfil.</div>}
             </article>
           </section>}
-          {active === "Visão geral" && <>{["SUPER_ADMIN", "SUPERVISOR"].includes(sessionRole) && <OperationalFundsCard role={sessionRole} />}<ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} onRefresh={() => { void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} /><p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
+          {active === "Visão geral" && <>{["SUPER_ADMIN", "SUPERVISOR"].includes(sessionRole) && <OperationalFundsCard role={sessionRole} />}<ExecutiveOverviewDashboard dashboard={dashboard} commandCenter={commandCenter} refreshKey={realtimeVersion} onRefresh={() => { setRealtimeVersion(value => value + 1); void fetch("/api/dashboard", { cache: "no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json() as Promise<DashboardData>; }).then(data => setDashboard(normalizeDashboardNames(data))).catch(() => undefined); }} /><p className="overviewConsolidatedLabel">Gestão consolidada da DeliGo Triunfal, Lda.</p></>}
           {active === "Utilizadores" && <><UserTeamDashboard mode="users" /><section className="peoplePanel">
             <div className="sectionHeading"><div><h2>Todos os utilizadores</h2><p>Clique num utilizador para consultar identidade, KYC, carteira, disputas e plataformas autorizadas.</p></div><button onClick={()=>void fetch("/api/global-search?list=all",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setOverviewPeople(Array.isArray(result.data)?result.data:[])).catch(()=>setOverviewPeople([]))}>Actualizar lista</button></div>
             <div className="peopleToolbar"><input value={overviewPeopleSearch} onChange={event=>setOverviewPeopleSearch(event.target.value)} placeholder="Pesquisar por nome, telefone, email ou plataforma…" aria-label="Pesquisar utilizadores" /><span>{filteredOverviewPeople.length} resultado(s)</span></div>
@@ -1580,7 +1585,7 @@ if(active==="Operações de Campo")void refreshField();
               {filteredOverviewPeople.length > 100 && <div className="peopleEmpty">A mostrar os primeiros 100 resultados. Use a pesquisa para localizar uma conta.</div>}
             </div>
           </section></>}
-          <footer><span>DeliGo Triunfal HQ</span><span>Central de Gestão e Operações · Preparada para hq.deligo.co.mz</span></footer>
+          <footer><span>DeliGo Triunfal HQ</span><a href="https://www.deligotriunfal.site" target="_blank" rel="noreferrer">www.deligotriunfal.site</a></footer>
         </div>
       </section>
 
