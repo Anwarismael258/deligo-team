@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, requireCorporatePermission, hqRpc, hqRest, supabaseUrl } from "@/lib/hq-server";
 import { randomBytes } from "node:crypto";
 
+const EMPLOYEE_CARGOS: Record<string, { role: string; department: string; title: string }> = {
+  CEO: { role: "SUPER_ADMIN", department: "EXECUTIVE", title: "CEO e Fundador" },
+  FINANCE: { role: "FINANCE_DIRECTOR", department: "FINANCE", title: "Diretora Financeira" },
+  SUPERVISOR: { role: "OPERATIONS_SUPERVISOR", department: "OPERATIONS", title: "Supervisor" },
+  FIELD: { role: "FIELD", department: "FIELD", title: "Agente de Operações de Campo" },
+  CUSTOMER_SUPPORT: { role: "CUSTOMER_SUPPORT", department: "SUPPORT", title: "Agente de Apoio ao Cliente" },
+  MARKETING: { role: "MARKETING", department: "MARKETING", title: "Agente de Marketing" },
+};
+
+function resolveCargo(input: { cargo?: string; role?: string; jobTitle?: string }) {
+  const key = String(input.cargo || input.role || "").trim().toUpperCase();
+  if (EMPLOYEE_CARGOS[key]) return EMPLOYEE_CARGOS[key];
+  const title = String(input.jobTitle || "").trim().toLowerCase();
+  const match = Object.values(EMPLOYEE_CARGOS).find(item => item.title.toLowerCase() === title);
+  return match || null;
+}
+
 export async function GET() {
   const authorization = await requireCorporatePermission("users.view"),actor=authorization?.actor;
   if (!actor) return NextResponse.json({ error: "Sem permissão para consultar colaboradores." }, { status: 403 });
@@ -26,11 +43,12 @@ export async function POST(request: NextRequest) {
   // performs the authoritative active-employee check before inserting.
   const fallbackActor = authorization?.actor || await corporateActor();
   if (!fallbackActor) return NextResponse.json({ error: "Sem permissão para cadastrar trabalhadores." }, { status: 403 });
-  if (!new Set(["SUPER_ADMIN", "SUPERVISOR", "FINANCE"]).has(fallbackActor.role)) return NextResponse.json({ error: "Apenas Admin, Supervisor ou Co-CEO podem cadastrar trabalhadores." }, { status: 403 });
-  const input = await request.json() as { name?: string; phone?: string; jobTitle?: string; department?: string; role?: string; activate?: boolean };
+  if (!new Set(["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS_SUPERVISOR", "FINANCE", "FINANCE_DIRECTOR"]).has(fallbackActor.role)) return NextResponse.json({ error: "Apenas CEO, Finanças ou Supervisor podem cadastrar trabalhadores." }, { status: 403 });
+  const input = await request.json() as { name?: string; phone?: string; cargo?: string; jobTitle?: string; department?: string; role?: string; activate?: boolean };
+  const cargo = resolveCargo(input);
   const digits = (input.phone || "").replace(/\D/g, "");
   const phone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
-  if (!input.name || !input.jobTitle || !input.department || !input.role || !/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "Preencha correctamente todos os campos." }, { status: 400 });
+  if (!input.name?.trim() || !cargo || !/^\+258\d{9}$/.test(phone)) return NextResponse.json({ error: "Indique o nome, o telefone moçambicano e um cargo válido." }, { status: 400 });
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) return NextResponse.json({ error: "Configuração de contas indisponível." }, { status: 503 });
   const existing = await hqRest(`employees?phone_e164=eq.${encodeURIComponent(phone)}&select=id,display_name,status&limit=1`) as Array<Record<string, unknown>>;
@@ -38,7 +56,7 @@ export async function POST(request: NextRequest) {
   const bootstrapPassword = randomBytes(32).toString("base64url");
   let authResponse: Response;
   try {
-    authResponse = await fetch(`${supabaseUrl()}/auth/v1/admin/users`, { method: "POST", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ phone, password: bootstrapPassword, phone_confirm: false, user_metadata: { display_name: input.name, hq_role: input.role, auth_method: "phone_otp", must_set_password: true } }), signal: AbortSignal.timeout(8_000) });
+    authResponse = await fetch(`${supabaseUrl()}/auth/v1/admin/users`, { method: "POST", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ phone, password: bootstrapPassword, phone_confirm: false, user_metadata: { display_name: input.name, hq_role: cargo.role, auth_method: "phone_otp", must_set_password: true } }), signal: AbortSignal.timeout(8_000) });
   } catch (error) {
     console.error("EMPLOYEE_AUTH_CREATE_FAILED", error instanceof Error ? error.message : "unknown");
     return NextResponse.json({ error: "O serviço de autenticação não respondeu. Tente novamente em alguns segundos." }, { status: 504 });
@@ -46,11 +64,15 @@ export async function POST(request: NextRequest) {
   if (!authResponse.ok) return NextResponse.json({ error: "O número já existe ou não pôde ser criado." }, { status: 409 });
   const authUser = await authResponse.json() as { id: string };
   try {
-    const employee = await hqRpc("hq_create_employee_v1", { p_actor_auth_user_id: fallbackActor.authUserId, p_auth_user_id: authUser.id, p_display_name: input.name, p_phone_e164: phone, p_job_title: input.jobTitle, p_department_code: input.department, p_requested_role_code: input.role, p_activate: ["SUPER_ADMIN", "FINANCE"].includes(fallbackActor.role) && Boolean(input.activate) });
+    const employee = await hqRpc("hq_create_employee_v1", { p_actor_auth_user_id: fallbackActor.authUserId, p_auth_user_id: authUser.id, p_display_name: input.name.trim(), p_phone_e164: phone, p_job_title: cargo.title, p_department_code: cargo.department, p_requested_role_code: cargo.role, p_activate: fallbackActor.role === "SUPER_ADMIN" });
     return NextResponse.json({ employee }, { status: 201 });
   } catch (error) {
     await fetch(`${supabaseUrl()}/auth/v1/admin/users/${authUser.id}`, { method: "DELETE", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, signal: AbortSignal.timeout(5_000) }).catch(() => undefined);
-    return NextResponse.json({ error: error instanceof Error && error.message.includes("SENSITIVE_ROLE") ? "Este role precisa ser criado pelo Super Admin." : "Não foi possível concluir o cadastro." }, { status: 400 });
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("SENSITIVE_ROLE")) return NextResponse.json({ error: "Este cargo só pode ser criado pelo CEO." }, { status: 403 });
+    if (message.includes("INVALID_DEPARTMENT_OR_ROLE")) return NextResponse.json({ error: "O cargo não está disponível no catálogo do backend." }, { status: 409 });
+    if (message.includes("EMPLOYEE_ADMIN_FORBIDDEN")) return NextResponse.json({ error: "Este perfil não pode cadastrar trabalhadores." }, { status: 403 });
+    return NextResponse.json({ error: "Não foi possível concluir o cadastro." }, { status: 400 });
   }
 }
 
@@ -60,6 +82,7 @@ export async function PATCH(request: NextRequest) {
   if (!employeeId || !action) return NextResponse.json({ error: "Operação inválida." }, { status: 400 });
   const permission=action==="set_supervisor"||action==="set_permission"?"settings.manage":"users.suspend",authorization=await requireCorporatePermission(permission),actor=authorization?.actor;
   if(!actor)return NextResponse.json({error:"Sem permissão para esta alteração de acesso."},{status:403});
+  if (["suspend", "archive"].includes(action) && actor.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Só o CEO pode suspender ou eliminar contas." }, { status: 403 });
   if (action === "set_supervisor" || action === "set_permission") {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceKey) return NextResponse.json({ error: "Configuração administrativa indisponível." }, { status: 503 });
