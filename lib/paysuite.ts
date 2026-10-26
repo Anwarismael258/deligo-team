@@ -1,4 +1,11 @@
-const apiUrl = () => process.env.PAYSUITE_API_URL || "https://paysuite.tech/api/v1";
+function apiUrl() {
+  // Keep the same server-side contract used by the DeliGo apps. Older
+  // deployments provide PAYSUITE_BASE_URL (for example https://paysuite.tech)
+  // while the Central used PAYSUITE_API_URL. Accept both without exposing a
+  // provider URL or credential to the client.
+  const configured = (process.env.PAYSUITE_API_URL || process.env.PAYSUITE_BASE_URL || "https://paysuite.tech").replace(/\/$/, "");
+  return /\/api\/v1$/i.test(configured) ? configured : `${configured}/api/v1`;
+}
 
 export function paysuiteEnabled() {
   return process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN);
