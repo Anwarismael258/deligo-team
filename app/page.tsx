@@ -375,7 +375,7 @@ type FinanceData = { financial_accounts:FinanceRecord[]; financial_transactions:
 type AuditRecord = { id:string; occurred_at:string; actor:string; action:string; module:string; target_type:string; target_id:string; result:string; ip_address:string|null; user_agent?:string|null; device?:string|null; before_state?:Record<string,unknown>|null; after_state?:Record<string,unknown>|null; metadata:Record<string,unknown> };
 type PlatformAdminSnapshot = { platform: string; data: Record<string, unknown>; sourceErrors?: Record<string, string>; checkedAt: string };
 type PlatformSnapshot = { platform:string; data:Record<string, unknown>; checkedAt:string };
-type PlatformProfile = { platform:string; id:string; profile:Record<string, unknown>|null; kyc:unknown[]; wallets:unknown[]; orders:unknown[]; disputes:unknown[]; activity:unknown[]; extras?:unknown[]; history?:unknown[]; counts?:{kyc:number;wallets:number;operations:number;disputes:number;activity:number;history:number} };
+type PlatformProfile = { platform:string; id:string; profile:Record<string, unknown>|null; kyc:unknown[]; wallets:unknown[]; orders:unknown[]; disputes:unknown[]; activity:unknown[]; extras?:unknown[]; history?:unknown[]; related?:Array<{platform:string;profiles:unknown[];kyc:unknown[]}>; counts?:{kyc:number;wallets:number;operations:number;disputes:number;activity:number;history:number} };
 const normalizeDashboardNames = (data:DashboardData):DashboardData => ({...data,platforms:data.platforms.map(item=>({...item,name:platformDisplayName(item.name)})),modules:{...data.modules,platforms:data.modules.platforms.map(item=>({...item,name:platformDisplayName(item.name)}))}});
 type SessionUser = { id:string; hq_role:string; name:string; employee_code:string; email:string|null; phone:string|null; job_title:string|null; status:string; joined_on:string|null; last_login_at:string|null; department_id:string|null; manager_id:string|null; permissions:string[]; platform_ids:string[]; platform_slugs:string[]; is_super_admin:boolean };
 type GlobalPerson = { user_id:string; full_name?:string|null; display_name?:string|null; primary_phone?:string|null; primary_email?:string|null; profile_status?:string|null; apps:Array<{slug?:string;name?:string;role?:unknown;status?:string}>; kyc?:unknown[]; activity?:unknown[] };
@@ -1018,18 +1018,11 @@ if(active==="Operações de Campo")void refreshField();
     } catch { setHomologationNotice("Não foi possível contactar a homologação. Tente novamente."); }
   };
   const navigate = (label: string) => {
-    if (["Avaliações & Reputação"].includes(label)) {
-      window.location.assign(routeByModule[label]);
-      return;
-    }
+    const route = routeByModule[label] || "/";
+    // A full route transition prevents the old shell from being left mounted
+    // after pushState, which caused blank Reports/Projects/CMS screens.
     setRouteTransition(true);
-    window.setTimeout(() => setRouteTransition(false), 320);
-    setActive(label);
-    setSubArea(moduleDetails[label]?.[0] || "");
-    setMenuOpen(false);
-    window.history.pushState({}, "", routeByModule[label] || "/");
-    window.dispatchEvent(new PopStateEvent("popstate"));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.location.assign(route);
     const ids = label === "Centro de Notificações"
       ? unreadNotifications.map(notification => String(notification.id))
       : unreadNotifications.filter(notification => notificationModuleFor(notification) === label).map(notification => String(notification.id));
@@ -1660,7 +1653,8 @@ function PlatformRecordModal({ selected, onClose }: { selected:{collection:strin
 function PlatformProfileModal({ selected, detail, canChat, onChat, onClose }: { selected:{platform:string;id:string;name:string}; detail:PlatformProfile|null; canChat:boolean; onChat:()=>void; onClose:()=>void }) {
   const profile = detail?.profile || {};
   const profilePhotos=imagesIn(profile);
-  const media = [...profilePhotos, ...(detail?.kyc || []), ...(detail?.extras || []), ...(detail?.history || [])].flatMap(item => imagesIn((item || {}) as Record<string,unknown>)).filter((item, index, all) => all.findIndex(candidate => candidate.url === item.url) === index);
+  const relatedItems = (detail?.related || []).flatMap(item => [...item.profiles, ...item.kyc]);
+  const media = [...profilePhotos, ...(detail?.kyc || []), ...(detail?.extras || []), ...(detail?.history || []), ...relatedItems].flatMap(item => imagesIn((item || {}) as Record<string,unknown>)).filter((item, index, all) => all.findIndex(candidate => candidate.url === item.url) === index);
   const identity = Object.entries(profile).filter(([key, value]) => value != null && !["id","user_id","created_at","updated_at","metadata"].includes(key) && !/(token|secret|password|credential|private[_ ]?key|access[_ ]?key)/i.test(key) && typeof value !== "object");
   const history = detail?.history || [...(detail?.orders || []), ...(detail?.disputes || []), ...(detail?.activity || [])];
   const counts = detail?.counts;

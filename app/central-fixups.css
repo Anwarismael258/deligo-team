@@ -1,0 +1,60 @@
+.shell .employeeDetail,
+.shell .microcreditWorkspace,
+.shell .inboxWorkspace,
+.shell .reportsWorkspace,
+.shell .internalInboxWorkspace,
+.shell .institutionalWorkspace,
+.shell .platformAdminPanel,
+.shell .peoplePanel,
+.shell .profileModal {
+  background: linear-gradient(145deg, #10263e, #0b1c30) !important;
+  color: #eaf2ff !important;
+  border-color: #345879 !important;
+}
+
+.shell .employeeDetail input,
+.shell .employeeDetail textarea,
+.shell .employeeDetail select,
+.shell .microcreditWorkspace input,
+.shell .microcreditWorkspace textarea,
+.shell .microcreditWorkspace select,
+.shell .inboxWorkspace input,
+.shell .inboxWorkspace textarea,
+.shell .inboxWorkspace select,
+.shell .financeEntryForm input,
+.shell .financeEntryForm textarea,
+.shell .financeEntryForm select {
+  background: #0b1c30 !important;
+  color: #f3f8ff !important;
+  border-color: #416987 !important;
+  color-scheme: dark;
+}
+
+.shell .microcreditDocuments,
+.shell .microcreditDocumentCard,
+.shell .microcreditDocumentMissing,
+.shell .inboxEmailComposer,
+.shell .inboxFolders,
+.shell .procurementList,
+.shell .reportGrid > article,
+.shell .reportSaved > article {
+  background: #10263e !important;
+  color: #eaf2ff !important;
+  border-color: #345879 !important;
+}
+
+.shell .microcreditPreviewBackdrop,
+.shell .kycGalleryBackdrop { z-index: 120; }
+.shell .microcreditPreview { max-height: min(92vh, 900px); overflow: auto; }
+.shell .microcreditPreview > img { max-height: 72vh; object-fit: contain; }
+.shell .microcreditDocumentCard img { background: #06111e !important; }
+.shell .inboxWorkspace .peopleEmpty,
+.shell .microcreditWorkspace .peopleEmpty,
+.shell .reportsWorkspace .peopleEmpty,
+.shell .internalInboxWorkspace .peopleEmpty { color: #b8cce0 !important; }
+
+@media (max-width: 720px) {
+  .shell .employeeDetail { max-width: 100%; overflow: hidden; }
+  .shell .microcreditPreviewBackdrop { padding: 8px; }
+  .shell .microcreditPreview { width: 100%; }
+}

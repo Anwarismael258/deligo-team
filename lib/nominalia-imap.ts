@@ -4,8 +4,8 @@ import { stagingRest } from "@/lib/hq-server";
 type Mailbox = { area: "geral" | "comercial" | "carreiras"; user: string; password: string };
 type ImapResult = { mailbox: string; scanned: number; imported: number; skipped: number; error?: string };
 
-const configuredHost = process.env.NOMINALIA_IMAP_HOST || "pop.securemail.pro";
-const port = Number(process.env.NOMINALIA_IMAP_PORT || 993);
+const configuredHost = process.env.NOMINALIA_IMAP_HOST || process.env.NOMINALIA_IMAP_SERVER || "imap.securemail.pro";
+const port = Number(process.env.NOMINALIA_IMAP_PORT || process.env.NOMINALIA_IMAP_SSL_PORT || 993);
 const imapTimeoutMs = 12_000;
 
 async function withTimeout<T>(operation: Promise<T>, label: string) {
@@ -47,9 +47,11 @@ function mailboxFor(area: Mailbox["area"]): Mailbox | null {
     || process.env["NOMINALIA_IMAP_" + key + "_USERNAME"]
     || process.env["NOMINALIA_" + key + "_USER"]
     || process.env["NOMINALIA_" + key + "_USERNAME"]
-    || process.env["NOMINALIA_" + key + "_EMAIL"];
+    || process.env["NOMINALIA_" + key + "_EMAIL"]
+    || process.env["NOMINALIA_" + key + "_ADDRESS"];
   const password = process.env["NOMINALIA_IMAP_" + key + "_PASSWORD"]
-    || process.env["NOMINALIA_" + key + "_PASSWORD"];
+    || process.env["NOMINALIA_" + key + "_PASSWORD"]
+    || process.env["NOMINALIA_" + key + "_PASS"];
   return user && password ? { area, user: user.trim(), password } : null;
 }
 function safeError(error: unknown) { const message = error instanceof Error ? error.message : String(error || "unknown"); if (/authentication|login|invalid credentials|auth/i.test(message)) return "autenticação IMAP recusada"; if (/timeout|timed out|ETIMEDOUT|ECONNRESET/i.test(message)) return "tempo esgotado na ligação IMAP"; if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED/i.test(message)) return "servidor IMAP indisponível"; return "ligação IMAP falhou"; }
@@ -58,7 +60,7 @@ export async function syncNominaliaMailboxes(): Promise<ImapResult[]> {
   const results = await Promise.all((["geral", "comercial", "carreiras"] as const).map(async area => {
     const mailbox = mailboxFor(area); if (!mailbox) return { mailbox: area, scanned: 0, imported: 0, skipped: 0, error: "credenciais não configuradas" };
     try {
-      const hosts = [...new Set([configuredHost, configuredHost === "pop.securemail.pro" ? "imap.securemail.pro" : "pop.securemail.pro"])]; let sources: Buffer[] = []; let lastError: unknown;
+      const hosts = [...new Set([configuredHost, "imap.securemail.pro", "pop.securemail.pro"])]; let sources: Buffer[] = []; let lastError: unknown;
       for (const connectionHost of hosts) { try { sources = await fetchMailbox(mailbox, connectionHost); lastError = undefined; break; } catch (error) { lastError = error; } } if (lastError) throw lastError;
       let imported = 0; let skipped = 0; for (const source of sources) { const mail = parseMail(source); if (known.has(mail.messageId)) { skipped += 1; continue; } await stagingRest("inbox_messages", { method: "POST", body: JSON.stringify({ area, source: "nominalia_imap", subject: mail.subject, from_name: mail.fromName, from_email: mail.fromEmail, body: mail.body, meta: { mailbox: mailbox.user, message_id: mail.messageId, received_at: mail.date || new Date().toISOString(), unread: true } }) }); known.add(mail.messageId); imported += 1; }
       return { mailbox: mailbox.user, scanned: sources.length, imported, skipped };

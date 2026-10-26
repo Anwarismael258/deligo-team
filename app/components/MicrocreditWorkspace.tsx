@@ -41,8 +41,11 @@ export function MicrocreditWorkspace() {
   const submitSearch = (event: FormEvent) => { event.preventDefault(); setPage(0); setSubmittedQ(q.trim().slice(0, 120)); };
   const documentUrl = (key: (typeof documentLabels)[number][0], fallback: string | null | undefined) => {
     const path = selected?.[`${key}_path` as "bi_front_path" | "bi_back_path" | "income_path"];
+    // Prefer the signed URL returned by the microcredit API. The private
+    // preview then uses the same storage authorization as the list itself.
+    if (fallback) return fallback;
     if (path) return `/api/microcredit/document?path=${encodeURIComponent(path)}&folder=${encodeURIComponent(selected?.doc_folder || "")}`;
-    return fallback || "";
+    return "";
   };
   const save = async (body: Record<string, unknown>) => {
     if (!selected) return;

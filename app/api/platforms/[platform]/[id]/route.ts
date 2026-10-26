@@ -139,5 +139,23 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
     ...activity.map(row => ({ ...row, _history_type: platform === "mestre24" ? "Avaliação" : "Actividade" })),
   ].sort((a, b) => { const newer = (row: Record<string, unknown>) => Date.parse(String(row.created_at || row.updated_at || "")); return newer(b) - newer(a); });
   const signed = async (items: unknown[]) => Promise.all(items.map(item => signRow(platform, item)));
-  return NextResponse.json({ platform, id: resolvedId, profile: await signRow(platform, profile), kyc: await signed(kycRows), wallets: await signed(wallets), orders: await signed(orders), disputes: await signed(disputes), activity: await signed(activity), extras: await signed(extras), history: await signed(history), counts: { kyc: kycRows.length, wallets: wallets.length, operations: orders.length, disputes: disputes.length, activity: activity.length, history: history.length } }, { headers: { "Cache-Control": "private, no-store" } });
+  const identityKeys = [resolvedId, profile?.user_id, profile?.id, profile?.phone, profile?.phone_e164, profile?.email].map(value => String(value || "").trim()).filter(Boolean);
+  const related = (await Promise.all(allowed.filter(candidate => candidate !== platform).map(async candidate => {
+    const candidates = uniqueRows((await Promise.all(identityKeys.flatMap(value => [
+      read(candidate, `profiles?id=eq.${encodeURIComponent(value)}&select=*&limit=5`),
+      read(candidate, `profiles?user_id=eq.${encodeURIComponent(value)}&select=*&limit=5`),
+      read(candidate, `profiles?phone=eq.${encodeURIComponent(value)}&select=*&limit=5`),
+      read(candidate, `profiles?phone_e164=eq.${encodeURIComponent(value)}&select=*&limit=5`),
+    ])).then(rows => rows.flat())));
+    if (!candidates.length) return null;
+    const relatedIds = uniqueRows(candidates.flatMap(row => [{ id: row.id }, { id: row.user_id }, { id: row.profile_id }])).map(row => String(row.id)).filter(Boolean);
+    const relatedKycPaths = relatedIds.flatMap(value => candidate === "mestre24"
+      ? relationPaths("kyc_verifications", ["user_id", "profile_id"], value)
+      : candidate === "sarca"
+        ? relationPaths("driver_documents", ["driver_id", "user_id"], value)
+        : relationPaths("kyc_submissions", ["id", "user_id", "profile_id", "owner_id"], value));
+    const relatedKyc = await readMany(candidate, relatedKycPaths);
+    return { platform: candidate, profiles: await Promise.all(candidates.map(row => signRow(candidate, row))), kyc: await Promise.all(relatedKyc.map(row => signRow(candidate, row))) };
+  }))).filter(Boolean);
+  return NextResponse.json({ platform, id: resolvedId, profile: await signRow(platform, profile), kyc: await signed(kycRows), wallets: await signed(wallets), orders: await signed(orders), disputes: await signed(disputes), activity: await signed(activity), extras: await signed(extras), history: await signed(history), related, counts: { kyc: kycRows.length, wallets: wallets.length, operations: orders.length, disputes: disputes.length, activity: activity.length, history: history.length } }, { headers: { "Cache-Control": "private, no-store" } });
 }
