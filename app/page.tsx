@@ -575,7 +575,6 @@ export function HQApp() {
   const personalWalletTotal=ownWallets.reduce((sum,wallet)=>sum+Number(wallet.available_amount||0),0);
   const personalWalletPending=ownWallets.reduce((sum,wallet)=>sum+Number(wallet.pending_amount||0),0);
   const personalWalletReserved=ownWallets.reduce((sum,wallet)=>sum+Number(wallet.reserved_amount||0),0);
-  const personalWithdrawableTotal=ownWallets.filter(wallet=>wallet.withdrawal_enabled===true).reduce((sum,wallet)=>sum+Number(wallet.available_amount||0),0);
   const corporateSummary=dashboard?.deligoFinance?.summary;
   const financialBreakdown=dashboard?.deligoFinance?.breakdown;
   const breakdownPlatforms=Array.isArray(financialBreakdown?.platforms) ? financialBreakdown.platforms : [];
