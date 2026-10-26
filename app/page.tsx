@@ -694,7 +694,7 @@ export function HQApp() {
     return () => { cancelled = true; };
   }, []);
   useEffect(() => {
-    if (!sessionUser) return;
+    if (!sessionUser || ownProfile) return;
     setProfileWalletNotice("");
     fetch("/api/profile", { cache: "no-store" }).then(async response => {
       const data = await readJsonResponse(response);
@@ -702,8 +702,8 @@ export function HQApp() {
       setOwnProfile(data.profile || null);
       setProfileBiography(String(data.profile?.biography || ""));
       setOwnWallets(Array.isArray(data.wallets) ? data.wallets : []);
-    }).catch(error => { setOwnProfile(null); setOwnWallets([]); setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
-  }, [active, sessionUser?.id]);
+    }).catch(error => { setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
+  }, [ownProfile, sessionUser?.id]);
   const refreshNotifications=async()=>{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)};
   useEffect(() => {
     if (active !== "Visão geral" || !sessionUser) return;

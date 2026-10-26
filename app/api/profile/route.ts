@@ -57,12 +57,18 @@ export async function GET() {
     // The employee profile is the primary resource. Wallet adapters are
     // optional: a missing legacy table or a temporarily unavailable app
     // schema must not make the profile page unusable.
-    const profileRows = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`);
+    const [profileResult, employeeResult] = await Promise.allSettled([
+      hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=*`),
+      hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id`),
+    ]);
+    const profileRows = profileResult.status === "fulfilled" ? profileResult.value : [];
     // A login token can belong to a legacy Auth identity while the employee
     // record already points to the canonical identity used by DeliGo's
     // personal wallet. Resolve the wallet owner from the employee record so
     // the profile never displays an unrelated zero-balance legacy wallet.
-    const employeeRows = await hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id`);
+    const employeeRows = employeeResult.status === "fulfilled" ? employeeResult.value : [];
+    if (profileResult.status === "rejected") console.warn("employee display profile unavailable", profileResult.reason);
+    if (employeeResult.status === "rejected") console.warn("employee wallet owner unavailable", employeeResult.reason);
     const walletOwnerId = String(employeeRows?.[0]?.auth_user_id || actor.authUserId);
     const [legacyResult, canonicalResult, appsResult, hqEmployeeWalletResult] = await Promise.allSettled([
       stagingRest(`wallets?user_id=eq.${encodeURIComponent(walletOwnerId)}&select=id,balance,currency&limit=1`) as Promise<Array<Record<string, unknown>>>,
