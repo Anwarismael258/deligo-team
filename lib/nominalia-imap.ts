@@ -4,9 +4,9 @@ import { stagingRest } from "@/lib/hq-server";
 type Mailbox = { area: "geral" | "comercial" | "carreiras"; user: string; password: string };
 type ImapResult = { mailbox: string; scanned: number; imported: number; skipped: number; error?: string };
 
-const configuredHost = process.env.NOMINALIA_IMAP_HOST || process.env.NOMINALIA_IMAP_SERVER || "imap.securemail.pro";
+const configuredHost = (process.env.NOMINALIA_IMAP_HOST || process.env.NOMINALIA_IMAP_SERVER || "pop.securemail.pro").trim();
 const port = Number(process.env.NOMINALIA_IMAP_PORT || process.env.NOMINALIA_IMAP_SSL_PORT || 993);
-const imapTimeoutMs = 12_000;
+const imapTimeoutMs = 20_000;
 
 async function withTimeout<T>(operation: Promise<T>, label: string) {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -69,7 +69,7 @@ export async function syncNominaliaMailboxes(): Promise<ImapResult[]> {
   const results = await Promise.all((["geral", "comercial", "carreiras"] as const).map(async area => {
     const mailbox = mailboxFor(area); if (!mailbox) return { mailbox: area, scanned: 0, imported: 0, skipped: 0, error: "credenciais não configuradas" };
     try {
-      const hosts = [...new Set([configuredHost, "imap.securemail.pro", "pop.securemail.pro"])]; let sources: Buffer[] = []; let lastError: unknown;
+      const hosts = [...new Set([configuredHost, "pop.securemail.pro", "imap.securemail.pro"])].filter(Boolean); let sources: Buffer[] = []; let lastError: unknown;
       for (const connectionHost of hosts) { try { sources = await fetchMailbox(mailbox, connectionHost); lastError = undefined; break; } catch (error) { lastError = error; } } if (lastError) throw lastError;
       let imported = 0; let skipped = 0; for (const source of sources) { const mail = parseMail(source); if (known.has(mail.messageId)) { skipped += 1; continue; } await stagingRest("inbox_messages", { method: "POST", body: JSON.stringify({ area, source: "nominalia_imap", subject: mail.subject, from_name: mail.fromName, from_email: mail.fromEmail, body: mail.body, meta: { mailbox: mailbox.user, message_id: mail.messageId, received_at: mail.date || new Date().toISOString(), unread: true } }) }); known.add(mail.messageId); imported += 1; }
       return { mailbox: mailbox.user, scanned: sources.length, imported, skipped };

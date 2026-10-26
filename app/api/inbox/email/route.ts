@@ -62,7 +62,26 @@ export async function POST(request: NextRequest) {
       const recipient = delivery.recipient;
       try {
         const outbound = (await stagingRest("inbox_messages", { method: "POST", body: JSON.stringify({ area: "geral", source: "email", subject: body.subject.trim(), from_name: "Central HQ", from_email: body.from.trim().toLowerCase(), body: body.message.trim(), meta: { outbound: true, recipient } }) }))?.[0];
-        if (outbound?.id) await stagingRest("inbox_replies", { method: "POST", body: JSON.stringify({ message_id: outbound.id, author_id: actor.authUserId, kind: "resposta", body: `Para: ${recipient}\n\n${body.message.trim()}`, send_status: "smtp_accepted", metadata: { message_id: delivery.messageId, response: delivery.response, accepted: delivery.accepted, rejected: delivery.rejected } }) });
+        if (outbound?.id) {
+          // inbox_replies is a shared staging contract and does not have a
+          // metadata column in production. Keep delivery evidence on the
+          // outbound message instead of making the whole send look failed.
+          await stagingRest(`inbox_messages?id=eq.${encodeURIComponent(outbound.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              meta: {
+                outbound: true,
+                recipient,
+                smtp_message_id: delivery.messageId,
+                smtp_response: delivery.response,
+                smtp_accepted: delivery.accepted,
+                smtp_rejected: delivery.rejected,
+                sent_at: new Date().toISOString(),
+              },
+            }),
+          });
+          await stagingRest("inbox_replies", { method: "POST", body: JSON.stringify({ message_id: outbound.id, author_id: actor.authUserId, kind: "resposta", body: `Para: ${recipient}\n\n${body.message.trim()}`, send_status: "smtp_accepted" }) });
+        }
       } catch (persistenceError) {
         console.error("INBOX_OUTBOUND_EMAIL_PERSIST_FAILED", persistenceError instanceof Error ? persistenceError.message : "unknown");
       }
