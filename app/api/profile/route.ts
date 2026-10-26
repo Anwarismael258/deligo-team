@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRest, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { detectMozambiqueWalletOperator } from "@/lib/mozambique-wallet";
 
 function privilegedHeaders(key: string, profile: string) {
   const result: Record<string, string> = {
@@ -178,6 +179,9 @@ export async function GET() {
     const unifiedWithdrawableAmount = wallets
       .filter((wallet) => wallet.withdrawal_enabled === true)
       .reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
+    const detectedOperator = profile?.personal_phone
+      ? (() => { try { return detectMozambiqueWalletOperator(String(profile.personal_phone)); } catch { return null; } })()
+      : null;
 
     return NextResponse.json({
       profile,
@@ -187,6 +191,8 @@ export async function GET() {
       unified_reserved_amount: unifiedReservedAmount,
       unified_withdrawable_amount: unifiedWithdrawableAmount,
       withdrawal_phone: profile?.personal_phone || null,
+      withdrawal_operator: detectedOperator?.label || null,
+      withdrawal_method: detectedOperator?.method || null,
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     console.error("profile load failed", error);

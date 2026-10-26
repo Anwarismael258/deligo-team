@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRest, hqRpc, hqServiceKey, supabaseUrl } from "@/lib/hq-server";
 import { paysuiteRequest } from "@/lib/paysuite";
+import { detectMozambiqueWalletOperator } from "@/lib/mozambique-wallet";
 
 const APP_ID = "7628e590-652b-4e93-9ff0-d258e351303c";
 const moneyMinor = (value: number) => Math.round(value * 100);
-const normalizePhone = (value: string) => {
-  const digits = value.replace(/\D/g, "");
-  const local = digits.startsWith("258") ? digits.slice(3) : digits;
-  if (!/^(82|83|84|85|86|87)\d{7}$/.test(local)) throw new Error("Número PaySuite inválido.");
-  return local;
-};
-
 async function paymentsRest(path: string, init: RequestInit = {}) {
   const key = hqServiceKey();
   if (!key) throw new Error("SUPABASE_SERVICE_ROLE_NOT_CONFIGURED");
@@ -46,16 +40,15 @@ export async function POST(request: NextRequest) {
   const actor = await corporateActor();
   if (!actor) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
 
-  const body = await request.json().catch(() => null) as { walletId?: string; wallet_id?: string; amount?: number; method?: string } | null;
+  const body = await request.json().catch(() => null) as { walletId?: string; wallet_id?: string; amount?: number } | null;
   const amount = Number(body?.amount);
-  const method = body?.method == null ? "mpesa" : String(body.method);
   if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Indique um valor válido." }, { status: 400 });
-  if (!["mpesa", "emola"].includes(method)) return NextResponse.json({ error: "Método de levantamento inválido." }, { status: 400 });
   if (process.env.PAYSUITE_ENABLED !== "true" || !process.env.PAYSUITE_API_TOKEN) return NextResponse.json({ error: "PaySuite ainda não está activa para levantamentos reais." }, { status: 503 });
 
   try {
     const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Array<{ personal_phone?: string | null }>;
-    const phone = normalizePhone(String(employeeProfiles?.[0]?.personal_phone || ""));
+    const operator = detectMozambiqueWalletOperator(String(employeeProfiles?.[0]?.personal_phone || ""));
+    const { phone, method } = operator;
     const idempotencyKey = `employee-payout-${actor.authUserId}-${crypto.randomUUID()}`;
     const hqWallets = await hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=wallet_code,available_amount&limit=10`) as Array<{ wallet_code?: string; available_amount?: number }>;
     const hqAvailable = (Array.isArray(hqWallets) ? hqWallets : []).reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
@@ -72,9 +65,9 @@ export async function POST(request: NextRequest) {
         const providerReference = String(provider.id || provider.reference || reference);
         if (["success", "successful", "completed", "complete", "paid"].includes(providerStatus)) {
           await hqRpc("hq_complete_employee_paysuite_payout_v1", { p_payout_request_id: payoutId, p_provider_reference: providerReference });
-          return NextResponse.json({ status: "paid", payoutId, request_id: payoutId, providerReference, provider_reference: providerReference, source: "hq_employee_wallet" });
+          return NextResponse.json({ status: "paid", payoutId, request_id: payoutId, providerReference, provider_reference: providerReference, operator: operator.label, method, source: "hq_employee_wallet" });
         }
-        return NextResponse.json({ status: "processing", payoutId, request_id: payoutId, providerReference, provider_reference: providerReference, source: "hq_employee_wallet" }, { status: 202 });
+        return NextResponse.json({ status: "processing", payoutId, request_id: payoutId, providerReference, provider_reference: providerReference, operator: operator.label, method, source: "hq_employee_wallet" }, { status: 202 });
       } catch (error) {
         await hqRpc("hq_fail_employee_paysuite_payout_v1", { p_payout_request_id: payoutId, p_reason: error instanceof Error ? error.message : "PaySuite indisponível" }).catch(() => undefined);
         throw error;
@@ -129,7 +122,7 @@ export async function POST(request: NextRequest) {
             method,
             idempotency_key: idempotencyKey,
             request_note: "Levantamento pessoal unificado no perfil",
-            metadata: { reference, provider: "paysuite", employee_id: actor.employee_id, gross_amount_minor: allocation.amountMinor, net_amount_minor: netMinor, unified_withdrawal: true },
+            metadata: { reference, provider: "paysuite", operator: operator.provider, method, employee_id: actor.employee_id, gross_amount_minor: allocation.amountMinor, net_amount_minor: netMinor, unified_withdrawal: true },
           }),
         }) as Array<Record<string, unknown>>;
         if (!payout?.id) throw new Error("PAYOUT_REQUEST_NOT_CREATED");
@@ -174,7 +167,7 @@ export async function POST(request: NextRequest) {
     const hasFailed = results.some((result) => result.status === "failed");
     const allPaid = results.every((result) => result.status === "paid");
     const status = allPaid ? "paid" : hasFailed ? "partial" : "processing";
-    return NextResponse.json({ status, payoutId: results[0]?.payoutId, request_id: results[0]?.payoutId, payoutIds: results.map((result) => result.payoutId), providerReference: results[0]?.providerReference, provider_reference: results[0]?.providerReference, providerReferences: results.map((result) => result.providerReference).filter(Boolean), results }, { status: hasFailed ? 502 : allPaid ? 200 : 202 });
+    return NextResponse.json({ status, payoutId: results[0]?.payoutId, request_id: results[0]?.payoutId, payoutIds: results.map((result) => result.payoutId), providerReference: results[0]?.providerReference, provider_reference: results[0]?.providerReference, providerReferences: results.map((result) => result.providerReference).filter(Boolean), operator: operator.label, method, results }, { status: hasFailed ? 502 : allPaid ? 200 : 202 });
   } catch (error) {
     console.error("employee_paysuite_withdrawal_failed", error);
     return NextResponse.json({ error: "Não foi possível iniciar o levantamento. Nenhuma transferência foi confirmada." }, { status: 409 });
