@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { corporateActor, hqRest, hqRpc, hqServiceKey, supabaseUrl } from "@/lib/hq-server";
 import { paysuiteRequest } from "@/lib/paysuite";
 import { detectMozambiqueWalletOperator } from "@/lib/mozambique-wallet";
@@ -43,7 +44,17 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null) as { walletId?: string; wallet_id?: string; amount?: number } | null;
   const amount = Number(body?.amount);
   if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Indique um valor válido." }, { status: 400 });
-  if (process.env.PAYSUITE_ENABLED !== "true" || !process.env.PAYSUITE_API_TOKEN) return NextResponse.json({ error: "PaySuite ainda não está activa para levantamentos reais." }, { status: 503 });
+  // The canonical PaySuite credentials live in Supabase Edge Functions for
+  // the other DeliGo apps. Use that same server-side function when Vercel does
+  // not have a duplicate provider token; never copy or expose the secret.
+  if (process.env.PAYSUITE_ENABLED !== "true" || !process.env.PAYSUITE_API_TOKEN) {
+    const token = (await cookies()).get("hq_access_token")?.value;
+    const anonKey = process.env.SUPABASE_ANON_KEY;
+    if (!token || !anonKey) return NextResponse.json({ error: "PaySuite não está disponível: sessão ou configuração Supabase ausente." }, { status: 503 });
+    const edgeResponse = await fetch(`${supabaseUrl()}/functions/v1/wallet-withdraw-v2`, { method: "POST", headers: { apikey: anonKey, Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ amount, notes: "Levantamento pessoal iniciado na Central HQ" }), cache: "no-store", signal: AbortSignal.timeout(20_000) });
+    const edgeBody = await edgeResponse.json().catch(() => ({ error: "Resposta inválida do serviço PaySuite." }));
+    return NextResponse.json(edgeBody, { status: edgeResponse.status, headers: { "Cache-Control": "no-store" } });
+  }
 
   try {
     const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Array<{ personal_phone?: string | null }>;

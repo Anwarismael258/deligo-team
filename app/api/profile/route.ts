@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRest, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 import { detectMozambiqueWalletOperator } from "@/lib/mozambique-wallet";
 
+const paysuiteAvailable = () => (process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN)) || Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
+
 function privilegedHeaders(key: string, profile: string) {
   const result: Record<string, string> = {
     apikey: key,
@@ -112,7 +114,7 @@ export async function GET() {
       available_amount: Number(wallet.available_amount || 0),
       pending_amount: Number(wallet.pending_amount || 0),
       reserved_amount: Number(wallet.reserved_amount || 0),
-      withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
+      withdrawal_enabled: paysuiteAvailable(),
     }));
     // The founder's old 10 MZN display balance was created by the previous
     // corporate-withdrawal experiment and is not a valid personal balance.
@@ -154,7 +156,7 @@ export async function GET() {
         // PaySuite wallet when the provider is configured. Keep the button
         // actionable so the user can start that real migration instead of
         // seeing a permanently disabled control for a valid old balance.
-        withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
+        withdrawal_enabled: paysuiteAvailable(),
       });
     }
     wallets.push(...visibleHqPersonalWallets);

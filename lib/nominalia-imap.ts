@@ -2,7 +2,8 @@ import { ImapFlow } from "imapflow";
 import { stagingRest } from "@/lib/hq-server";
 
 type Mailbox = { area: "geral" | "comercial" | "carreiras"; user: string; password: string };
-type ImapResult = { mailbox: string; scanned: number; imported: number; skipped: number; error?: string };
+type ImapResult = { mailbox: string; scanned: number; imported: number; skipped: number; error?: string; uidValidity?: string };
+export type ImapCheckResult = { area: Mailbox["area"]; mailbox?: string; host: string; port: number; tls: "TLS"; status: "not_configured" | "connected" | "auth_failed" | "connection_failed" | "sync_error"; inboxReadable: boolean; messageCount?: number; uidValidity?: string; error?: string };
 
 const configuredHost = (process.env.NOMINALIA_IMAP_HOST || process.env.NOMINALIA_IMAP_SERVER || "pop.securemail.pro").trim();
 const port = Number(process.env.NOMINALIA_IMAP_PORT || process.env.NOMINALIA_IMAP_SSL_PORT || 993);
@@ -31,12 +32,18 @@ function parseMail(source: Buffer) {
   const body = bodies.plain.join("\n\n").trim() || bodies.html.map(stripHtml).join("\n\n").trim(); const from = headerValue(header, "From");
   return { messageId: headerValue(header, "Message-ID") || headerValue(header, "Message-Id") || "raw-" + Buffer.from(source).toString("base64url").slice(0, 48), subject: decodeHeader(headerValue(header, "Subject") || "Sem assunto"), fromEmail: parseAddress(from), fromName: from.replace(/<[^>]+>/, "").replace(/"/g, "").trim() || parseAddress(from), body: body.slice(0, 50000), date: headerValue(header, "Date") };
 }
-async function fetchMailbox(mailbox: Mailbox, connectionHost: string): Promise<Buffer[]> {
+async function openMailbox(mailbox: Mailbox, connectionHost: string) {
   const client = new ImapFlow({ host: connectionHost, port, secure: true, auth: { user: mailbox.user, pass: mailbox.password }, logger: false, connectionTimeout: 20_000, greetingTimeout: 20_000, socketTimeout: 30_000 });
   await withTimeout(client.connect(), "CONNECT"); const lock = await withTimeout(client.getMailboxLock("INBOX"), "MAILBOX");
+  const mailboxInfo = client.mailbox && typeof client.mailbox === "object" ? client.mailbox : null;
+  return { client, lock, uidValidity: String(mailboxInfo && "uidValidity" in mailboxInfo ? mailboxInfo.uidValidity || "" : "") };
+}
+async function fetchMailbox(mailbox: Mailbox, connectionHost: string): Promise<{ source: Buffer; uid: number; uidValidity: string }[]> {
+  const { client, lock, uidValidity } = await openMailbox(mailbox, connectionHost);
   try {
-    const searchResult = await withTimeout(client.search({ all: true }, { uid: true }), "SEARCH"); const uids = Array.isArray(searchResult) ? searchResult : []; const messages: Buffer[] = [];
-    await withTimeout((async () => { for await (const message of client.fetch(uids.slice(-50), { source: true }, { uid: true })) if (message.source) messages.push(Buffer.isBuffer(message.source) ? message.source : Buffer.from(message.source)); })(), "FETCH"); return messages;
+    const searchResult = await withTimeout(client.search({ all: true }, { uid: true }), "SEARCH"); const uids = Array.isArray(searchResult) ? searchResult : [];
+    const result: { source: Buffer; uid: number; uidValidity: string }[] = [];
+    await withTimeout((async () => { for await (const message of client.fetch(uids.slice(-100), { source: true }, { uid: true })) if (message.source) result.push({ source: Buffer.isBuffer(message.source) ? message.source : Buffer.from(message.source), uid: Number(message.uid), uidValidity }); })(), "FETCH"); return result;
   } finally { lock.release(); try { await withTimeout(client.logout(), "LOGOUT"); } catch { client.close(); } }
 }
 function mailboxFor(area: Mailbox["area"]): Mailbox | null {
@@ -65,15 +72,34 @@ function safeError(error: unknown) {
   return "ligação IMAP falhou";
 }
 export async function syncNominaliaMailboxes(): Promise<ImapResult[]> {
-  const existing = await stagingRest("inbox_messages?select=meta&source=eq.nominalia_imap&limit=3000") as Array<{ meta?: Record<string, unknown> | null }>; const known = new Set(existing.map(row => String(row.meta?.message_id || "")).filter(Boolean));
+  // `inbox_messages.source` is constrained to the public inbox sources. Keep
+  // the provider in meta instead of writing an invalid source value.
+  const existing = await stagingRest("inbox_messages?select=meta,external_id&source=eq.email&limit=5000") as Array<{ meta?: Record<string, unknown> | null; external_id?: string | null }>; const known = new Set(existing.flatMap(row => [String(row.meta?.message_id || ""), String(row.external_id || "")]).filter(Boolean));
   const results = await Promise.all((["geral", "comercial", "carreiras"] as const).map(async area => {
     const mailbox = mailboxFor(area); if (!mailbox) return { mailbox: area, scanned: 0, imported: 0, skipped: 0, error: "credenciais não configuradas" };
     try {
-      const hosts = [...new Set([configuredHost, "pop.securemail.pro", "imap.securemail.pro"])].filter(Boolean); let sources: Buffer[] = []; let lastError: unknown;
+      const hosts = [...new Set([configuredHost, "pop.securemail.pro", "imap.securemail.pro"])].filter(Boolean); let sources: { source: Buffer; uid: number; uidValidity: string }[] = []; let lastError: unknown;
       for (const connectionHost of hosts) { try { sources = await fetchMailbox(mailbox, connectionHost); lastError = undefined; break; } catch (error) { lastError = error; } } if (lastError) throw lastError;
-      let imported = 0; let skipped = 0; for (const source of sources) { const mail = parseMail(source); if (known.has(mail.messageId)) { skipped += 1; continue; } await stagingRest("inbox_messages", { method: "POST", body: JSON.stringify({ area, source: "nominalia_imap", subject: mail.subject, from_name: mail.fromName, from_email: mail.fromEmail, body: mail.body, meta: { mailbox: mailbox.user, message_id: mail.messageId, received_at: mail.date || new Date().toISOString(), unread: true } }) }); known.add(mail.messageId); imported += 1; }
-      return { mailbox: mailbox.user, scanned: sources.length, imported, skipped };
+      let imported = 0; let skipped = 0; const uidValidity = sources[0]?.uidValidity || ""; for (const item of sources) { const mail = parseMail(item.source); const externalId = `${mailbox.user}:${item.uidValidity}:${item.uid}`; if (known.has(mail.messageId) || known.has(externalId)) { skipped += 1; continue; } await stagingRest("inbox_messages", { method: "POST", body: JSON.stringify({ area, source: "email", external_id: externalId, subject: mail.subject, from_name: mail.fromName, from_email: mail.fromEmail, body: mail.body, meta: { provider: "nominalia_imap", mailbox: mailbox.user, message_id: mail.messageId, uid: item.uid, uidvalidity: item.uidValidity, received_at: mail.date || new Date().toISOString(), unread: true } }) }); known.add(mail.messageId); known.add(externalId); imported += 1; }
+      return { mailbox: mailbox.user, scanned: sources.length, imported, skipped, uidValidity };
     } catch (error) { const safe = safeError(error); console.error("NOMINALIA_IMAP_MAILBOX_FAILED", { mailbox: mailbox.user, area, error: safe }); return { mailbox: mailbox.user, scanned: 0, imported: 0, skipped: 0, error: safe }; }
   }));
   return results;
+}
+
+export async function testNominaliaMailbox(area: Mailbox["area"]): Promise<ImapCheckResult> {
+  const mailbox = mailboxFor(area);
+  if (!mailbox) return { area, host: configuredHost, port, tls: "TLS", status: "not_configured", inboxReadable: false, error: "credenciais não configuradas no servidor" };
+  let lastError: unknown;
+  for (const host of [...new Set([configuredHost, "pop.securemail.pro", "imap.securemail.pro"])]) {
+    try {
+      const { client, lock, uidValidity } = await openMailbox(mailbox, host);
+      try {
+        const result = await withTimeout(client.search({ all: true }, { uid: true }), "SEARCH");
+        return { area, mailbox: mailbox.user, host, port, tls: "TLS", status: "connected", inboxReadable: true, messageCount: Array.isArray(result) ? result.length : 0, uidValidity };
+      } finally { lock.release(); try { await withTimeout(client.logout(), "LOGOUT"); } catch { client.close(); } }
+    } catch (error) { lastError = error; }
+  }
+  const message = safeError(lastError);
+  return { area, mailbox: mailbox.user, host: configuredHost, port, tls: "TLS", status: /autenticação|credenciais/i.test(message) ? "auth_failed" : /certificado|tempo esgotado|servidor/i.test(message) ? "connection_failed" : "sync_error", inboxReadable: false, error: message };
 }
