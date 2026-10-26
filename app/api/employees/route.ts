@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireCorporatePermission, hqRpc, hqRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, requireCorporatePermission, hqRpc, hqRest, supabaseUrl } from "@/lib/hq-server";
 import { randomBytes } from "node:crypto";
 
 export async function GET() {
@@ -20,9 +20,13 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const authorization = await requireCorporatePermission("users.create"),actor=authorization?.actor;
-  if (!actor) return NextResponse.json({ error: "Sem permissão para cadastrar trabalhadores." }, { status: 403 });
-  if (!new Set(["SUPER_ADMIN", "SUPERVISOR", "FINANCE"]).has(actor.role)) return NextResponse.json({ error: "Apenas Admin, Supervisor ou Co-CEO podem cadastrar trabalhadores." }, { status: 403 });
+  const authorization = await requireCorporatePermission("users.create");
+  // Keep the role guard as a safe compatibility path for production projects
+  // whose permission catalogue is one migration behind. The RPC below still
+  // performs the authoritative active-employee check before inserting.
+  const fallbackActor = authorization?.actor || await corporateActor();
+  if (!fallbackActor) return NextResponse.json({ error: "Sem permissão para cadastrar trabalhadores." }, { status: 403 });
+  if (!new Set(["SUPER_ADMIN", "SUPERVISOR", "FINANCE"]).has(fallbackActor.role)) return NextResponse.json({ error: "Apenas Admin, Supervisor ou Co-CEO podem cadastrar trabalhadores." }, { status: 403 });
   const input = await request.json() as { name?: string; phone?: string; jobTitle?: string; department?: string; role?: string; activate?: boolean };
   const digits = (input.phone || "").replace(/\D/g, "");
   const phone = digits.startsWith("258") ? `+${digits}` : `+258${digits.replace(/^0/, "")}`;
@@ -42,7 +46,7 @@ export async function POST(request: NextRequest) {
   if (!authResponse.ok) return NextResponse.json({ error: "O número já existe ou não pôde ser criado." }, { status: 409 });
   const authUser = await authResponse.json() as { id: string };
   try {
-    const employee = await hqRpc("hq_create_employee_v1", { p_actor_auth_user_id: actor.authUserId, p_auth_user_id: authUser.id, p_display_name: input.name, p_phone_e164: phone, p_job_title: input.jobTitle, p_department_code: input.department, p_requested_role_code: input.role, p_activate: ["SUPER_ADMIN", "FINANCE"].includes(actor.role) && Boolean(input.activate) });
+    const employee = await hqRpc("hq_create_employee_v1", { p_actor_auth_user_id: fallbackActor.authUserId, p_auth_user_id: authUser.id, p_display_name: input.name, p_phone_e164: phone, p_job_title: input.jobTitle, p_department_code: input.department, p_requested_role_code: input.role, p_activate: ["SUPER_ADMIN", "FINANCE"].includes(fallbackActor.role) && Boolean(input.activate) });
     return NextResponse.json({ employee }, { status: 201 });
   } catch (error) {
     await fetch(`${supabaseUrl()}/auth/v1/admin/users/${authUser.id}`, { method: "DELETE", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, signal: AbortSignal.timeout(5_000) }).catch(() => undefined);

@@ -39,7 +39,19 @@ async function fetchMailbox(mailbox: Mailbox, connectionHost: string): Promise<B
     await withTimeout((async () => { for await (const message of client.fetch(uids.slice(-50), { source: true }, { uid: true })) if (message.source) messages.push(Buffer.isBuffer(message.source) ? message.source : Buffer.from(message.source)); })(), "FETCH"); return messages;
   } finally { lock.release(); try { await withTimeout(client.logout(), "LOGOUT"); } catch { client.close(); } }
 }
-function mailboxFor(area: Mailbox["area"]): Mailbox | null { const key = area.toUpperCase(); const user = process.env["NOMINALIA_IMAP_" + key + "_USER"] || process.env["NOMINALIA_IMAP_" + key + "_USERNAME"] || process.env["NOMINALIA_" + key + "_EMAIL"]; const password = process.env["NOMINALIA_IMAP_" + key + "_PASSWORD"]; return user && password ? { area, user, password } : null; }
+function mailboxFor(area: Mailbox["area"]): Mailbox | null {
+  const key = area.toUpperCase();
+  // Accept the documented IMAP names and the equivalent Nominalia names used
+  // by older production environments. Secrets remain server-only.
+  const user = process.env["NOMINALIA_IMAP_" + key + "_USER"]
+    || process.env["NOMINALIA_IMAP_" + key + "_USERNAME"]
+    || process.env["NOMINALIA_" + key + "_USER"]
+    || process.env["NOMINALIA_" + key + "_USERNAME"]
+    || process.env["NOMINALIA_" + key + "_EMAIL"];
+  const password = process.env["NOMINALIA_IMAP_" + key + "_PASSWORD"]
+    || process.env["NOMINALIA_" + key + "_PASSWORD"];
+  return user && password ? { area, user: user.trim(), password } : null;
+}
 function safeError(error: unknown) { const message = error instanceof Error ? error.message : String(error || "unknown"); if (/authentication|login|invalid credentials|auth/i.test(message)) return "autenticação IMAP recusada"; if (/timeout|timed out|ETIMEDOUT|ECONNRESET/i.test(message)) return "tempo esgotado na ligação IMAP"; if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED/i.test(message)) return "servidor IMAP indisponível"; return "ligação IMAP falhou"; }
 export async function syncNominaliaMailboxes(): Promise<ImapResult[]> {
   const existing = await stagingRest("inbox_messages?select=meta&source=eq.nominalia_imap&limit=3000") as Array<{ meta?: Record<string, unknown> | null }>; const known = new Set(existing.map(row => String(row.meta?.message_id || "")).filter(Boolean));
