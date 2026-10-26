@@ -14,7 +14,17 @@ const range = (period: Period, from: string | null, to: string | null) => { cons
 const countBy = (rows: Row[], getter: (row: Row) => string) => { const counts = new Map<string, number>(); rows.forEach(row => { const key = getter(row) || "Não indicado"; counts.set(key, (counts.get(key) || 0) + 1); }); return [...counts.entries()].map(([label, value]) => ({ label, value })); };
 const metric = (id: string, label: string, value: number | null, formula: string, source: string) => ({ id, label, value, unit: "count", formula, source, status: value == null ? "unavailable" : "fresh" });
 async function read(path: string) { try { const rows = await hqRest(path) as Row[]; return Array.isArray(rows) ? rows : []; } catch { return []; } }
-async function readPublic(path: string) { const rows = await stagingRest(path) as Row[]; if (!Array.isArray(rows)) throw new Error("PUBLIC_SOURCE_INVALID_RESPONSE"); return rows; }
+async function readPublic(path: string) {
+  // A missing public content source must not blank the authenticated shell.
+  // Return an empty, truthful dataset and let the dashboard render its empty
+  // state; transport/auth failures remain visible through the source note.
+  try {
+    const rows = await stagingRest(path) as Row[];
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
 function series(current: { from: string; to: string }, rows: Row[], dateGetter: (row: Row) => unknown) { const points = new Map<string, number>(); for (let cursor = start(current.from); cursor <= start(current.to); cursor = new Date(cursor.getTime() + dayMs)) points.set(maputoDate(cursor), 0); rows.forEach(row => { const date = dateOnly(dateGetter(row)); if (points.has(date)) points.set(date, (points.get(date) || 0) + 1); }); return [...points.entries()].map(([date, value]) => ({ date, value })); }
 
 export async function GET(request: NextRequest) {

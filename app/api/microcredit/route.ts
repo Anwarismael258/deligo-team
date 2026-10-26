@@ -18,7 +18,25 @@ async function actor() {
 async function signedDocument(path: unknown, folder: unknown) {
   if (typeof path !== "string" || !path.trim()) return null;
   const cleanFolder = typeof folder === "string" ? folder.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "") : "";
-  let cleanPath = path.trim().replace(/\\/g, "/").replace(/^\/+/, "");
+  let cleanPath = path.trim();
+  // Older submissions stored a complete Supabase Storage URL. Keep only the
+  // bucket-relative object path so we can sign it against the current private
+  // project, never forward an expired token or an arbitrary bucket.
+  if (/^https?:\/\//i.test(cleanPath)) {
+    try {
+      const parsed = new URL(cleanPath);
+      const marker = "/storage/v1/object/";
+      const markerIndex = parsed.pathname.indexOf(marker);
+      if (markerIndex < 0) return null;
+      const objectPath = parsed.pathname.slice(markerIndex + marker.length);
+      const bucketIndex = objectPath.indexOf("loan-documents/");
+      if (bucketIndex < 0) return null;
+      cleanPath = objectPath.slice(bucketIndex + "loan-documents/".length);
+    } catch {
+      return null;
+    }
+  }
+  cleanPath = cleanPath.replace(/\\/g, "/").replace(/^\/+/, "");
   if (cleanPath.startsWith("loan-documents/")) cleanPath = cleanPath.slice("loan-documents/".length);
   if (!cleanPath || cleanPath.includes("..") || cleanPath.includes("://") || cleanPath.includes("\\0")) return null;
   if (!cleanPath.includes("/") && cleanFolder) cleanPath = `${cleanFolder}/${cleanPath}`;

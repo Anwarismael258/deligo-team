@@ -34,7 +34,7 @@ const paysuiteWebhookUrl = () => process.env.PAYSUITE_WEBHOOK_URL || process.env
 
 function isPaySuiteWallet(wallet: Record<string, unknown>) {
   const metadata = (wallet.metadata && typeof wallet.metadata === "object" ? wallet.metadata : {}) as Record<string, unknown>;
-  return metadata.withdrawal_disabled !== true && metadata.provider_integration === "paysuite";
+  return metadata.withdrawal_disabled !== true;
 }
 
 export async function POST(request: NextRequest) {

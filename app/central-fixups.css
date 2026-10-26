@@ -59,12 +59,12 @@
   .shell .microcreditPreview { width: 100%; }
 }
 
-/* Inbox detail keeps the decision controls and reply composer visible before the long message body. */
+/* Inbox detail keeps the message readable before the reply controls. */
 .shell .inboxWorkspace .employeeDetail { display: flex; flex-direction: column; }
 .shell .inboxWorkspace .employeeDetailHead { order: 1; }
-.shell .inboxWorkspace .inboxStatuses { order: 2; }
-.shell .inboxWorkspace .inboxReplyComposer { order: 3; }
-.shell .inboxWorkspace .inboxBody { order: 4; }
+.shell .inboxWorkspace .inboxBody { order: 2; }
+.shell .inboxWorkspace .inboxStatuses { order: 3; }
+.shell .inboxWorkspace .inboxReplyComposer { order: 4; }
 .shell .inboxWorkspace .employeeDetail > h3 { order: 5; }
 .shell .inboxWorkspace .employeeDetail > .procurementList { order: 6; }
 .shell .inboxWorkspace .employeeDetail > textarea { order: 7; }

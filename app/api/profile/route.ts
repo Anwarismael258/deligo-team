@@ -46,7 +46,11 @@ function mapCanonicalWallet(wallet: Record<string, unknown>, app?: Record<string
     available_amount: Number(wallet.available_balance_minor || 0) / 100,
     pending_amount: Number(wallet.pending_balance_minor || 0) / 100,
     reserved_amount: Number(wallet.reserved_balance_minor || 0) / 100,
-    withdrawal_enabled: metadata.withdrawal_disabled !== true && metadata.provider_integration === "paysuite",
+    // The shared Supabase Edge Function may own the provider integration, so
+    // older wallet rows do not always carry a provider_integration marker.
+    // The withdrawal endpoint remains authoritative and will reject a real
+    // provider failure; do not hide a valid personal balance in the UI.
+    withdrawal_enabled: metadata.withdrawal_disabled !== true && paysuiteAvailable(),
   };
 }
 
