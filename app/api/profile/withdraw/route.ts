@@ -48,6 +48,14 @@ export async function POST(request: NextRequest) {
   // the other DeliGo apps. Use that same server-side function when Vercel does
   // not have a duplicate provider token; never copy or expose the secret.
   if (process.env.PAYSUITE_ENABLED !== "true" || !process.env.PAYSUITE_API_TOKEN) {
+    // The profile can still expose a legitimate legacy personal balance while
+    // the canonical PaySuite wallet has not been materialised yet. Reconcile
+    // that authenticated worker before delegating to the shared Edge Function;
+    // otherwise the Edge Function sees an empty wallet and incorrectly returns
+    // "saldo insuficiente" even though the profile shows available funds.
+    await hqRpc("migrate_legacy_personal_wallet_to_paysuite_v1", { p_auth_user_id: actor.authUserId }).catch((error) => {
+      console.warn("legacy_personal_wallet_migration_skipped_before_edge_withdrawal", error);
+    });
     const token = (await cookies()).get("hq_access_token")?.value;
     const anonKey = process.env.SUPABASE_ANON_KEY;
     if (!token || !anonKey) return NextResponse.json({ error: "PaySuite não está disponível: sessão ou configuração Supabase ausente." }, { status: 503 });
