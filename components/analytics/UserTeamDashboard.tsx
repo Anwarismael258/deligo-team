@@ -23,12 +23,23 @@ const numberOrNull = (value: number | null | undefined) => value == null ? null 
 const labelize = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, character => character.toUpperCase());
 const userChartStyles = `.userTeamDashboard .analyticsKpiCard{background:linear-gradient(145deg,#10253b,#0b1727);border-color:#315174;color:#eaf2ff;box-shadow:0 10px 24px #02071155}.userTeamDashboard .analyticsKpiCard>span{color:#9db6ce}.userTeamDashboard .analyticsKpiCard>strong{color:#f5f9ff}.userTeamDashboard .analyticsKpiCard>small{color:#86a1bd}.userTeamDashboard .analyticsChartContainer{background:linear-gradient(145deg,#10253b,#0b1727);border-color:#315174;color:#eaf2ff}.userTeamDashboard .analyticsChartHeading h3{color:#f5f9ff;font-size:15px}.userTeamDashboard .analyticsChartCanvas{height:260px!important;min-height:260px!important;background:#0b1b2d;border:1px solid #315174;border-radius:9px;padding:8px}.userTeamDashboard .analyticsChartCanvas svg{height:244px!important;min-height:244px!important}.userTeamDashboard .analyticsChartCanvas svg text{font-size:12px!important;fill:#d7e8f8!important}.userTeamDashboard .analyticsDataNote{color:#9db6ce}`;
 
-type DirectoryEmployee = { department?: string; status?: string };
+type DirectoryEmployee = { id?: string; name?: string; phone?: string; job_title?: string; employee_code?: string; department?: string; status?: string };
 
 export function UserTeamDashboard({ mode, teamDirectory = [] }: { mode: Mode; teamDirectory?: DirectoryEmployee[] }) {
   const [filters, setFilters] = useState<AnalyticsFilters>({ period: "last_30_days", timezone: "Africa/Maputo" });
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState("");
+  const [invitedEmployees, setInvitedEmployees] = useState<DirectoryEmployee[]>(() => teamDirectory.filter(employee => employee.status === "invited"));
+  const [inviteNotice, setInviteNotice] = useState("");
+  useEffect(() => { setInvitedEmployees(teamDirectory.filter(employee => employee.status === "invited")); }, [teamDirectory]);
+  const activateInvitedEmployee = async (employee: DirectoryEmployee) => {
+    if (!employee.id) return;
+    setInviteNotice("A processar…");
+    const response = await fetch("/api/employees", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ employeeId: employee.id, action: "activate" }) });
+    const body = await response.json().catch(() => ({}));
+    if (response.ok) { setInvitedEmployees(current => current.filter(item => item.id !== employee.id)); setInviteNotice("Acesso activado e auditado."); }
+    else setInviteNotice(String(body.error || "Não foi possível activar este acesso."));
+  };
   useEffect(() => {
     const params = new URLSearchParams({ period: filters.period });
     if (filters.from) params.set("from", filters.from);
@@ -79,6 +90,7 @@ export function UserTeamDashboard({ mode, teamDirectory = [] }: { mode: Mode; te
   return <section className="analyticsDashboardShell userTeamDashboard">
     <style>{userChartStyles}</style>
     {mode === "team" && <div className="analyticsFilters" aria-label="Filtros de equipa"><label><span>Departamento</span><select value={filters.department || ""} onChange={event => setFilters({ ...filters, department: event.target.value || undefined })}><option value="">Todos os departamentos</option>{(data?.filters?.departments || []).map(department => <option value={String(department.code || department.id || "")} key={String(department.id || department.code)}>{String(department.name || department.code || "Departamento")}</option>)}</select></label><label><span>Estado</span><select value={filters.status || ""} onChange={event => setFilters({ ...filters, status: event.target.value || undefined })}><option value="">Todos os estados</option>{["active", "invited", "suspended", "completed", "in_progress", "pending", "cancelled"].map(status => <option value={status} key={status}>{labelize(status)}</option>)}</select></label></div>}
+    {mode === "team" && invitedEmployees.length > 0 && <section className="invitedEmployeesPanel" aria-labelledby="invited-workers-title"><div><span>ACESSO PENDENTE</span><h3 id="invited-workers-title">Trabalhadores convidados sem primeiro acesso</h3><p>Estas contas ainda não iniciaram sessão na Central.</p></div><div className="invitedEmployeesList">{invitedEmployees.map(employee => <div className="invitedEmployeeRow" key={employee.id}><div><strong>{employee.name || "Trabalhador"}</strong><small>{employee.employee_code || "Sem código"} · {employee.phone || "Sem telefone"} · {employee.job_title || "Cargo pendente"}</small></div><button type="button" onClick={() => void activateInvitedEmployee(employee)}>Activar acesso</button></div>)}</div>{inviteNotice && <small className="invitedEmployeesNotice">{inviteNotice}</small>}</section>}
     {error && !data ? mode === "team" && teamDirectory.length ? <><div className="analyticsExecutiveGrid"><ChartContainer title="Equipa por departamento"><AnalyticsBarChart data={directoryDepartments} label="Trabalhadores" /></ChartContainer><ChartContainer title="Estados da equipa"><AnalyticsDonutChart data={directoryStatuses} /></ChartContainer></div><div className="analyticsDataNote">Resumo da lista autorizada. A leitura analítica será repetida automaticamente.</div></> : <EmptyState title="A carregar indicadores" description={error} /> : <>
       <KPIGrid items={kpis} />
       <DashboardFilters value={filters} onChange={setFilters} platforms={data?.filters?.platforms || []} />
