@@ -57,11 +57,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Array<{ personal_phone?: string | null }>;
+    const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id,personal_phone`) as Array<{ auth_user_id?: string | null; personal_phone?: string | null }>;
+    const walletOwnerId = String(employeeProfiles?.[0]?.auth_user_id || actor.authUserId);
     const operator = detectMozambiqueWalletOperator(String(employeeProfiles?.[0]?.personal_phone || ""));
     const { phone, method } = operator;
     const idempotencyKey = `employee-payout-${actor.authUserId}-${crypto.randomUUID()}`;
-    const hqWallets = await hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=wallet_code,available_amount&limit=10`) as Array<{ wallet_code?: string; available_amount?: number }>;
+    const hqWallets = await hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(walletOwnerId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=wallet_code,available_amount&limit=10`) as Array<{ wallet_code?: string; available_amount?: number }>;
     const hqAvailable = (Array.isArray(hqWallets) ? hqWallets : []).reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
     if (hqAvailable >= amount) {
       const prepared = await hqRpc("hq_prepare_employee_paysuite_payout_v1", { p_actor_auth_user_id: actor.authUserId, p_amount: amount, p_method: method, p_phone_number: phone, p_idempotency_key: idempotencyKey }) as Record<string, unknown>;

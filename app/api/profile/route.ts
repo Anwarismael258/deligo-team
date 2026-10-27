@@ -84,7 +84,7 @@ export async function GET() {
       // continua fora deste filtro porque não tem owner_user_id.
       paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(walletOwnerId)}&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
       coreRest(key, "apps?select=id,slug,name"),
-      hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=id,wallet_code,wallet_type,currency,available_amount,pending_amount,reserved_amount`),
+      hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(walletOwnerId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=id,wallet_code,wallet_type,currency,available_amount,pending_amount,reserved_amount`),
     ]);
     const legacy = legacyResult.status === "fulfilled" ? legacyResult.value : [];
     const canonical = canonicalResult.status === "fulfilled" ? canonicalResult.value : [];
