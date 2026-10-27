@@ -656,6 +656,142 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 
 @media(max-width:900px){.shell .fieldGovernanceGrid{grid-template-columns:1fr}.shell .supportCaseColumns{grid-template-columns:1fr}.shell .notificationCenterHead{flex-direction:column}.shell .notificationHeadActions{width:100%;justify-content:space-between}}
 @media(max-width:620px){.shell .supportScreenHeader{grid-template-columns:1fr}.shell .supportScreenHeader>.primaryAction{grid-column:1;grid-row:auto;width:max-content}.shell .supportScreenMetrics{grid-template-columns:1fr}.shell .notificationSummary{grid-template-columns:1fr}.shell .notificationFilterSelects{width:100%}.shell .notificationFilterSelects>*{width:100%}.shell .inboxHeaderActions{width:100%}.shell .inboxHeaderActions button{flex:1}.shell .supportScreenHeader h2,.shell .notificationCenterHead h2{font-size:22px}}
+
+/* Inbox: Gmail-like three-pane layout using the existing real mail actions. */
+.shell .inboxWorkspace{grid-template-columns:238px minmax(0,1.18fr) minmax(320px,.92fr);align-items:start;gap:0;padding:0;border:1px solid #2d597b;border-radius:14px;background:#081a2b!important;overflow:hidden}
+.shell .inboxWorkspace>.financeHero,.shell .inboxWorkspace>.inboxComposerLauncher,.shell .inboxWorkspace>.inboxComposeBackdrop,.shell .inboxWorkspace>.operationalNotice{grid-column:1/-1}
+.shell .inboxWorkspace>.financeHero{border:0;border-bottom:1px solid #294766;border-radius:0;padding:17px 20px;background:linear-gradient(135deg,#0d2943,#0a1b2e)!important}
+.shell .inboxWorkspace>.inboxComposerLauncher{display:none}
+.shell .inboxWorkspace>.inboxFolders{grid-column:1;grid-row:3 / span 3;display:flex;align-items:stretch;flex-direction:column;gap:3px;height:100%;margin:0;padding:14px 10px;border:0!important;border-right:1px solid #294766!important;border-radius:0;background:#0a2034!important}
+.shell .inboxWorkspace>.inboxFolders button{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:40px;padding:9px 12px;border:1px solid transparent;border-radius:8px;color:#a8c2d8;text-align:left}
+.shell .inboxWorkspace>.inboxFolders button::before{margin-right:9px;color:#6c9abb;font-size:14px}
+.shell .inboxWorkspace>.inboxFolders button:nth-child(1)::before{content:"✉"}.shell .inboxWorkspace>.inboxFolders button:nth-child(2)::before{content:"●"}.shell .inboxWorkspace>.inboxFolders button:nth-child(3)::before{content:"➤"}
+.shell .inboxWorkspace>.inboxFolders button.active{background:#0b4057;border-color:#16d4eb;color:#ecffff;box-shadow:inset 3px 0 #20e0ee}
+.shell .inboxWorkspace>.inboxFolders b{color:#e5f7ff}
+.shell .inboxWorkspace>.peopleSearchBar{grid-column:2;padding:12px 14px;margin:0;border:0;border-bottom:1px solid #294766;border-radius:0;background:#0b2238!important;display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:8px;align-items:center}
+.shell .inboxWorkspace>.peopleSearchBar input,.shell .inboxWorkspace>.peopleSearchBar select{min-width:0;height:34px}
+.shell .inboxWorkspace>.peopleSearchBar b{color:#8eabc3;font-size:10px;white-space:nowrap}
+.shell .inboxWorkspace>.procurementList{grid-column:2;margin:0;min-height:390px;max-height:calc(100vh - 260px);overflow:auto;border:0!important;border-radius:0;background:#0a1b2d!important}
+.shell .inboxWorkspace>.procurementList>button{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;min-height:66px;padding:10px 14px;border:0;border-bottom:1px solid #223f5a!important;border-radius:0;text-align:left}
+.shell .inboxWorkspace>.procurementList>button strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.shell .inboxWorkspace>.procurementList>button span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px}
+.shell .inboxWorkspace>.procurementList>button>b{font-size:9px;color:#86d8e9;white-space:nowrap}
+.shell .inboxWorkspace>.procurementList>button.inboxUnread strong{font-weight:900;color:#fff}
+.shell .inboxWorkspace>.procurementList>button{position:relative}.shell .inboxWorkspace>.procurementList>button.inboxUnread::before{content:"";width:5px;height:5px;position:absolute;left:6px;top:18px;border-radius:50%;background:#ff3f62;box-shadow:0 0 9px #ff3f62}
+.shell .inboxWorkspace>.employeeDetail{grid-column:3;grid-row:3 / span 3;min-width:0;min-height:390px;max-height:calc(100vh - 260px);overflow:auto;margin:0;border:0!important;border-left:1px solid #294766!important;border-radius:0;background:#0b2035!important}
+.shell .inboxWorkspace>.employeeDetail .employeeDetailHead{position:sticky;top:0;z-index:2;padding:15px 16px;border-bottom:1px solid #294766;background:#0b2035}
+.shell .inboxWorkspace>.employeeDetail .employeeDetailHead h3{font-size:15px}
+.shell .inboxWorkspace>.employeeDetail .inboxBody{margin:14px;background:#102a43;border-color:#315a7b}
+.shell .inboxWorkspace>.employeeDetail>h3,.shell .inboxWorkspace>.employeeDetail>.procurementList,.shell .inboxWorkspace>.employeeDetail>textarea,.shell .inboxWorkspace>.employeeDetail>.inboxReplyActions{margin-left:14px;margin-right:14px}
+.shell .inboxWorkspace>.employeeDetail>.procurementList{min-height:0;max-height:none;background:#0d263e!important}
+.shell .inboxWorkspace>.employeeDetail>.peopleSearchBar{margin:12px 14px;border:1px solid #294766;border-radius:8px;display:flex;flex-wrap:wrap}
+.shell .inboxWorkspace>.employeeDetail>.inboxReplyLauncher{display:block;margin:12px 14px}
+@media(max-width:900px){.shell .inboxWorkspace{grid-template-columns:190px minmax(0,1fr)}.shell .inboxWorkspace>.employeeDetail{grid-column:2;grid-row:auto;border-top:1px solid #294766!important;border-left:0!important;max-height:none}.shell .inboxWorkspace>.peopleSearchBar{grid-template-columns:minmax(0,1fr) auto}.shell .inboxWorkspace>.peopleSearchBar select{display:none}}
+@media(max-width:620px){.shell .inboxWorkspace{display:block;overflow:visible}.shell .inboxWorkspace>.financeHero{border-radius:14px 14px 0 0}.shell .inboxWorkspace>.inboxFolders{display:grid;grid-template-columns:repeat(3,1fr);height:auto;border-right:0!important;border-bottom:1px solid #294766!important}.shell .inboxWorkspace>.inboxFolders button{justify-content:center;padding:8px 4px;font-size:10px}.shell .inboxWorkspace>.inboxFolders button::before{display:none}.shell .inboxWorkspace>.peopleSearchBar{display:flex;flex-wrap:wrap}.shell .inboxWorkspace>.peopleSearchBar input{flex:1 1 100%}.shell .inboxWorkspace>.procurementList{max-height:none}.shell .inboxWorkspace>.employeeDetail{max-height:none;border-top:1px solid #294766!important}.shell .inboxWorkspace>.procurementList>button{min-height:60px}}
+
+/* Notifications: compact Gmail-like activity feed with clear priority and actions. */
+.shell .notificationCenterWorkspace{max-width:1180px;margin:0 auto;padding:4px 0 18px}
+.shell .notificationCenterHead{padding:10px 0 18px;border-bottom:1px solid #294766}
+.shell .notificationCenterHead h2{font-size:30px;letter-spacing:-.02em}
+.shell .notificationCenterHead p{font-size:13px}
+.shell .notificationHeadActions{align-items:flex-end;flex-direction:column}
+.shell .notificationLiveState{padding:7px 10px;border:1px solid #205c63;border-radius:999px;background:#0b3040;color:#6ef2c5}
+.shell .notificationMarkAll{background:#0b3048;border-color:#23d9ed;color:#a7f4ff;cursor:pointer}
+.shell .notificationMarkAll:disabled{cursor:not-allowed;opacity:.45}
+.shell .notificationFilters{align-items:center;padding:12px;border-radius:12px;background:#0b2035!important}
+.shell .notificationFilterTabs button{min-width:96px;font-size:11px;font-weight:800;cursor:pointer}
+.shell .notificationFilterTabs button.active{box-shadow:0 0 18px #20d9ed22}
+.shell .notificationFilterSelects{flex:1;justify-content:flex-end}
+.shell .notificationFilterSelects input{min-width:220px}
+.shell .notificationSummary{grid-template-columns:repeat(3,minmax(0,1fr));background:#0b2035!important}
+.shell .notificationSummary article{border-left-width:3px}
+.shell .notificationGroups{display:grid;gap:12px}
+.shell .notificationGroup{background:#091b2d!important;border-radius:13px;box-shadow:0 8px 24px #02071138}
+.shell .notificationGroup>header{display:flex;align-items:center;justify-content:space-between;padding:13px 17px;background:#0d2943;border-bottom:1px solid #294766}
+.shell .notificationGroup>header span{color:#31d8ef;font-size:9px;font-weight:900;letter-spacing:.14em}
+.shell .notificationGroup>header h3{margin:3px 0 0;font-size:14px}
+.shell .notificationGroup>header>b{display:grid;place-items:center;min-width:24px;min-height:24px;border-radius:999px;background:#ff3658;color:#fff;font-size:10px}
+.shell .notificationItem{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:78px;padding:12px 16px;background:#091b2d!important;border-bottom:1px solid #203f59!important;cursor:pointer;transition:background .18s ease,transform .18s ease}
+.shell .notificationItem:last-child{border-bottom:0!important}
+.shell .notificationItem:hover,.shell .notificationItem:focus-visible{background:#123653!important;outline:none}
+.shell .notificationItem.isUnread{background:#0d2943!important}
+.shell .notificationIcon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#0c4a64;color:#52eaff;font-size:23px;font-weight:900;box-shadow:inset 0 0 0 1px #2bdcf066}
+.shell .notificationItem.priority-high .notificationIcon{background:#4b3512;color:#ffd166;box-shadow:inset 0 0 0 1px #e9a82666}
+.shell .notificationItem.priority-urgent .notificationIcon,.shell .notificationItem.priority-critical .notificationIcon{background:#4d1f36;color:#ff5d82;box-shadow:inset 0 0 0 1px #ff496d88}
+.shell .notificationItemBody{min-width:0;display:grid;gap:4px}
+.shell .notificationItemBody strong{font-size:13px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shell .notificationItemBody small{font-size:10px;color:#91abc4}
+.shell .notificationItemActions{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.shell .notificationItemActions button{min-width:112px;padding:8px 10px;border-radius:8px;font-size:10px;font-weight:800;cursor:pointer}
+.shell .notificationItemActions .notificationReadButton{min-width:auto;background:transparent!important;border-color:#8b3d54!important;color:#ff8ca0!important}
+.shell .notificationEmpty{padding:34px 18px;border:1px dashed #315b7c;border-radius:12px;background:#0b2035;color:#b5cce0;text-align:center}
+.shell .notificationEmpty strong,.shell .notificationEmpty span{display:block}.shell .notificationEmpty strong{color:#f3faff}.shell .notificationEmpty span{margin-top:6px;font-size:11px}
+@media(max-width:760px){.shell .notificationCenterHead{gap:12px}.shell .notificationHeadActions{align-items:stretch;width:100%}.shell .notificationMarkAll{width:100%}.shell .notificationFilters{align-items:stretch;flex-direction:column}.shell .notificationFilterSelects{display:grid;grid-template-columns:1fr 1fr}.shell .notificationFilterSelects input{grid-column:1/-1;min-width:0}.shell .notificationItem{grid-template-columns:38px minmax(0,1fr)}.shell .notificationIcon{width:36px;height:36px;font-size:19px}.shell .notificationItemActions{grid-column:2;justify-content:flex-start}.shell .notificationItemActions button{min-width:0}}
+@media(max-width:480px){.shell .notificationCenterHead h2{font-size:23px}.shell .notificationSummary{grid-template-columns:1fr}.shell .notificationFilterTabs{display:grid;grid-template-columns:repeat(2,1fr)}.shell .notificationFilterTabs button{width:100%}.shell .notificationFilterSelects{grid-template-columns:1fr}.shell .notificationFilterSelects input{grid-column:auto}.shell .notificationItemBody strong{white-space:normal}.shell .notificationItemActions button{flex:1}}
+
+/* Map: keep the control-room proportions from the reference while using the real map. */
+.shell .operationsControlRoom{max-width:1240px;margin:0 auto;padding-bottom:18px}
+.shell .operationsRoomHeader h2{letter-spacing:-.02em}
+.shell .operationsPlatformTabs{align-items:center;min-height:44px}
+.shell .operationsPlatformTabs>button{min-width:112px}
+.shell .operationsPlatformTabs .operationsViewTabs{margin-left:auto}
+.shell .operationsRoomFilters{box-shadow:0 8px 22px #0207112e}
+.shell .operationsKpis article{min-height:66px;transition:border-color .18s ease,transform .18s ease,background .18s ease}
+.shell .operationsKpis article:hover{transform:translateY(-1px);background:linear-gradient(145deg,#123553,#0c2238)}
+.shell .operationsMapStage{min-height:520px;box-shadow:0 10px 28px #02071138}
+.shell .operationsMapStage>.operationsMap{min-height:480px}
+.shell .operationsSidePanel{min-height:520px;box-shadow:0 10px 28px #02071138}
+.shell .operationsList{flex:1;max-height:none}
+.shell .operationsLegend{font-size:10px}
+@media(max-width:1050px){.shell .operationsMapStage,.shell .operationsSidePanel{min-height:0}.shell .operationsMapStage>.operationsMap{min-height:420px}.shell .operationsSidePanel{min-height:360px}}
+@media(max-width:620px){.shell .operationsPlatformTabs{align-items:stretch;flex-wrap:wrap}.shell .operationsPlatformTabs .operationsViewTabs{width:100%;margin-left:0}.shell .operationsPlatformTabs .operationsViewTabs button{flex:1}.shell .operationsMapStage>.operationsMap{min-height:330px}.shell .operationsMapStage{grid-template-rows:auto minmax(330px,1fr) auto}.shell .operationsKpis article strong{font-size:22px}}
+
+/* Field/KYC: align the real review queue with the reference table + analysis panel. */
+.shell .fieldKycOnly{display:grid;gap:12px;margin-top:0!important;padding:0!important;background:transparent!important;border:0!important;box-shadow:none!important}
+.shell .fieldKycOnly>.fieldGovernanceGrid{grid-template-columns:minmax(0,1.45fr) minmax(320px,.75fr);gap:12px;margin:0!important}
+.shell .fieldKycOnly>.fieldGovernanceGrid>article,.shell .fieldKycOnly>.fieldGovernanceGrid>details{min-width:0;max-height:620px;overflow:auto;border:1px solid #2d597b!important;border-radius:12px;background:linear-gradient(145deg,#0e2942,#0a1c30)!important;box-shadow:0 10px 26px #02071138;color:#eaf5ff}
+.shell .fieldKycOnly>.fieldGovernanceGrid>article>h3,.shell .fieldKycOnly>.fieldGovernanceGrid>details>summary{position:sticky;top:0;z-index:2;margin:0;padding:15px 16px;border-bottom:1px solid #2d597b;background:#0e2942;color:#f5fbff;font-size:14px}
+.shell .fieldKycOnly .fieldDecisionRow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;margin:0;padding:12px 14px;border-top:1px solid #234863;background:transparent!important}
+.shell .fieldKycOnly .fieldDecisionRow:hover{background:#123755!important}
+.shell .fieldKycOnly .fieldDecisionRow strong{font-size:12px;color:#f5fbff}.shell .fieldKycOnly .fieldDecisionRow span{font-size:10px;color:#a9c1d6}.shell .fieldKycOnly .fieldDecisionRow small{font-size:9px;color:#829eb8}
+.shell .fieldKycOnly .fieldDecisionRow>b{border:1px solid #2f8b70;border-radius:999px;padding:5px 8px;color:#71edc0;background:#0b3c3b;font-size:9px;white-space:nowrap}
+.shell .fieldKycOnly .fieldDecisionRow>div:last-child{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}.shell .fieldKycOnly .fieldDecisionRow button{border:1px solid #347696!important;border-radius:7px;background:#0b2942!important;color:#bceeff!important;padding:7px 9px;font-size:9px;font-weight:800;cursor:pointer}
+.shell .fieldKycOnly .fieldDecisionRow button:hover{border-color:#22d3ee!important;background:#123f5b!important}
+.shell .fieldKycOnly .kycDocuments{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.shell .fieldKycOnly .kycDocuments a{border:1px solid #315f80;border-radius:6px;padding:5px 7px;background:#0a2339;color:#9cecff;font-size:8px}
+@media(max-width:900px){.shell .fieldKycOnly>.fieldGovernanceGrid{grid-template-columns:1fr}.shell .fieldKycOnly .fieldDecisionRow{grid-template-columns:minmax(0,1fr) auto}.shell .fieldKycOnly .fieldDecisionRow>div:last-child{grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:560px){.shell .fieldKycOnly .fieldDecisionRow{grid-template-columns:1fr}.shell .fieldKycOnly .fieldDecisionRow>b,.shell .fieldKycOnly .fieldDecisionRow>div:last-child{grid-column:auto;justify-content:flex-start}}
+
+/* Apoio ao Cliente: compact control-room conversation layout from the reference. */
+.shell .supportWorkspace{display:grid;gap:14px;max-width:1420px;margin:0 auto;padding-bottom:18px}
+.shell .supportScreenHeader{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start;padding:4px 0 14px;margin:0;border-bottom:1px solid #244761}
+.shell .supportScreenHeader h2{font-size:28px;letter-spacing:-.025em}
+.shell .supportScreenHeader>.primaryAction{min-height:44px;border-radius:9px!important}
+.shell .supportScreenMetrics{grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;overflow:hidden;border:1px solid #2a5574;border-radius:12px;background:linear-gradient(145deg,#0d2943,#0a1d31)!important}
+.shell .supportScreenMetrics article{min-height:60px;padding:11px 18px;border:0;border-right:1px solid #2a5574;border-radius:0;background:transparent!important}
+.shell .supportScreenMetrics article:last-child{border-right:0}
+.shell .supportScreenMetrics b{font-size:22px}
+.shell .supportQueueView{min-width:0}
+.shell .supportTicketList{min-height:440px;max-height:calc(100vh - 250px);overflow:auto;border-radius:12px!important}
+.shell .supportTicketList .panelTitle{position:sticky;top:0;z-index:3;background:#0d2943!important}
+.shell .supportTicket{padding:0!important;margin:0!important;border-left:3px solid transparent!important;border-radius:0!important}
+.shell .supportTicket.hasUnread{border-left-color:#ff3658!important;background:#123654!important}
+.shell .supportTicketOpen{padding:13px 14px!important}
+.shell .supportTicketOpen>div{min-width:0}
+.shell .supportCaseDetail{min-width:0;margin:0!important;padding:0!important;border-radius:12px!important;overflow:hidden}
+.shell .supportCaseHead{padding:15px 17px;background:#0d2943!important}
+.shell .supportCaseHead h3{font-size:17px;color:#f5fbff}
+.shell .supportCaseHead button{cursor:pointer}
+.shell .supportCaseColumns{grid-template-columns:minmax(0,1.45fr) minmax(190px,.75fr);gap:0;margin:0;padding:14px}
+.shell .supportCaseColumns article{border-radius:9px!important;padding:13px!important}
+.shell .supportCaseColumns article+article{margin-left:10px}
+.shell .supportReplyComposer{margin:0!important;padding:13px 14px 15px!important;background:#0b1e32!important}
+.shell .supportReplyComposer textarea{min-height:74px;font-size:13px;line-height:1.4}
+.shell .supportReplyActions .primaryAction{background:#13cfe8!important;color:#041722!important;box-shadow:none!important}
+.shell .supportReplyActions .secondaryAction{cursor:pointer}
+@media(min-width:1050px){.shell .supportWorkspaceWithSelection{grid-template-columns:minmax(300px,.78fr) minmax(0,1.5fr)}.shell .supportWorkspaceWithSelection>.supportScreenHeader{grid-column:1/-1}.shell .supportWorkspaceWithSelection>.supportQueueView{grid-column:1}.shell .supportWorkspaceWithSelection>.supportCaseDetail{grid-column:2;grid-row:2}}
+@media(max-width:1049px){.shell .supportTicketList{max-height:none}.shell .supportCaseColumns{grid-template-columns:1fr}.shell .supportCaseColumns article+article{margin:10px 0 0}}
+@media(max-width:760px){.shell .supportScreenHeader{grid-template-columns:1fr}.shell .supportScreenHeader>.primaryAction{grid-column:1;justify-self:start}.shell .supportScreenMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.shell .supportScreenMetrics article:nth-child(2){border-right:0}.shell .supportScreenMetrics article:nth-child(-n+2){border-bottom:1px solid #2a5574}}
+@media(max-width:480px){.shell .supportScreenMetrics{grid-template-columns:1fr}.shell .supportScreenMetrics article{border-right:0!important;border-bottom:1px solid #2a5574!important}.shell .supportScreenMetrics article:last-child{border-bottom:0!important}.shell .supportCaseColumns{padding:9px}.shell .supportReplyComposer{padding:10px!important}}
 .inboxReplyComposer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0;padding:16px;border:1px solid #4b70a0;border-radius:14px;background:linear-gradient(145deg,#102642,#111d39);box-shadow:0 0 0 1px #22d3ee18,0 10px 30px #0000001c}.inboxReplyComposerHead{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;align-items:start;border-bottom:1px solid #315174;padding-bottom:10px}.inboxReplyComposerHead span{font-size:8px;letter-spacing:.14em;color:#22d3ee}.inboxReplyComposerHead h3{margin:5px 0 0;font-size:15px;color:#f5f8ff}.inboxReplyComposerHead small{color:#b8d0e5;font-size:9px}.inboxReplyComposer label{display:grid;gap:5px}.inboxReplyComposer label span{font-size:9px;color:#b8d0e5;font-weight:700}.inboxReplyComposer input,.inboxReplyComposer select,.inboxReplyComposer textarea{width:100%;box-sizing:border-box;border:1px solid #477195;border-radius:8px;background:#091a2b;color:#f4f9ff;padding:9px;font:inherit;font-size:11px}.inboxReplyComposer input[readonly]{color:#c8d7e8;opacity:.9}.inboxReplyComposer textarea{resize:vertical}.inboxReplyComposer .primaryAction{justify-self:start;background:linear-gradient(90deg,#0ea5e9,#8b5cf6);border-color:#22d3ee;color:#fff}.inboxReplyComposer .primaryAction:disabled{opacity:.5}.inboxReplyBackdrop{position:fixed;inset:0;z-index:75;display:grid;place-items:center;padding:18px;background:#020915c9;backdrop-filter:blur(6px)}.inboxReplyModal{width:min(720px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;margin:0;box-shadow:0 24px 80px #000c}.inboxReplyModalActions{display:flex;align-items:flex-end;gap:10px}.inboxReplyModalActions button{border:1px solid #477195;border-radius:7px;background:#102942;color:#eef7ff;padding:6px 9px;font-size:9px;cursor:pointer}.inboxReplyLauncher{margin:10px 0;background:linear-gradient(90deg,#0ea5e9,#8b5cf6);border-color:#22d3ee;color:#fff}@media(max-width:650px){.inboxReplyComposer{grid-template-columns:1fr}.inboxReplyComposerHead{align-items:stretch;flex-direction:column;gap:6px}.inboxReplyBackdrop{padding:8px}.inboxReplyModal{width:100%;max-height:calc(100vh - 16px)}.inboxReplyModalActions{align-items:stretch;justify-content:space-between}}
 .dashboardPreparingCard{display:grid;gap:8px;text-align:center;padding:22px 28px;border:1px solid #315174;border-radius:12px;background:#0d2035;color:#f4f8ff;box-shadow:0 16px 40px #02071155}
 .dashboardPreparingCard span{font-size:12px;color:#9db6ce}
