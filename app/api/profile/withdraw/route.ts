@@ -44,6 +44,14 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null) as { walletId?: string; wallet_id?: string; amount?: number } | null;
   const amount = Number(body?.amount);
   if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Indique um valor válido." }, { status: 400 });
+  // The profile endpoint resolves the personal wallet through the employee's
+  // canonical auth identity. The browser session can still be an older Auth
+  // identity (the actor context deliberately supports that during migration),
+  // so use the same owner here before reconciling a legacy balance. Otherwise
+  // the profile can show real funds while the payout function checks another
+  // empty wallet and reports a false insufficient-balance error.
+  const employeeRows = await hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id`).catch(() => []) as Array<{ auth_user_id?: string | null }>;
+  const personalWalletOwnerId = String(employeeRows?.[0]?.auth_user_id || actor.authUserId);
   // The canonical PaySuite credentials live in Supabase Edge Functions for
   // the other DeliGo apps. Use that same server-side function when Vercel does
   // not have a duplicate provider token; never copy or expose the secret.
@@ -53,7 +61,7 @@ export async function POST(request: NextRequest) {
     // that authenticated worker before delegating to the shared Edge Function;
     // otherwise the Edge Function sees an empty wallet and incorrectly returns
     // "saldo insuficiente" even though the profile shows available funds.
-    await hqRpc("migrate_legacy_personal_wallet_to_paysuite_v1", { p_auth_user_id: actor.authUserId }).catch((error) => {
+    await hqRpc("migrate_legacy_personal_wallet_to_paysuite_v1", { p_auth_user_id: personalWalletOwnerId }).catch((error) => {
       console.warn("legacy_personal_wallet_migration_skipped_before_edge_withdrawal", error);
     });
     const token = (await cookies()).get("hq_access_token")?.value;
@@ -96,7 +104,7 @@ export async function POST(request: NextRequest) {
     // The profile API can still show a real legacy DeliGo personal balance
     // while the PaySuite account is empty. Reconcile only this authenticated
     // worker's wallet, never corporate or unattributed payment aggregates.
-    await hqRpc("migrate_legacy_personal_wallet_to_paysuite_v1", { p_auth_user_id: actor.authUserId }).catch((error) => {
+    await hqRpc("migrate_legacy_personal_wallet_to_paysuite_v1", { p_auth_user_id: personalWalletOwnerId }).catch((error) => {
       console.warn("legacy_personal_wallet_migration_skipped", error);
     });
     // Keep the same wallet_id contract used by the DeliGo App, while always
