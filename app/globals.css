@@ -341,6 +341,21 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell .employeeAdminRow{border-bottom-color:#294766;color:#eaf2ff}
 .shell .employeeAdminHeader{color:#9db6ce}
 .shell .employeeActions button,.shell .peopleAccessControls button{background:#12263d;border-color:#315174;color:#dbeaff}
+.shell .employeeProfileActions{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 4px;padding-top:12px;border-top:1px solid #294766}
+.shell .employeeDetailPhone{display:block;margin-top:7px;color:#7feeff;font-size:11px;letter-spacing:.02em}
+.shell .employeeContactButton,.shell .employeeDangerButton{display:inline-flex;align-items:center;justify-content:center;border:1px solid #3c789c;border-radius:8px;background:#122d47;color:#eaf8ff;padding:8px 12px;font-size:9px;font-weight:800;text-decoration:none;cursor:pointer}
+.shell .employeeContactButton:hover,.shell .employeeContactButton:focus-visible{border-color:#38e8ff;background:#16415e}
+.shell .employeeDangerButton{border-color:#d45b6c;background:#451e32;color:#ffd8df}
+.shell .employeeDangerButton:hover,.shell .employeeDangerButton:focus-visible{border-color:#ff6b81;background:#63233b}
+.shell .employeeLinkedAccounts{margin-top:14px;padding:12px;border:1px solid #294766;border-radius:10px;background:#0d263e}
+.shell .employeeLinkedAccounts h4{margin:0;color:#f4fbff;font-size:11px}
+.shell .employeeLinkedAccounts>p{margin:5px 0 10px;color:#9db6ce;font-size:8px}
+.shell .employeeLinkedAccounts article{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid #294766}
+.shell .employeeLinkedAccounts article>div:first-child strong,.shell .employeeLinkedAccounts article>div:first-child span{display:block}
+.shell .employeeLinkedAccounts article strong{color:#f4fbff;font-size:9px}
+.shell .employeeLinkedAccounts article span{color:#9db6ce;font-size:8px;margin-top:3px}
+.shell .employeeLinkedAccounts article>div:last-child{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.shell .employeeLinkedAccounts article b{border:1px solid #315174;border-radius:999px;color:#8cefff;background:#102f4a;padding:4px 7px;font-size:7px;font-weight:700}
 .shell .employeeStatus.active,.shell .peopleAccessControls button.active{background:#153a38;color:#a8ead0}
 .shell .employeeStatus.invited{background:#4b3b20;color:#ffe0a0}
 .shell .employeeStatus.suspended{background:#4b2734;color:#ffb0bd}
