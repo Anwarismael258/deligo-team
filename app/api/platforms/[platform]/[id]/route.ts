@@ -16,7 +16,7 @@ const read = async (platform: SupportedPlatform, path: string) => {
     return [];
   }
 };
-const mediaFields = ["photo_url", "photo", "picture", "avatar_url", "profile_photo_url", "profile_photo_path", "profile_image_url", "profile_picture", "profile_image", "image_url", "logo_url", "cover_url", "menu_image_url", "menu_images", "gallery", "media", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_docs", "kyc_documents", "kyc_media", "files", "attachments", "identity_document"];
+const mediaFields = ["storage_path", "file_path", "photo_url", "photo", "picture", "avatar_url", "profile_photo_url", "profile_photo_path", "profile_image_url", "profile_picture", "profile_image", "image_url", "logo_url", "cover_url", "menu_image_url", "menu_images", "gallery", "media", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_docs", "kyc_documents", "kyc_media", "files", "attachments", "identity_document"];
 const mediaPathFields = new Set(["url", "path", "reference", "storage_path", "file_url", "document_url", "photo_url", "image_url"]);
 const signMediaValue = async (platform: SupportedPlatform, value: unknown): Promise<unknown> => {
   if (typeof value === "string") return value ? await signPlatformPath(platform, value) : value;
@@ -63,7 +63,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
     : platform === "comunhao"
     ? (await read(platform, `church_applications?id=eq.${encoded}&select=*&limit=1`))[0] || null
     : platform === "sarca"
-      ? (await read(platform, `driver_profiles?id=eq.${encoded}&select=*&limit=1`))[0] || (await read(platform, `profiles?id=eq.${encoded}&select=*&limit=1`))[0] || null
+      ? (await read(platform, `driver_profiles?user_id=eq.${encoded}&select=*&limit=1`))[0] || (await read(platform, `profiles?id=eq.${encoded}&select=*&limit=1`))[0] || null
       : (await read(platform, `profiles?id=eq.${encoded}&select=*&limit=1`))[0] || null;
   // Field cards may carry the KYC case id rather than the platform profile id.
   // Resolve the subject first so the detail view never silently loses identity/media.
@@ -96,7 +96,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
   const kycPaths = ids.flatMap(value => platform === "mestre24"
     ? relationPaths("kyc_verifications", ["user_id", "profile_id"], value)
     : platform === "sarca"
-      ? relationPaths("driver_documents", ["driver_id", "user_id"], value)
+      ? relationPaths("driver_documents", ["driver_user_id"], value)
       : platform === "comunhao"
         ? relationPaths("church_applications", ["id", "user_id", "owner_id"], value)
         : relationPaths("kyc_submissions", ["id", "user_id", "profile_id", "owner_id"], value));
@@ -104,7 +104,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
   const operationPaths = platform === "mestre24"
     ? ids.flatMap(value => relationPaths("service_requests", ["client_id", "professional_id", "provider_id", "user_id"], value))
     : platform === "sarca"
-      ? ids.flatMap(value => relationPaths("trips", ["driver_id", "rider_id", "passenger_id", "user_id"], value))
+      ? ids.flatMap(value => relationPaths("trips", ["driver_user_id", "passenger_user_id"], value))
       : ids.flatMap(value => relationPaths("orders", ["user_id", "customer_id", "buyer_id", "seller_id", "restaurant_id", "courier_id", "rider_id"], value));
   const disputePaths = platform === "mestre24"
     ? ids.flatMap(value => relationPaths("reports", ["reporter_id", "client_id", "professional_id", "user_id"], value))
@@ -152,7 +152,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
     const relatedKycPaths = relatedIds.flatMap(value => candidate === "mestre24"
       ? relationPaths("kyc_verifications", ["user_id", "profile_id"], value)
       : candidate === "sarca"
-        ? relationPaths("driver_documents", ["driver_id", "user_id"], value)
+        ? relationPaths("driver_documents", ["driver_user_id"], value)
         : relationPaths("kyc_submissions", ["id", "user_id", "profile_id", "owner_id"], value));
     const relatedKyc = await readMany(candidate, relatedKycPaths);
     return { platform: candidate, profiles: await Promise.all(candidates.map(row => signRow(candidate, row))), kyc: await Promise.all(relatedKyc.map(row => signRow(candidate, row))) };
