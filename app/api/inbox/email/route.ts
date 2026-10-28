@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, stagingRest } from "@/lib/hq-server";
-import { configuredInboxSenders, inboxRecipients, inboxSendersForRole, sendComposedInboxEmail, sendInboxEmail } from "@/lib/nominalia-mail";
+import { centralSubject, configuredInboxSenders, inboxRecipients, inboxSendersForRole, sendComposedInboxEmail, sendInboxEmail } from "@/lib/nominalia-mail";
 
 export const runtime = "nodejs";
 
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       const senderAllowed = permittedSenders(actor?.role).has(normalized(body.from));
       if (!senderAllowed || !inboxSendersForRole(actor?.role).some(address => areaForSender(address) === String(original.area || ""))) return NextResponse.json({ error: "Esta caixa não está autorizada para o seu cargo." }, { status: 403 });
       const quoted = [`${body.message.trim()}`, "", "--- Mensagem original ---", original.body?.trim() || "Sem conteúdo."].join("\n");
-      const delivery = await sendComposedInboxEmail({ from: body.from, to: body.to, subject: body.subject.trim(), text: quoted });
+      const delivery = await sendComposedInboxEmail({ from: body.from, to: body.to, subject: centralSubject(body.subject.trim(), true), text: quoted });
       const replyMeta = { reply_smtp_accepted_at: new Date().toISOString(), reply_recipient: delivery.recipient, reply_smtp_message_id: delivery.messageId, reply_smtp_response: delivery.response, reply_smtp_accepted: delivery.accepted, reply_smtp_rejected: delivery.rejected };
       try {
         await stagingRest("inbox_replies", { method: "POST", body: JSON.stringify({ message_id: body.replyToId, author_id: actor.authUserId, kind: "resposta", body: body.message.trim(), send_status: "smtp_accepted" }) });

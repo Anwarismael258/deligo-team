@@ -16,16 +16,32 @@ async function withTimeout<T>(operation: Promise<T>, label: string) {
   } finally { if (timer) clearTimeout(timer); }
 }
 function headerValue(raw: string, name: string) { return raw.match(new RegExp("^" + name + ":\\s*(.+(?:\\r?\\n[ \\t].+)*)$", "im"))?.[1].replace(/\r?\n[ \t]+/g, " ").trim() || ""; }
-function decodeHeader(value: string) { return value.replace(/=\?UTF-8\?B\?([^?]+)\?=/gi, (_, encoded: string) => Buffer.from(encoded, "base64").toString("utf8")).replace(/=\?UTF-8\?Q\?([^?]+)\?=/gi, (_, encoded: string) => encoded.replace(/_/g, " ").replace(/=([0-9A-F]{2})/gi, (_match: string, hex: string) => String.fromCharCode(parseInt(hex, 16)))); }
+function decodeBytes(bytes: Uint8Array, charset = "utf-8") {
+  const normalized = charset.toLowerCase().replace(/_/g, "-");
+  const label = normalized === "iso-8859-1" || normalized === "latin1" ? "windows-1252" : normalized;
+  try { return new TextDecoder(label).decode(bytes); } catch { return new TextDecoder("utf-8").decode(bytes); }
+}
+function decodeHeader(value: string) {
+  return value.replace(/=\?([^?]+)\?([bq])\?([^?]+)\?=/gi, (_match: string, charset: string, encoding: string, encoded: string) => {
+    if (encoding.toLowerCase() === "b") return decodeBytes(Buffer.from(encoded, "base64"), charset);
+    const bytes: number[] = [];
+    for (let index = 0; index < encoded.length; index += 1) {
+      if (encoded[index] === "_") bytes.push(32);
+      else if (encoded[index] === "=" && /^[0-9a-f]{2}$/i.test(encoded.slice(index + 1, index + 3))) { bytes.push(parseInt(encoded.slice(index + 1, index + 3), 16)); index += 2; }
+      else bytes.push(...Buffer.from(encoded[index], "latin1"));
+    }
+    return decodeBytes(Uint8Array.from(bytes), charset);
+  });
+}
 function parseAddress(value: string) { const match = value.match(/^(?:.*?\s)?<([^<>\s]+@[^<>\s]+)>?$/); return match?.[1]?.trim().toLowerCase() || value.trim().toLowerCase(); }
-function decodeTransfer(value: string, encoding: string) { if (encoding.toLowerCase() === "base64") return Buffer.from(value.replace(/\s/g, ""), "base64").toString("utf8"); if (encoding.toLowerCase() === "quoted-printable") return value.replace(/=\r?\n/g, "").replace(/=([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16))); return value; }
+function decodeTransfer(value: string, encoding: string, charset = "utf-8") { if (encoding.toLowerCase() === "base64") return decodeBytes(Buffer.from(value.replace(/\s/g, ""), "base64"), charset); if (encoding.toLowerCase() === "quoted-printable") { const bytes: number[] = []; const clean = value.replace(/=\r?\n/g, ""); for (let index = 0; index < clean.length; index += 1) { if (clean[index] === "=" && /^[0-9a-f]{2}$/i.test(clean.slice(index + 1, index + 3))) { bytes.push(parseInt(clean.slice(index + 1, index + 3), 16)); index += 2; } else bytes.push(...Buffer.from(clean[index], "latin1")); } return decodeBytes(Uint8Array.from(bytes), charset); } return value; }
 function stripHtml(value: string) { return value.replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>/gi, "\n").replace(/<[^>]+>/g, "").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/\n{3,}/g, "\n\n").trim(); }
 function mimeText(source: string, output: { plain: string[]; html: string[] }) {
   const split = source.search(/\r?\n\r?\n/); const header = split >= 0 ? source.slice(0, split) : source; const body = split >= 0 ? source.slice(split).replace(/^\r?\n\r?\n/, "") : "";
-  const contentType = headerValue(header, "Content-Type") || "text/plain"; const transfer = headerValue(header, "Content-Transfer-Encoding");
+  const contentType = headerValue(header, "Content-Type") || "text/plain"; const transfer = headerValue(header, "Content-Transfer-Encoding"); const charset = contentType.match(/charset\s*=\s*[\"']?([^;\"'\s]+)/i)?.[1] || "utf-8";
   const boundaryMatch = contentType.match(/boundary\s*=\s*(?:"([^"]+)"|([^;\s]+))/i); const boundary = boundaryMatch?.[1] || boundaryMatch?.[2];
   if (boundary) { body.split("--" + boundary).slice(1).forEach(part => { if (!part.trim().startsWith("--")) mimeText(part, output); }); return; }
-  const decoded = decodeTransfer(body, transfer); if (/^text\/html/i.test(contentType)) output.html.push(decoded); else if (/^text\//i.test(contentType)) output.plain.push(decoded);
+  const decoded = decodeTransfer(body, transfer, charset); if (/^text\/html/i.test(contentType)) output.html.push(decoded); else if (/^text\//i.test(contentType)) output.plain.push(decoded);
 }
 function parseMail(source: Buffer) {
   const text = source.toString("utf8"); const split = text.search(/\r?\n\r?\n/); const header = split >= 0 ? text.slice(0, split) : text; const bodies = { plain: [] as string[], html: [] as string[] }; mimeText(text, bodies);

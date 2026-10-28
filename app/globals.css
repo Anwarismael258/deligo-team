@@ -707,6 +707,12 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .shell .inboxWorkspace>.employeeDetail>.procurementList{min-height:0;max-height:none;background:#0d263e!important}
 .shell .inboxWorkspace>.employeeDetail>.peopleSearchBar{margin:12px 14px;border:1px solid #294766;border-radius:8px;display:flex;flex-wrap:wrap}
 .shell .inboxWorkspace>.employeeDetail>.inboxReplyLauncher{display:block;margin:12px 14px}
+.shell .inboxWorkspace>.employeeDetail{min-width:0;overflow-wrap:anywhere}
+.shell .inboxWorkspace>.employeeDetail .inboxBody{max-width:100%;box-sizing:border-box;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;overflow-x:hidden}
+.shell .inboxWorkspace>.employeeDetail .procurementList,.shell .inboxWorkspace>.employeeDetail textarea{min-width:0;max-width:calc(100% - 28px);box-sizing:border-box}
+.shell .inboxWorkspace>.employeeDetail .procurementList>article{min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.shell .inboxWorkspace>.employeeDetail>.employeeDetailHead button{font-size:0}
+.shell .inboxWorkspace>.employeeDetail>.employeeDetailHead button::after{content:"Voltar à lista";font-size:10px}
 @media(max-width:900px){.shell .inboxWorkspace{grid-template-columns:190px minmax(0,1fr)}.shell .inboxWorkspace>.employeeDetail{grid-column:2;grid-row:auto;border-top:1px solid #294766!important;border-left:0!important;max-height:none}.shell .inboxWorkspace>.peopleSearchBar{grid-template-columns:minmax(0,1fr) auto}.shell .inboxWorkspace>.peopleSearchBar select{display:none}}
 @media(max-width:620px){.shell .inboxWorkspace{display:block;overflow:visible}.shell .inboxWorkspace>.financeHero{border-radius:14px 14px 0 0}.shell .inboxWorkspace>.inboxFolders{display:grid;grid-template-columns:repeat(3,1fr);height:auto;border-right:0!important;border-bottom:1px solid #294766!important}.shell .inboxWorkspace>.inboxFolders button{justify-content:center;padding:8px 4px;font-size:10px}.shell .inboxWorkspace>.inboxFolders button::before{display:none}.shell .inboxWorkspace>.peopleSearchBar{display:flex;flex-wrap:wrap}.shell .inboxWorkspace>.peopleSearchBar input{flex:1 1 100%}.shell .inboxWorkspace>.procurementList{max-height:none}.shell .inboxWorkspace>.employeeDetail{max-height:none;border-top:1px solid #294766!important}.shell .inboxWorkspace>.procurementList>button{min-height:60px}}
 

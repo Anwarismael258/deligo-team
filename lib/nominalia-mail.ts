@@ -107,6 +107,10 @@ function configuredAddresses() {
     env("NOMINALIA_SUPPORT_EMAIL"),
   ].flatMap(value => String(value || "").split(",").map(normalizeAddress).filter(value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))))];
 }
+export function centralSubject(subject: string, reply = false) {
+  const base = subject.replace(/^(?:\s*re:\s*)+/i, "").replace(/^(?:\s*\[deligo central\]\s*)+/i, "").trim() || "Sem assunto";
+  return `${reply ? "Re: " : ""}[DeliGo Central] ${base}`;
+}
 
 export async function sendInboxEmail(message: InboxMessage) {
   if (!configured()) throw new Error("NOMINALIA_SMTP_NOT_CONFIGURED");
@@ -120,7 +124,7 @@ export async function sendInboxEmail(message: InboxMessage) {
     envelope: { from: mailbox.user, to: recipient },
     to: recipient,
     replyTo: message.from_email,
-    subject: `[DeliGo Central] ${message.subject}`,
+    subject: centralSubject(message.subject),
     text: lines.join("\n"),
     html: letterheadHtml(lines.join("\n")),
   });
