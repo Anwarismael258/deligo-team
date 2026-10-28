@@ -17,8 +17,8 @@ test("centros pessoais consultam fontes reais e respeitam o utilizador autentica
 test("respostas de agentes não entram na inbox de notificações da Central",async()=>{
   const notifications=await read("app/api/notifications/route.ts");
   assert.match(notifications,/sender_type=eq\.customer/);
-  assert.match(notifications,/externalMessages=.*sender_type.*customer/);
-  assert.doesNotMatch(notifications,/externalMessages=.*sender_type.*agent/);
+  assert.match(notifications,/externalMessages[\s\S]{0,260}sender_type[\s\S]{0,100}customer/);
+  assert.doesNotMatch(notifications,/externalMessages[\s\S]{0,260}sender_type[\s\S]{0,100}agent/);
 });
 
 test("regras de aprovação são configuráveis, auditadas e aplicadas no backend",async()=>{

@@ -124,17 +124,17 @@ export async function ingestMestre24CentralEvents() {
   const serviceKey = hqServiceKey();
   if (!serviceKey) return { inserted: 0, events: 0 };
 
-  const [events, employees, existing] = await Promise.all([
+  const [events, employees] = await Promise.all([
     rest(serviceKey, "mestre24", "central_events?app_slug=eq.mestre24&select=id,event_type,entity_type,entity_id,payload,created_at&order=created_at.desc&limit=100") as Promise<Row[]>,
     rest(serviceKey, "hq", "employees?status=eq.active&select=id,employee_roles:employee_roles!employee_roles_employee_id_fkey(roles(code))&limit=1000") as Promise<Row[]>,
-    rest(serviceKey, "hq", "notifications?type=eq.mestre24_central_event&select=target_url&order=created_at.desc&limit=5000") as Promise<Row[]>,
+
   ]);
-  const known = new Set((existing || []).map((row) => String(row.target_url || "").match(/central_event_id=([^&]+)/)?.[1]).filter(Boolean));
+
   const activeEmployees = Array.isArray(employees) ? employees : [];
   const rows: Row[] = [];
   for (const event of Array.isArray(events) ? events : []) {
     const id = String(event.id || "");
-    if (!id || known.has(id)) continue;
+    if (!id) continue;
     const text = eventText(event);
     const targets = recipients(activeEmployees, text.audience);
     for (const employee of targets) {
@@ -143,14 +143,14 @@ export async function ingestMestre24CentralEvents() {
         type: "mestre24_central_event",
         source_type: "mestre24_central_event",
         source_id: id,
+        dedupe_key: `mestre24:${id}:${employee.id}`,
         title: text.title,
         body: text.body,
         platform_id: null,
         target_url: `${text.target}&central_event_id=${encodeURIComponent(id)}`,
       });
     }
-    known.add(id);
   }
-  if (rows.length) await rest(serviceKey, "hq", "notifications", { method: "POST", body: JSON.stringify(rows) });
+  if (rows.length) await rest(serviceKey, "hq", "notifications?on_conflict=employee_id,dedupe_key", { method: "POST", headers:{Prefer:"resolution=ignore-duplicates,return=representation"}, body: JSON.stringify(rows) });
   return { inserted: rows.length, events: Array.isArray(events) ? events.length : 0 };
 }

@@ -21,6 +21,7 @@ function platformOf(row: Row) {
 function moduleOf(row: Row) {
   const target = value(row, "target_url").toLowerCase();
   const source = sourceText(row).toLowerCase();
+  if (target.startsWith("/inbox-interna")) return "Inbox interna";
   if (target.startsWith("/apoio-cliente") || /support|ticket|complaint|whatsapp|dispute/.test(source)) return "Apoio ao Cliente";
   if (target.startsWith("/caixa-de-entrada") || source.includes("inbox")) return "Caixa de Entrada";
   if (target.startsWith("/field") || /kyc|field/.test(source)) return "Operações de Campo";

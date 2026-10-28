@@ -18,8 +18,9 @@ test("renderiza a Central HQ em português", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /<title>DeliGo Triunfal HQ<\/title>/i);
-  assert.match(html, /Visão geral do grupo/);
-  assert.match(html, /A ligar ao backend Deligo Staging/);
+  assert.match(html, /A preparar a Central/);
+  assert.match(html, /A validar a sessão e o cargo/);
+  assert.doesNotMatch(html, /A ligar ao backend Deligo Staging/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 
@@ -29,15 +30,11 @@ test("renderiza rotas de módulos", async () => {
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
 });
 
-test("inclui navegação corporativa sem expor simulação de perfis", async () => {
+test("protege a navegação antes de validar a sessão e o cargo", async () => {
   const response = await render();
   const html = await response.text();
-  assert.match(html, /Plataformas/);
-  assert.match(html, /DeliGo/);
-  assert.match(html, /Comunhão/);
-  assert.match(html, /DeliGo Market/);
-  assert.match(html, /SARCA/);
-  assert.doesNotMatch(html, /Simular perfil/);
+  assert.match(html, /A validar a sessão e o cargo/);
+  assert.doesNotMatch(html, /class="navItem|Simular perfil/);
 });
 
 test("renderiza o login corporativo sem registo público", async () => {

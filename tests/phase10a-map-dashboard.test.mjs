@@ -23,6 +23,6 @@ test("Centro de Mapas mostra métricas reais e usa o endpoint autenticado", () =
 
 test("Mapa operacional aparece para trabalhadores autenticados sem abrir ações operacionais", () => {
   const page = read("app/page.tsx");
-  assert.match(page, /new Set<string>\(\["Mapa operacional"\]\)/);
+  assert.match(page, /new Set<string>\(\["Mapa operacional"[^\]]*\]\)/);
   assert.match(page, /active === "Mapa operacional" && <OperationsMapDashboard\/>/);
 });

@@ -97,10 +97,10 @@ export async function requireCorporatePermission(permission:string,platform?:str
   return authorization;
 }
 
-export async function hqRpc(name: string, body: Record<string, unknown> = {}) {
+export async function hqRpc(name: string, body: Record<string, unknown> = {}, profile: "public" | "hq" = "public") {
   const serviceKey = hqServiceKey();
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
-  const response = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, { method: "POST", headers: privilegedHeaders(serviceKey), body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(5000) });
+  const response = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, { method: "POST", headers: privilegedHeaders(serviceKey,{"Accept-Profile":profile,"Content-Profile":profile}), body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(5000) });
   if (!response.ok) throw new Error((await response.text()) || "HQ_RPC_FAILED");
   return response.json();
 }
