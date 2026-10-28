@@ -80,9 +80,11 @@ serve(async (req) => {
       });
     }
 
+    const body = await req.json();
+    const reconciling=body.action==="reconcile";
     const verification = await isPhoneVerified(userId);
     const role = verification.role;
-    if (!["client", "customer", "restaurant", "courier", "admin"].includes(role)) {
+    if (!reconciling && !["client", "customer", "restaurant", "courier", "admin"].includes(role)) {
       return new Response(
         JSON.stringify({
           error:
@@ -91,7 +93,7 @@ serve(async (req) => {
         { status: 403, headers: { "Content-Type": "application/json" } },
       );
     }
-    if (role !== "admin" && !verification.verified) {
+    if (!reconciling && role !== "admin" && !verification.verified) {
       return new Response(
         JSON.stringify({
           error:
@@ -101,9 +103,16 @@ serve(async (req) => {
       );
     }
 
-    const body = await req.json();
     if(body.action==="reconcile"){
-      const {data:employee}=await supabase.schema("hq").from("employees").select("id").eq("auth_user_id",userId).eq("status","active").maybeSingle();
+      let {data:context,error:contextError}=await supabase.rpc("hq_actor_context_v1",{p_auth_user_id:userId});
+      if(!context&&identity.user.phone){
+        const fallback=await supabase.rpc("hq_actor_context_for_login_v1",{p_auth_user_id:userId,p_phone_e164:"+"+identity.user.phone.replace(/[^0-9]/g,"")});
+        context=fallback.data;contextError=fallback.error;
+      }
+      if(typeof context==="string"){try{context=JSON.parse(context)}catch{context=null}}
+      if(Array.isArray(context))context=context[0];
+      const employee=context?.status==="active"?{id:context.employee_id}:null;
+      if(!employee)console.error("HQ_DEPOSIT_ACTOR_RESOLUTION_FAILED",contextError?.message||"no_active_context");
       if(!employee)return new Response(JSON.stringify({error:"Sem acesso à Central."}),{status:403,headers:{"Content-Type":"application/json"}});
       const {data:receipts}=await supabase.schema("hq").from("personal_deposit_checkouts").select("deposit_id").eq("employee_id",employee.id).is("synced_at",null).limit(5);
       let reconciled=0;
@@ -440,4 +449,3 @@ serve(async (req) => {
     );
   }
 });
-
