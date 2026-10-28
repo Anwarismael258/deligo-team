@@ -5,6 +5,7 @@ import {
   hqServiceKey,
   supabaseUrl,
 } from "@/lib/hq-server";
+import {isRelevantNotification} from "@/lib/notification-policy";
 import {dedupeNotifications} from "@/lib/notification-dedupe";
 import { ingestMestre24CentralEvents } from "@/lib/mestre24-central-events";
 const h = (k: string) => ({
@@ -111,9 +112,6 @@ export async function GET(req: NextRequest) {
   if (!a || !k)
     return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
   await Promise.all([
-    hqRpc("hq_refresh_due_notifications_v1", {
-      p_employee_id: a.employee_id,
-    }).catch(() => 0),
     ingestMestre24CentralEvents().catch((error) => {
       console.error("Mestre24 central event intake failed", error);
       return null;
@@ -137,11 +135,11 @@ export async function GET(req: NextRequest) {
   ]);
   return NextResponse.json(
     {
-      notifications:dedupeNotifications(notifications),
+      notifications:dedupeNotifications(notifications.filter(isRelevantNotification)),
       meta: {
         departments,
         platforms,
-        employees: (employees || []).map(
+        employees: (employees || []).filter((e: Record<string, unknown>) => e.id !== a.employee_id).map(
           (employee: Record<string, unknown>) => ({
             ...employee,
             name: employee.display_name || "Trabalhador",
@@ -184,7 +182,7 @@ export async function POST(req: NextRequest) {
       k,
       "employees?status=eq.active&select=id&limit=1000",
     );
-    const rows = (employees || []).map((e: Record<string, unknown>) => ({
+    const rows = (employees || []).filter((e: Record<string, unknown>) => e.id !== a.employee_id).map((e: Record<string, unknown>) => ({
       employee_id: e.id,
       type: "manual_communication",
       title,

@@ -2,7 +2,7 @@ import {NextRequest,NextResponse} from "next/server";
 import {hqRest,hqRpc} from "@/lib/hq-server";
 import {inboxActor,requireConversation,isUuid,InboxError,meetingUrl} from "@/lib/internal-inbox";
 const respond=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{"Cache-Control":"private, no-store"}});
-function failed(e:unknown){if(e instanceof InboxError)return respond({error:e.message},e.status);console.error("Internal inbox failed",e);return respond({error:"A Inbox interna ainda não está disponível. Contacte a administração para activar o serviço."},503)}
+function failed(e:unknown){if(e instanceof InboxError)return respond({error:e.message},e.status);console.error("Internal inbox failed",e);const detail=String(e);const schemaMissing=/PGRST202|PGRST205|42P01|42883|42501|schema cache|permission denied/i.test(detail);return respond({error:schemaMissing?"A Inbox precisa da actualização de base de dados (migrações 578 e 582).":"Não foi possível ligar à Inbox. Tente novamente dentro de instantes.",code:schemaMissing?"INBOX_SCHEMA_REQUIRED":"INBOX_TEMPORARY_FAILURE"},503)}
 export async function GET(req:NextRequest){try{const actor=await inboxActor(),id=req.nextUrl.searchParams.get("conversation");if(!id){const [conversations,employees]=await Promise.all([hqRpc("chat_list_v1",{p_actor:actor.employee_id},"hq"),hqRest("employees?status=eq.active&select=id,display_name,employee_code&order=display_name&limit=500")]);return respond({actorId:actor.employee_id,conversations,employees})}
  await requireConversation(actor.employee_id,id);
  const beforeId=req.nextUrl.searchParams.get("beforeId");if(beforeId&&!isUuid(beforeId))throw new InboxError("Cursor inválido.");

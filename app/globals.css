@@ -898,3 +898,16 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .shell .accountDetailGrid .profileHero>div:last-child{min-width:0}
 .shell .accountDetailGrid .profileHero h2,.shell .accountDetailGrid .profileHero p{overflow-wrap:anywhere}
 @media(max-width:720px){.shell .accountDetailGrid .profileAvatar{width:88px;height:88px;flex-basis:88px;border-radius:18px}.shell .accountDetailGrid .profileHero{gap:12px}.shell .accountDetailGrid .profileHero h2{font-size:16px}}
+
+
+/* Keep app menus above module headers, including the internal messenger. */
+.shell .workspace > header{z-index:100;isolation:isolate;overflow:visible}
+.shell .workspace > header .accountMenu,
+.shell .workspace > header .notificationMenu{
+ position:absolute;top:calc(100% + 8px);right:16px;
+ width:min(380px,calc(100vw - 32px));max-height:calc(100dvh - 92px);
+ overflow-y:auto;overscroll-behavior:contain;z-index:101;
+}
+.shell .workspace > header .accountMenu{width:min(300px,calc(100vw - 32px))}
+.shell .workspace > header .accountMenuHead strong{overflow-wrap:anywhere}
+.shell .content header{isolation:auto}

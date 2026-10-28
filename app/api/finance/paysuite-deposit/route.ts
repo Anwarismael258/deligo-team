@@ -63,8 +63,9 @@ export async function POST(request: NextRequest) {
         },
       }),
     });
-    const checkoutUrl = String(provider.checkout_url || provider.checkoutUrl || provider.url || "");
-    const providerId = String(provider.id || provider.payment_id || "");
+    const paymentData = provider.data && typeof provider.data === "object" && !Array.isArray(provider.data) ? provider.data as Record<string, unknown> : provider;
+    const checkoutUrl = String(paymentData.checkout_url || paymentData.checkoutUrl || paymentData.url || "");
+    const providerId = String(paymentData.id || paymentData.payment_id || "");
     if (!providerId) return NextResponse.json({ error: "PaySuite não devolveu uma referência de pagamento." }, { status: 502 });
 
     const amountMinor = Math.round(amount * 100);
