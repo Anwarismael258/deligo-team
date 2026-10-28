@@ -20,7 +20,7 @@ export async function POST(request:NextRequest){
   if(!response.ok||!data?.success)return NextResponse.json({error:data?.error||"Não foi possível iniciar o checkout PaySuite."},{status:response.ok?502:response.status});
   const checkout=new URL(String(data.checkout_url||""));
   if(checkout.protocol!=="https:"||!(checkout.hostname==="paysuite.tech"||checkout.hostname.endsWith(".paysuite.tech")||checkout.hostname==="paysuite.co.mz"||checkout.hostname.endsWith(".paysuite.co.mz")))throw new Error("A PaySuite não devolveu um checkout seguro.");
-  await hqRest("personal_deposit_checkouts?on_conflict=deposit_id",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=minimal"},body:JSON.stringify({deposit_id:data.deposit_id,employee_id:actor.employee_id})});
+  await hqRest("personal_deposit_checkouts?on_conflict=deposit_id",{method:"POST",headers:{Prefer:"resolution=ignore-duplicates,return=representation"},body:JSON.stringify({deposit_id:data.deposit_id,employee_id:actor.employee_id})});
   return NextResponse.json({checkoutUrl:checkout.toString(),depositId:data.deposit_id,grossAmount:data.gross_amount,fee:data.gateway_fee,netAmount:data.net_amount},{status:201,headers:{"Cache-Control":"private, no-store"}});
  }catch(error){console.error("HQ_PERSONAL_DEPOSIT_FAILED",error instanceof Error?error.message:"unknown");return NextResponse.json({error:"Não foi possível abrir o checkout. Verifique o histórico antes de tentar novamente."},{status:502});}
 }
