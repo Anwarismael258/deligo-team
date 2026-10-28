@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import vm from 'node:vm';import ts from 'typescript';
+test('Inbox acknowledges send without waiting for conversation refresh',async()=>{
+ const conversation='20000000-0000-0000-0000-000000000001',actor='10000000-0000-0000-0000-000000000001';
+ const state=[[{id:conversation,title:'Equipa',kind:'group',members:[],unread:0,preview:''}],[],actor,conversation,[],[],[],{[conversation]:'Mensagem de teste'},{}];let si=0,ri=0;const refs=[];let complete;
+ const React={useState:initial=>{const i=si++;if(!(i in state))state[i]=typeof initial==='function'?initial():initial;return[state[i],value=>{state[i]=typeof value==='function'?value(state[i]):value}]},useRef:initial=>{const i=ri++;refs[i]??={current:i===4?conversation:initial};return refs[i]},useCallback:f=>f,useEffect:()=>{}};
+ const jsx=(type,props)=>({type,props});const exports={};const context={exports,console,Date,URL,AbortSignal,crypto:globalThis.crypto,requestAnimationFrame:cb=>cb(),require:name=>name==='react'?React:name==='react/jsx-runtime'?{jsx,jsxs:jsx}:name==='lucide-react'?new Proxy({},{get:(_,key)=>String(key)}):{},fetch:(_path,init)=>init?.method==='POST'?new Promise(resolve=>{complete=resolve}):new Promise(()=>{})};
+ const source=ts.transpileModule(await readFile(new URL('../app/components/InternalInbox.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;vm.runInNewContext(source,context);const tree=exports.InternalInbox();
+ const nodes=[];const walk=node=>{if(!node)return;if(Array.isArray(node))return node.forEach(walk);if(typeof node==='object'){nodes.push(node);walk(node.props?.children)}};walk(tree);
+ const form=nodes.find(n=>n.type==='form');assert(form);form.props.onSubmit({preventDefault(){}});assert.equal(state[11],true);assert.equal(state[4][0].delivery,'sending');
+ complete(new Response(JSON.stringify({message:{id:'30000000-0000-0000-0000-000000000001',body:'Mensagem de teste',sender_id:actor,created_at:new Date().toISOString(),meeting_url:null}}),{status:201}));await new Promise(resolve=>setTimeout(resolve,10));assert.equal(state[11],false);assert.equal(state[4].length,1);assert.equal(state[4][0].delivery,undefined);assert.equal(state[7][conversation],'');
+});

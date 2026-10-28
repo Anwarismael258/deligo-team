@@ -471,8 +471,6 @@ export function HQApp() {
   const [workerTransferEmployees, setWorkerTransferEmployees] = useState<Array<{ id: string; name: string; employee_code?: string; job_title?: string; role?: string }>>([]);
   const [workerTransfer, setWorkerTransfer] = useState({ employeeId: "", amount: "" });
   const [workerTransferBusy, setWorkerTransferBusy] = useState(false);
-  const [corporateDeposit, setCorporateDeposit] = useState({ amount: "", paymentMethod: "mpesa", phone: "" });
-  const [corporateDepositBusy, setCorporateDepositBusy] = useState(false);
   const [corporateWithdrawal, setCorporateWithdrawal] = useState({ amount: "", withdrawalId: "", otp: "" });
   const [corporateWithdrawalStep, setCorporateWithdrawalStep] = useState<"idle" | "otp" | "done">("idle");
   const [financeEntryKind, setFinanceEntryKind] = useState("transaction");
@@ -688,35 +686,6 @@ export function HQApp() {
       setWorkerTransferBusy(false);
     }
   };
-  const depositCorporateWithPaySuite = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setCorporateDepositBusy(true);
-    setFinanceNotice("A iniciar o depósito PaySuite…");
-    try {
-      const response = await fetch("/api/finance/paysuite-deposit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          amount: Number(corporateDeposit.amount),
-          paymentMethod: corporateDeposit.paymentMethod,
-          phone: corporateDeposit.phone,
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        setFinanceNotice(data.error || "Não foi possível iniciar o depósito PaySuite.");
-        return;
-      }
-      setCorporateDeposit(current => ({ ...current, amount: "" }));
-      setFinanceNotice(`Depósito iniciado (${data.providerId}). O saldo só entra após confirmação da PaySuite.`);
-      if (data.checkoutUrl) window.open(String(data.checkoutUrl), "_blank", "noopener,noreferrer");
-    } catch {
-      setFinanceNotice("Não foi possível contactar a PaySuite. Nenhum saldo foi alterado.");
-    } finally {
-      setCorporateDepositBusy(false);
-    }
-  };
-
   useEffect(() => {
     let cancelled = false;
     const loadSession = async () => {
@@ -1350,7 +1319,7 @@ if(active==="Operações de Campo")void refreshField();
           {active === "Relatórios" && !restrictedOperationalRole && <ModuleErrorBoundary resetKey="reports"><CorporateOperationsAnalyticsDashboard mode="reports" /></ModuleErrorBoundary>}
           {active === "Site Institucional" && <><ModuleErrorBoundary resetKey="institutional-analytics"><CorporateOperationsAnalyticsDashboard mode="institutional" /></ModuleErrorBoundary><ModuleErrorBoundary resetKey="institutional-news"><InstitutionalNewsManager /></ModuleErrorBoundary></>}
           {active === "Vagas" && <><ModuleErrorBoundary resetKey="jobs-analytics"><CorporateOperationsAnalyticsDashboard mode="jobs" /></ModuleErrorBoundary><ModuleErrorBoundary resetKey="jobs-manager"><InstitutionalJobsManager /></ModuleErrorBoundary></>}
-          {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !analyticsActive.has(active) && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Inbox interna" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !analyticsActive.has(active) && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
@@ -1388,13 +1357,7 @@ if(active==="Operações de Campo")void refreshField();
               <label><span>Valor a enviar para a carteira interna (MZN)</span><input type="number" min="0.01" step="0.01" required value={workerTransfer.amount} onChange={event => setWorkerTransfer(current => ({ ...current, amount: event.target.value }))} /></label>
               <button className="primaryAction" disabled={workerTransferBusy || !workerTransferEmployees.length}>{workerTransferBusy ? "A transferir…" : "Enviar para carteira interna"}</button>
             </form>}
-            {["SUPER_ADMIN", "FINANCE"].includes(sessionUser?.hq_role || "") && <form className="financeEntryForm financeDepositForm" onSubmit={depositCorporateWithPaySuite}>
-              <label><span>Depositar na conta corporativa via PaySuite (MZN)</span><input type="number" min="1" step="0.01" required value={corporateDeposit.amount} onChange={event => setCorporateDeposit(current => ({ ...current, amount: event.target.value }))} /></label>
-              <label><span>Método PaySuite</span><select value={corporateDeposit.paymentMethod} onChange={event => setCorporateDeposit(current => ({ ...current, paymentMethod: event.target.value }))}><option value="mpesa">M-Pesa</option><option value="emola">e-Mola</option><option value="card">Cartão</option></select></label>
-              <label><span>Número do pagador</span><input inputMode="tel" placeholder="+258 8…" required value={corporateDeposit.phone} onChange={event => setCorporateDeposit(current => ({ ...current, phone: event.target.value }))} /></label>
-              <button className="primaryAction" disabled={corporateDepositBusy}>{corporateDepositBusy ? "A iniciar…" : "Depositar via PaySuite"}</button>
-              <small>O saldo só é creditado no ledger corporativo depois do webhook PaySuite assinado. O botão não altera saldos localmente.</small>
-            </form>}
+
             {corporateWithdrawalStep === "idle" && <form className="financeEntryForm financeWithdrawalForm" onSubmit={prepareCorporateWithdrawal}><label><span>Valor a levantar da receita corporativa disponível (MZN)</span><input type="number" min="0.01" step="0.01" required value={corporateWithdrawal.amount} onChange={event => setCorporateWithdrawal(current => ({ ...current, amount: event.target.value }))} /></label><button className="primaryAction">Solicitar levantamento interno</button><small>Admin e Finanças confirmam com OTP; o valor vai primeiro para a carteira pessoal de quem solicita.</small></form>}
             {corporateWithdrawalStep === "otp" && <form className="financeEntryForm" onSubmit={confirmCorporateWithdrawal}><label><span>OTP do segundo aprovador</span><input inputMode="numeric" autoComplete="one-time-code" required value={corporateWithdrawal.otp} onChange={event => setCorporateWithdrawal(current => ({ ...current, otp: event.target.value }))} /></label><div className="financeActionRow"><button className="primaryAction">Confirmar e transferir para a carteira</button><button type="button" className="secondaryAction" onClick={resendCorporateWithdrawalOtp}>Enviar novo OTP</button></div></form>}
             {corporateWithdrawalStep === "done" && <button className="primaryAction" onClick={() => { setCorporateWithdrawalStep("idle"); setCorporateWithdrawal(current => ({ ...current, amount: "", withdrawalId: "", otp: "" })); }}>Novo pedido</button>}
