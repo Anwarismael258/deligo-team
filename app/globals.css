@@ -825,12 +825,12 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .shell .supportScreenHeader{position:relative;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start;padding:4px 0 14px;margin:0;border-bottom:1px solid #244761}
 .shell .supportScreenHeader h2{font-size:28px;letter-spacing:-.025em}
 .shell .supportScreenHeader>.primaryAction{min-height:44px;border-radius:9px!important}
-.shell .supportScreenMetrics{grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;overflow:hidden;border:1px solid #2a5574;border-radius:12px;background:linear-gradient(145deg,#0d2943,#0a1d31)!important}
+.shell .supportScreenMetrics{grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;overflow:hidden;border:1px solid #2a5574;border-radius:12px;background:linear-gradient(145deg,#0d2943,#0a1d31)!important}
 .shell .supportScreenMetrics article{min-height:60px;padding:11px 18px;border:0;border-right:1px solid #2a5574;border-radius:0;background:transparent!important}
 .shell .supportScreenMetrics article:last-child{border-right:0}
 .shell .supportScreenMetrics b{font-size:22px}
 .shell .supportQueueView{min-width:0}
-.shell .supportTicketList{min-height:440px;max-height:calc(100vh - 250px);overflow:auto;border-radius:12px!important}
+.shell .supportTicketList{min-height:440px;max-height:none;overflow:visible;border-radius:12px!important}
 .shell .supportTicketList .panelTitle{position:sticky;top:0;z-index:3;background:#0d2943!important}
 .shell .supportTicket{padding:0!important;margin:0!important;border-left:3px solid transparent!important;border-radius:0!important}
 .shell .supportTicket.hasUnread{border-left-color:#ff3658!important;background:#123654!important}
@@ -847,10 +847,39 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .shell .supportReplyComposer textarea{min-height:74px;font-size:13px;line-height:1.4}
 .shell .supportReplyActions .primaryAction{background:#13cfe8!important;color:#041722!important;box-shadow:none!important}
 .shell .supportReplyActions .secondaryAction{cursor:pointer}
-@media(min-width:1050px){.shell .supportWorkspaceWithSelection{grid-template-columns:minmax(300px,.78fr) minmax(0,1.5fr)}.shell .supportWorkspaceWithSelection>.supportScreenHeader{grid-column:1/-1}.shell .supportWorkspaceWithSelection>.supportQueueView{grid-column:1}.shell .supportWorkspaceWithSelection>.supportCaseDetail{grid-column:2;grid-row:2}}
+@media(min-width:1050px){.shell .supportWorkspace:has(.supportCaseDetail){grid-template-columns:minmax(300px,.78fr) minmax(0,1.5fr)}.shell .supportWorkspace:has(.supportCaseDetail)>.supportScreenHeader{grid-column:1/-1}.shell .supportWorkspace:has(.supportCaseDetail)>.supportQueueView{grid-column:1}.shell .supportWorkspace:has(.supportCaseDetail)>.supportCaseDetail{grid-column:2;grid-row:2}.shell .supportWorkspace:has(.supportCaseDetail) .supportCaseColumns{grid-template-columns:minmax(0,1fr)}.shell .supportWorkspace:has(.supportCaseDetail) .supportCaseColumns article:nth-child(2):has(p){margin-top:12px;margin-left:0}.shell .supportWorkspace:has(.supportCaseDetail) .supportCaseColumns article:nth-child(2):not(:has(p)){display:none}}
 @media(max-width:1049px){.shell .supportTicketList{max-height:none}.shell .supportCaseColumns{grid-template-columns:1fr}.shell .supportCaseColumns article+article{margin:10px 0 0}}
 @media(max-width:760px){.shell .supportScreenHeader{grid-template-columns:1fr}.shell .supportScreenHeader>.primaryAction{grid-column:1;justify-self:start}.shell .supportScreenMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.shell .supportScreenMetrics article:nth-child(2){border-right:0}.shell .supportScreenMetrics article:nth-child(-n+2){border-bottom:1px solid #2a5574}}
 @media(max-width:480px){.shell .supportScreenMetrics{grid-template-columns:1fr}.shell .supportScreenMetrics article{border-right:0!important;border-bottom:1px solid #2a5574!important}.shell .supportScreenMetrics article:last-child{border-bottom:0!important}.shell .supportCaseColumns{padding:9px}.shell .supportReplyComposer{padding:10px!important}}
+
+/* Support workspace: keep the queue and selected conversation in normal flow. */
+.shell .supportWorkspace{min-width:0;overflow:visible}
+.shell .supportWorkspace .supportScreenHeader,.shell .supportWorkspace .supportQueueView,.shell .supportWorkspace .supportCaseDetail{min-width:0}
+.shell .supportWorkspace .supportTicketList{padding:0;overflow:visible}
+.shell .supportWorkspace .supportTicketOpen{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:12px;width:100%;min-width:0}
+.shell .supportWorkspace .supportTicketOpen>div{overflow:hidden}
+.shell .supportWorkspace .supportSenderName{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shell .supportWorkspace .supportMessagePreview{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.shell .supportWorkspace .supportTicketMeta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;color:#9db6ce!important;text-transform:none!important;letter-spacing:0!important}
+.shell .supportWorkspace .supportTicketMeta span:last-child{color:#69dff0}
+.shell .supportWorkspace .supportTicketMeta b{border:1px solid #ff3658;border-radius:999px;padding:3px 7px;color:#ff8ba0;background:#4c1527;font-size:9px;white-space:nowrap}
+.shell .supportWorkspace .supportTicketPlatform{border:1px solid #315b7a;border-radius:999px;background:#0b2942;color:#bceeff;padding:5px 8px;font-size:9px;white-space:nowrap}
+.shell .supportWorkspace .supportCaseDetail{height:max-content;align-self:start}
+.shell .supportWorkspace .supportCaseHead>button{font-size:0}
+.shell .supportWorkspace .supportCaseHead>button::after{content:"Voltar aos atendimentos";font-size:10px}
+.shell .supportWorkspace .supportCaseColumns{min-width:0}
+.shell .supportWorkspace .supportCaseColumns article{min-width:0;overflow-wrap:anywhere}
+.shell .supportWorkspace .supportCaseColumns article:first-child{max-height:min(52vh,560px);overflow:auto}
+.shell .supportWorkspace .supportCaseColumns p{overflow-wrap:anywhere;word-break:break-word}
+.shell .supportWorkspace .supportReplyComposer{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:end;gap:10px;border-top:1px solid #315c7e!important}
+.shell .supportWorkspace .supportReplyComposer textarea{display:block;width:100%;min-width:0;min-height:96px;max-height:240px;resize:vertical;box-sizing:border-box}
+.shell .supportWorkspace .supportAttachmentPicker{grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr);gap:7px;align-items:center;min-width:0}
+.shell .supportWorkspace .supportAttachmentPicker input{min-width:0;max-width:100%;color:#c9dced}
+.shell .supportWorkspace .supportAttachmentPicker small{min-width:0;overflow-wrap:anywhere;color:#91abc2}
+.shell .supportWorkspace .supportReplyActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.shell .supportWorkspace .supportReplyActions button{min-height:40px;white-space:nowrap}
+@media(max-width:1049px){.shell .supportWorkspace:has(.supportCaseDetail){display:block}.shell .supportWorkspace:has(.supportCaseDetail)>.supportQueueView{display:none}.shell .supportWorkspace:has(.supportCaseDetail)>.supportCaseDetail{display:block;margin-top:0!important}.shell .supportWorkspace .supportCaseColumns article:first-child{max-height:none}}
+@media(max-width:560px){.shell .supportWorkspace .supportTicketOpen{grid-template-columns:1fr}.shell .supportWorkspace .supportTicketPlatform{justify-self:start}.shell .supportWorkspace .supportReplyComposer{grid-template-columns:1fr}.shell .supportWorkspace .supportAttachmentPicker{grid-template-columns:1fr}.shell .supportWorkspace .supportReplyActions{justify-content:stretch}.shell .supportWorkspace .supportReplyActions button{flex:1}.shell .supportWorkspace .supportScreenMetrics{grid-template-columns:1fr}.shell .supportWorkspace .supportScreenMetrics article{border-right:0!important;border-bottom:1px solid #2a5574}.shell .supportWorkspace .supportScreenMetrics article:last-child{border-bottom:0}}
 .inboxReplyComposer{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:14px 0;padding:16px;border:1px solid #4b70a0;border-radius:14px;background:linear-gradient(145deg,#102642,#111d39);box-shadow:0 0 0 1px #22d3ee18,0 10px 30px #0000001c}.inboxReplyComposerHead{grid-column:1/-1;display:flex;justify-content:space-between;gap:12px;align-items:start;border-bottom:1px solid #315174;padding-bottom:10px}.inboxReplyComposerHead span{font-size:8px;letter-spacing:.14em;color:#22d3ee}.inboxReplyComposerHead h3{margin:5px 0 0;font-size:15px;color:#f5f8ff}.inboxReplyComposerHead small{color:#b8d0e5;font-size:9px}.inboxReplyComposer label{display:grid;gap:5px}.inboxReplyComposer label span{font-size:9px;color:#b8d0e5;font-weight:700}.inboxReplyComposer input,.inboxReplyComposer select,.inboxReplyComposer textarea{width:100%;box-sizing:border-box;border:1px solid #477195;border-radius:8px;background:#091a2b;color:#f4f9ff;padding:9px;font:inherit;font-size:11px}.inboxReplyComposer input[readonly]{color:#c8d7e8;opacity:.9}.inboxReplyComposer textarea{resize:vertical}.inboxReplyComposer .primaryAction{justify-self:start;background:linear-gradient(90deg,#0ea5e9,#8b5cf6);border-color:#22d3ee;color:#fff}.inboxReplyComposer .primaryAction:disabled{opacity:.5}.inboxReplyBackdrop{position:fixed;inset:0;z-index:75;display:grid;place-items:center;padding:18px;background:#020915c9;backdrop-filter:blur(6px)}.inboxReplyModal{width:min(720px,calc(100vw - 36px));max-height:calc(100vh - 36px);overflow:auto;margin:0;box-shadow:0 24px 80px #000c}.inboxReplyModalActions{display:flex;align-items:flex-end;gap:10px}.inboxReplyModalActions button{border:1px solid #477195;border-radius:7px;background:#102942;color:#eef7ff;padding:6px 9px;font-size:9px;cursor:pointer}.inboxReplyLauncher{margin:10px 0;background:linear-gradient(90deg,#0ea5e9,#8b5cf6);border-color:#22d3ee;color:#fff}@media(max-width:650px){.inboxReplyComposer{grid-template-columns:1fr}.inboxReplyComposerHead{align-items:stretch;flex-direction:column;gap:6px}.inboxReplyBackdrop{padding:8px}.inboxReplyModal{width:100%;max-height:calc(100vh - 16px)}.inboxReplyModalActions{align-items:stretch;justify-content:space-between}}
 .dashboardPreparingCard{display:grid;gap:8px;text-align:center;padding:22px 28px;border:1px solid #315174;border-radius:12px;background:#0d2035;color:#f4f8ff;box-shadow:0 16px 40px #02071155}
 .dashboardPreparingCard span{font-size:12px;color:#9db6ce}
