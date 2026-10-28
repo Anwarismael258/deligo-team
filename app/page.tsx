@@ -772,7 +772,7 @@ export function HQApp() {
   const markNotifications=async(id?:string)=>{if(id){await markNotificationsByIds([id]);return}const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({all:true})});if(r.ok)await refreshNotifications()};
 
   useEffect(() => {
-    if (!["Visão geral", "Mapa operacional"].includes(active) || !sessionUser) return;
+    if (active !== "Visão geral" || !sessionUser) return;
     let cancelled = false;
     const refreshMap = () => fetch("/api/map", { cache: "no-store" })
       .then(async (response) => { if (!response.ok) throw new Error(); return response.json() as Promise<LiveMapData>; })

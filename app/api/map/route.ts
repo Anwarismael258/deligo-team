@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { corporateActor, hqRpc, requireCorporatePermission } from "@/lib/hq-server";
+import { corporateAuthorization, hqRpc, requireCorporatePermission, stagingRest } from "@/lib/hq-server";
 import { platformRest } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
@@ -29,11 +29,13 @@ const firstValue = (row: MapMarker, keys: string[]) => keys.map((key) => row[key
 const operationReference = (row: MapMarker, fallback: string) => String(firstValue(row, ["order_number", "order_code", "reference", "tracking_number", "code"]) || fallback);
 
 export async function GET() {
-  if (!(await cookies()).get("hq_access_token")?.value || !(await corporateActor())) {
+  const authorization = await corporateAuthorization();
+  if (!(await cookies()).get("hq_access_token")?.value || !authorization) {
     return NextResponse.json({ error: "Sessao corporativa necessaria." }, { status: 401 });
   }
 
   try {
+    const accessPromise = Promise.all([requireCorporatePermission("operations.view", "deligo", authorization), requireCorporatePermission("operations.view", "taomoz", authorization), requireCorporatePermission("operations.view", "sarca", authorization)]);
     const anonKey = process.env.SUPABASE_ANON_KEY;
     const integrationSecret = process.env.DELIGO_STAGING_DB_PASSWORD;
     const centralUrl = process.env.SUPABASE_URL?.trim();
@@ -53,7 +55,7 @@ export async function GET() {
           headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}`, "Content-Type": "application/json", "x-hq-integration-secret": integrationSecret },
           body: "{}",
           cache: "no-store",
-          signal: AbortSignal.timeout(12_000),
+          signal: AbortSignal.timeout(4_000),
         });
         if (response.ok) base = await response.json() as typeof base;
         else base.sourceMessage = `A fonte de localização ao vivo respondeu com ${response.status}.`;
@@ -61,8 +63,12 @@ export async function GET() {
         base.sourceMessage = "A fonte de localização ao vivo não respondeu; as fontes autorizadas continuam disponíveis.";
       }
     }
-    const checkedAt = base.checkedAt || new Date().toISOString();
-    const markers = Array.isArray(base.markers) ? [...base.markers] : [];
+    let sourceAvailable = base.sourceStatus === "fresh";
+    const checkedAt = new Date().toISOString();
+    const [deligoAccess, marketAccess, sarcaAccess] = await accessPromise;
+    const operationDetails = new Map<string, MapMarker>();
+    const baseSlug = (value: unknown) => { const name = String(value || "").toLowerCase();return /sarca/.test(name) ? "sarca" : /market|taomoz/.test(name) ? "taomoz" : /comunh/.test(name) ? "comunhao" : /mestre/.test(name) ? "mestre24" : /deligo/.test(name) ? "deligo" : ""; };
+    const markers = (Array.isArray(base.markers) ? [...base.markers] : []).filter(marker => authorization.isSuperAdmin || (authorization.permissions.includes("operations.view") && authorization.platformSlugs.includes(baseSlug(marker.platform))));
     const routes: MapRoute[] = [];
     const markerIds = new Set(markers.map((marker) => String(marker.id || "")));
     const addMarker = (marker: MapMarker) => {
@@ -74,9 +80,9 @@ export async function GET() {
 
     // DeliGo's already-authorized operational RPC contains active orders,
     // couriers and restaurants. Only add map objects when coordinates exist.
-    const deligoAccess = await requireCorporatePermission("operations.view", "deligo");
     if (deligoAccess) {
       const deligo = await safeRows(() => hqRpc("hq_deligo_operational_map_v1", { p_actor_auth_user_id: deligoAccess.actor.authUserId })) as { orders?: MapMarker[]; restaurants?: MapMarker[]; couriers?: MapMarker[] } | null;
+      if (deligo) sourceAvailable = true;
       for (const restaurant of deligo?.restaurants || []) {
         const location = point(restaurant.latitude, restaurant.longitude);
         if (!location) continue;
@@ -85,6 +91,7 @@ export async function GET() {
       for (const order of deligo?.orders || []) {
         const orderId = String(order.id || "");
         const reference = operationReference(order, orderId);
+        operationDetails.set(`deligo:order:${orderId}`, { origin: order.origin_address || order.restaurant_name, destination: order.destination_address || order.delivery_address, operationStatus: order.status, driverId: order.courier_id || order.driver_user_id });
         const origin = point(order.origin_latitude, order.origin_longitude);
         const destination = point(order.destination_latitude, order.destination_longitude);
         const updatedAt = typeof order.updated_at === "string" ? order.updated_at : checkedAt;
@@ -101,6 +108,7 @@ export async function GET() {
         safeRows(() => platformRest("deligo", "deliveries?select=*&order=updated_at.desc&limit=500")),
         safeRows(() => platformRest("deligo", "restaurants?select=*&order=updated_at.desc&limit=500")),
       ]) as [MapMarker[] | null, MapMarker[] | null, MapMarker[] | null];
+      if (orders !== null || deliveries !== null || restaurants !== null) sourceAvailable = true;
       for (const restaurant of restaurants || []) {
         const location = point(firstValue(restaurant, ["latitude", "lat"]), firstValue(restaurant, ["longitude", "lng", "lon"]));
         if (!location) continue;
@@ -112,6 +120,7 @@ export async function GET() {
         const id = String(order.id || order.order_id || "");
         if (!id) continue;
         const reference = operationReference(order, id);
+        operationDetails.set(`deligo:order:${id}`, { origin: order.pickup_address || order.restaurant_name || order.origin_address, destination: order.delivery_address || order.destination_address, operationStatus: order.status, driverId: order.courier_id || order.driver_user_id });
         const origin = point(firstValue(order, ["origin_latitude", "pickup_latitude", "restaurant_latitude", "pickup_lat"]), firstValue(order, ["origin_longitude", "pickup_longitude", "restaurant_longitude", "pickup_lng"]));
         const destination = point(firstValue(order, ["destination_latitude", "delivery_latitude", "customer_latitude", "dropoff_lat"]), firstValue(order, ["destination_longitude", "delivery_longitude", "customer_longitude", "dropoff_lng"]));
         const updatedAt = String(firstValue(order, ["updated_at", "created_at"]) || checkedAt);
@@ -124,25 +133,26 @@ export async function GET() {
         const id = String(delivery.id || delivery.delivery_id || delivery.order_id || "");
         const current = point(firstValue(delivery, ["current_latitude", "latitude", "current_lat"]), firstValue(delivery, ["current_longitude", "longitude", "current_lng"]));
         if (!id || !current) continue;
-        addMarker({ id: `deligo:delivery:${id}:current`, platform: "DeliGo", role: "Estafeta", service: `#${operationReference(delivery, String(delivery.order_id || id))}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
+        addMarker({ id: `deligo:delivery:${id}:current`, platform: "DeliGo", role: "Estafeta", workerId: String(delivery.courier_id || delivery.driver_user_id || ""), workerName: String(delivery.courier_name || delivery.driver_name || "") || undefined, service: `#${operationReference(delivery, String(delivery.order_id || id))}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
       }
     }
 
     // DeliGo Market uses the same read-only operational contract when the
     // platform exposes its active orders and delivery positions. A missing
     // endpoint remains unavailable; it is never represented as zero data.
-    const marketAccess = await requireCorporatePermission("operations.view", "taomoz");
     if (marketAccess) {
       const [marketOrders, marketDeliveries] = await Promise.all([
         safeRows(() => platformRest("taomoz", "orders?select=*&order=updated_at.desc&limit=500")),
         safeRows(() => platformRest("taomoz", "deliveries?select=*&order=updated_at.desc&limit=500")),
       ]) as [MapMarker[] | null, MapMarker[] | null];
+      if (marketOrders !== null || marketDeliveries !== null) sourceAvailable = true;
       const activeMarket = (row: MapMarker) => !["delivered", "cancelled", "failed", "completed"].includes(String(row.status || "").toLowerCase());
       for (const order of marketOrders || []) {
         if (!activeMarket(order)) continue;
         const id = String(order.id || order.order_id || "");
         if (!id) continue;
         const reference = operationReference(order, id);
+        operationDetails.set(`market:order:${id}`, { origin: order.pickup_address || order.seller_name || order.origin_address, destination: order.delivery_address || order.destination_address, operationStatus: order.status, driverId: order.courier_id || order.driver_user_id });
         const origin = point(firstValue(order, ["origin_latitude", "pickup_latitude", "seller_latitude", "pickup_lat"]), firstValue(order, ["origin_longitude", "pickup_longitude", "seller_longitude", "pickup_lng"]));
         const destination = point(firstValue(order, ["destination_latitude", "delivery_latitude", "customer_latitude", "dropoff_lat"]), firstValue(order, ["destination_longitude", "delivery_longitude", "customer_longitude", "dropoff_lng"]));
         const updatedAt = String(firstValue(order, ["updated_at", "created_at"]) || checkedAt);
@@ -155,15 +165,15 @@ export async function GET() {
         const id = String(delivery.id || delivery.delivery_id || delivery.order_id || "");
         const current = point(firstValue(delivery, ["current_latitude", "latitude", "current_lat"]), firstValue(delivery, ["current_longitude", "longitude", "current_lng"]));
         if (!id || !current) continue;
-        addMarker({ id: `market:delivery:${id}:current`, platform: "DeliGo Market", role: "Entregador", service: `#${operationReference(delivery, String(delivery.order_id || id))}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
+        addMarker({ id: `market:delivery:${id}:current`, platform: "DeliGo Market", role: "Entregador", workerId: String(delivery.courier_id || delivery.driver_user_id || ""), workerName: String(delivery.courier_name || delivery.driver_name || "") || undefined, service: `#${operationReference(delivery, String(delivery.order_id || id))}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
       }
     }
 
     // SARCA exposes verified trip endpoints. Keep this read-only and scoped
     // to workers who have the platform operations permission.
-    const sarcaAccess = await requireCorporatePermission("operations.view", "sarca");
     if (sarcaAccess) {
       const trips = await safeRows(() => platformRest("sarca", "trips?select=*&status=in.(searching_driver,driver_assigned,driver_arriving,in_progress)&order=updated_at.desc&limit=200")) as MapMarker[] | null;
+      if (trips !== null) sourceAvailable = true;
       const since = encodeURIComponent(new Date(Date.now() - 5 * 60_000).toISOString());
       const [driverRows, riderRows] = await Promise.all([
         safeRows(() => platformRest("sarca", `driver_location_events?select=driver_user_id,latitude,longitude,recorded_at&recorded_at=gte.${since}&order=recorded_at.desc&limit=500`)),
@@ -180,20 +190,37 @@ export async function GET() {
         if (riderPosition) Object.assign(trip, { rider_latitude: riderPosition.latitude, rider_longitude: riderPosition.longitude, rider_recorded_at: riderPosition.recorded_at });
         const tripId = String(trip.id || "");
         const reference = operationReference(trip, tripId);
+        operationDetails.set(`sarca:trip:${tripId}`, { origin: trip.pickup_address, destination: trip.dropoff_address, operationStatus: trip.status, driverId: trip.driver_user_id, passengerId: trip.passenger_user_id });
         const origin = point(trip.pickup_lat, trip.pickup_lng);
         const destination = point(trip.dropoff_lat, trip.dropoff_lng);
         const updatedAt = typeof trip.updated_at === "string" ? trip.updated_at : checkedAt;
         if (origin) addMarker({ id: `sarca:trip:${tripId}:origin`, platform: "SARCA", role: "Viagem", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
-        if (destination) addMarker({ id: `sarca:trip:${tripId}:destination`, platform: "SARCA", role: "Rider", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+        if (destination) addMarker({ id: `sarca:trip:${tripId}:destination`, platform: "SARCA", role: "Destino", workerId: String(trip.passenger_user_id || ""), service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
         const driver = point(firstValue(trip, ["driver_latitude", "driver_current_latitude", "driver_lat", "current_driver_latitude"]), firstValue(trip, ["driver_longitude", "driver_current_longitude", "driver_lng", "current_driver_longitude"]));
         const rider = point(firstValue(trip, ["rider_latitude", "rider_current_latitude", "rider_lat", "current_rider_latitude"]), firstValue(trip, ["rider_longitude", "rider_current_longitude", "rider_lng", "current_rider_longitude"]));
         if (driver) addMarker({ id: `sarca:trip:${tripId}:driver`, platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt: trip.driver_recorded_at || updatedAt });
-        if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
+        if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
         if (origin && destination) routes.push({ id: `sarca:trip:${tripId}`, platform: "SARCA", label: `Viagem #${reference}`, coordinates: [origin, destination], updatedAt });
       }
     }
 
-    return NextResponse.json({ ...base, checkedAt, markers, routes, sourceStatus: base.sourceStatus || "fresh" }, { headers: { "Cache-Control": "private, no-store" } });
+    const enrichedMarkers: MapMarker[] = markers.map(marker => {
+      const key = String(marker.id).split(":").slice(0, -1).join(":");
+      const details = operationDetails.get(key);
+      return { ...marker, origin: details?.origin, destination: details?.destination, operationStatus: details?.operationStatus,
+        locationKind: /:(origin|destination)$/.test(String(marker.id)) ? "endpoint" : /restaurante|loja/i.test(String(marker.role)) ? "place" : "gps" };
+    });
+    const workerIds = [...new Set([...enrichedMarkers.map(marker => String(marker.workerId || "")), ...[...operationDetails.values()].map(details => String(details.driverId || ""))].filter(id => /^[0-9a-f-]{36}$/i.test(id)))];
+    const names = new Map<string, string | undefined>();
+    if (workerIds.length) {
+      const batches = Array.from({ length: Math.ceil(workerIds.length / 75) }, (_, index) => workerIds.slice(index * 75, (index + 1) * 75));
+      const results = await Promise.all(batches.map(ids => safeRows(() => stagingRest(`profiles?select=id,user_id,full_name&or=(id.in.(${ids.join(",")}),user_id.in.(${ids.join(",")}))`))));
+      const identities = results.flatMap(rows => Array.isArray(rows) ? rows : []) as Array<{id:string;user_id?:string;full_name?:string}>;
+      for (const profile of identities || []) { names.set(profile.id, profile.full_name);if (profile.user_id) names.set(profile.user_id, profile.full_name); }
+      for (const marker of enrichedMarkers) if (!marker.workerName && marker.workerId) marker.workerName = names.get(String(marker.workerId)) || undefined;
+    }
+    const enrichedRoutes = routes.map(route => ({ ...route, origin: operationDetails.get(route.id)?.origin, destination: operationDetails.get(route.id)?.destination, operationStatus: operationDetails.get(route.id)?.operationStatus, workerId: operationDetails.get(route.id)?.driverId, workerName: names.get(String(operationDetails.get(route.id)?.driverId || "")) }));
+    return NextResponse.json({ ...base, checkedAt, markers: enrichedMarkers, routes: enrichedRoutes, sourceStatus: sourceAvailable ? "fresh" : "unavailable" }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     // Do not turn an unavailable GPS adapter into a misleading zero.
     return NextResponse.json({ checkedAt: new Date().toISOString(), markers: [], sourceStatus: "unavailable", sourceMessage: "A fonte de localização não respondeu." }, { status: 502, headers: { "Cache-Control": "private, no-store" } });

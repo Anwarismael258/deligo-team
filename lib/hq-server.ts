@@ -90,8 +90,8 @@ export async function corporateAuthorization():Promise<CorporateAuthorization|nu
   }
 }
 
-export async function requireCorporatePermission(permission:string,platform?:string){
-  const authorization=await corporateAuthorization();
+export async function requireCorporatePermission(permission:string,platform?:string,context?:CorporateAuthorization){
+  const authorization=context || await corporateAuthorization();
   if(!authorization||(!authorization.isSuperAdmin&&!authorization.permissions.includes(permission)))return null;
   if(platform&&!authorization.isSuperAdmin&&!authorization.platformSlugs.includes(platform)&&!authorization.platformIds.includes(platform))return null;
   return authorization;
