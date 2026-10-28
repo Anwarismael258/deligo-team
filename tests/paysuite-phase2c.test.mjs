@@ -30,8 +30,10 @@ test("a integração existente mantém escrita limitada a pagamentos e payouts",
 });
 
 test("o levantamento usa o proprietário canónico da carteira do trabalhador", () => {
-  const withdraw = read("app/api/profile/withdraw/route.ts");
-  assert.match(withdraw, /const personalWalletOwnerId = String\(employeeRows\?\.\[0\]\?\.auth_user_id \|\| actor\.authUserId\)/);
-  assert.match(withdraw, /owner_user_id=eq\.\$\{encodeURIComponent\(personalWalletOwnerId\)\}/);
-  assert.doesNotMatch(withdraw, /walletFilter[\s\S]{0,260}owner_user_id=eq\.\$\{encodeURIComponent\(actor\.authUserId\)\}/);
+  const withdraw = read("app/api/profile/withdraw/route.ts"),owner = read("lib/personal-wallet.ts");
+  assert.match(withdraw, /walletOwner\(actor\)/);
+  assert.match(owner, /employees\?id=eq\./);
+  assert.match(owner, /auth_user_id\|\|actor.authUserId/);
+  assert.match(withdraw, /owner_user_id=eq\.\$\{owner\}/);
+  assert.doesNotMatch(withdraw, /owner_user_id=eq\.\$\{actor\.authUserId\}/);
 });

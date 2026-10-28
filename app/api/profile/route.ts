@@ -182,6 +182,7 @@ export async function GET() {
       pending_amount: walletComponents.reduce((sum, wallet) => sum + Number(wallet.pending_amount || 0), 0),
       reserved_amount: walletComponents.reduce((sum, wallet) => sum + Number(wallet.reserved_amount || 0), 0),
       withdrawal_enabled: walletComponents.some((wallet) => wallet.withdrawal_enabled === true),
+      withdrawable_amount: walletComponents.filter(wallet=>wallet.withdrawal_enabled===true).reduce((sum,wallet)=>sum+Number(wallet.available_amount||0),0),
     };
     wallets.splice(0, wallets.length, unifiedWallet);
 
@@ -190,7 +191,7 @@ export async function GET() {
     const unifiedReservedAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.reserved_amount || 0), 0);
     const unifiedWithdrawableAmount = wallets
       .filter((wallet) => wallet.withdrawal_enabled === true)
-      .reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
+      .reduce((sum, wallet) => sum + Number(wallet.withdrawable_amount || 0), 0);
     const detectedOperator = profile?.personal_phone
       ? (() => { try { return detectMozambiqueWalletOperator(String(profile.personal_phone)); } catch { return null; } })()
       : null;
