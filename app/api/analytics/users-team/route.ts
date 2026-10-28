@@ -48,16 +48,34 @@ function seriesFor(current: { from: string; to: string }, users: Row[], tasks: R
 }
 
 function appName(row: Row) {
+  const slug = String(row.app_slug || "").toLowerCase();
+  if (slug === "taomoz" || slug === "deligo_market" || slug === "deligo-market") return "DeliGo Market";
+  if (slug === "deligo") return "DeliGo";
+  if (slug === "comunhao") return "Comunhão";
+  if (slug === "sarca") return "SARCA";
+  if (slug === "mestre24") return "Mestre24";
   const value = String(row.app_name || row.platform_name || row.app_slug || "Plataforma não indicada");
   return value.toLowerCase() === "taomoz" ? "DeliGo Market" : value;
+}
+function friendlyRole(platform: string, value: string) {
+  const token = value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  const maps: Record<string, Record<string, string>> = {
+    "DeliGo": { customer: "Cliente", deligo_customer: "Cliente", restaurant: "Restaurante", deligo_restaurant: "Restaurante", courier: "Estafeta", deligo_courier: "Estafeta", platform_admin: "Administrador da plataforma", platform_owner: "Proprietário da plataforma" },
+    "Comunhão": { member: "Membro", comunhao_member: "Membro", church: "Igreja", comunhao_church_admin: "Administrador da igreja", platform_admin: "Administrador da plataforma" },
+    "DeliGo Market": { buyer: "Comprador", taomoz_buyer: "Comprador", seller: "Vendedor", taomoz_seller: "Vendedor", delivery: "Entregador", delivery_agent: "Entregador", platform_admin: "Administrador da plataforma" },
+    "SARCA": { passenger: "Passageiro", sarca_passenger: "Passageiro", driver: "Motorista", sarca_driver: "Motorista", rider: "Motorista", platform_admin: "Administrador da plataforma" },
+    "Mestre24": { client: "Cliente", mestre24_client: "Cliente", professional: "Profissional", mestre24_professional: "Profissional", platform_admin: "Administrador da plataforma" },
+  };
+  return maps[platform]?.[token] || (token ? token.replace(/_/g, " ").replace(/\b\w/g, letter => letter.toUpperCase()) : "Utilizador");
 }
 function rolesFor(row: Row) {
   const raw = row.roles;
   const values: unknown[] = Array.isArray(raw) ? raw : typeof raw === "string" && raw.trim().startsWith("[") ? (() => { try { const parsed = JSON.parse(raw) as unknown; return Array.isArray(parsed) ? parsed : [raw]; } catch { return [raw]; } })() : [raw];
-  const roles = values.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map(value => value.trim());
-  if (roles.length) return roles;
+  const platform = appName(row);
+  const roles = values.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map(value => friendlyRole(platform, value.trim()));
+  if (roles.length) return [...new Set(roles)];
   const slug = String(row.app_slug || "").toLowerCase();
-  return [slug === "deligo" ? "customer / restaurant / courier" : slug === "comunhao" ? "member / church" : slug === "taomoz" ? "buyer / seller / delivery" : slug === "sarca" ? "passenger / driver" : slug === "mestre24" ? "client / professional" : "utilizador"];
+  return [slug === "deligo" ? "Cliente / Restaurante / Estafeta" : slug === "comunhao" ? "Membro / Igreja" : slug === "taomoz" ? "Comprador / Vendedor / Entregador" : slug === "sarca" ? "Passageiro / Motorista" : slug === "mestre24" ? "Cliente / Profissional" : "Utilizador"];
 }
 function state(row: Row) { return String(row.profile_status || row.membership_status || row.status || "indisponível").toLowerCase(); }
 

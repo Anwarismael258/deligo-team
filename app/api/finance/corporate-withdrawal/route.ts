@@ -54,12 +54,12 @@ export async function POST(request: NextRequest) {
     const pendingWithdrawals = Number(financeSummary.corporate_pending_withdrawals ?? 0);
     // During the transition between the legacy and canonical summaries the
     // profit field can be absent/zero while the confirmed revenue is present.
-    // Use the confirmed revenue minus already-pending requests only in that
-    // explicit mismatch; the approval RPC remains the final balance check.
-    const profitComponents = Number(financeSummary.deligo_profit ?? 0) + Number(financeSummary.mestre24_profit ?? 0);
+    // The confirmed revenue is the authoritative amount shown by the Finance
+    // dashboard. Older summaries returned zero/partial profit components even
+    // while the confirmed corporate wallet contained funds.
     const withdrawableRevenue = Number.isFinite(reportedWithdrawable) && reportedWithdrawable > 0
       ? reportedWithdrawable
-      : profitComponents <= 0 && confirmedRevenue > 0
+      : confirmedRevenue > 0
         ? Math.max(confirmedRevenue - pendingWithdrawals, 0)
         : 0;
     if (!Number.isFinite(withdrawableRevenue) || amount > withdrawableRevenue) {
@@ -81,5 +81,11 @@ export async function POST(request: NextRequest) {
     if (!withdrawalId) return NextResponse.json({ error: "Pedido financeiro sem identificador." }, { status: 502 });
     const otp = await authenticatedRpc("hq_send_corporate_withdrawal_otp_v1", { p_withdrawal_id: withdrawalId });
     return NextResponse.json({ prepared, otp });
-  } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Não foi possível processar o pedido." }, { status: 409 }); }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/platform_admin_required|42501/i.test(message)) {
+      return NextResponse.json({ error: "O fluxo de dupla aprovação da receita ainda está protegido pela política antiga do Supabase. É necessário publicar a função de preparação para aceitar CEO/Finanças; o saldo não foi alterado." }, { status: 503 });
+    }
+    return NextResponse.json({ error: message || "Não foi possível processar o pedido." }, { status: 409 });
+  }
 }

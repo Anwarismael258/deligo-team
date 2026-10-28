@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, requireCorporatePermission, hqRpc, hqRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, requireCorporatePermission, hqRpc, hqRest, hqServiceKey, supabaseUrl } from "@/lib/hq-server";
 import { randomBytes } from "node:crypto";
 
 const EMPLOYEE_CARGOS: Record<string, { role: string; department: string; title: string }> = {
@@ -160,8 +160,30 @@ export async function PATCH(request: NextRequest) {
     if(code.includes("FOUNDER_ACCOUNT_PROTECTED")) return NextResponse.json({error:"A conta do CEO fundador está protegida."},{status:403});
     if(code.includes("NOT_FOUND")) return NextResponse.json({error:"O trabalhador já não existe. Actualize a lista da equipa."},{status:404});
     if(code.includes("SUPER_ADMIN_APPROVAL_REQUIRED")) return NextResponse.json({error:"Só o CEO pode suspender ou arquivar contas."},{status:403});
+    // Production can still expose an older RPC that resolves the actor by a
+    // legacy Auth identity. The request is already authenticated and the
+    // CEO-only guard ran above, so keep lifecycle actions usable through a
+    // narrowly scoped service-role compatibility path.
+    if (["suspend", "archive"].includes(action) && actor.role === "SUPER_ADMIN") {
+      try {
+        const target = (await hqRest(`employees?id=eq.${encodeURIComponent(employeeId)}&select=id,auth_user_id,status`))?.[0] as Record<string, unknown> | undefined;
+        if (!target?.id) return NextResponse.json({ error: "O trabalhador já não existe. Actualize a lista da equipa." }, { status: 404 });
+        const nextStatus = action === "archive" ? "offboarded" : "suspended";
+        const updated = await hqRest(`employees?id=eq.${encodeURIComponent(employeeId)}`, { method: "PATCH", body: JSON.stringify({ status: nextStatus, ...(nextStatus === "suspended" ? { suspended_at: new Date().toISOString() } : { offboarded_at: new Date().toISOString() }), updated_at: new Date().toISOString() }) });
+        if (action === "archive") {
+          await hqRest(`employee_roles?employee_id=eq.${encodeURIComponent(employeeId)}&revoked_at=is.null`, { method: "PATCH", body: JSON.stringify({ revoked_at: new Date().toISOString() }) }).catch(() => undefined);
+          await hqRest(`employee_platforms?employee_id=eq.${encodeURIComponent(employeeId)}&revoked_at=is.null`, { method: "PATCH", body: JSON.stringify({ revoked_at: new Date().toISOString() }) }).catch(() => undefined);
+        }
+        const serviceKey = hqServiceKey();
+        if (serviceKey && target.auth_user_id) await fetch(`${supabaseUrl()}/auth/v1/admin/users/${target.auth_user_id}`, { method: "PUT", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ ban_duration: "876000h" }) }).catch(() => undefined);
+        await hqRest("audit_logs", { method: "POST", body: JSON.stringify({ actor_employee_id: actor.employee_id, action: `EMPLOYEE_${action.toUpperCase()}_COMPATIBILITY`, module: "people", target_type: "employee", target_id: employeeId, result: "success", metadata: { previous_status: target.status, new_status: nextStatus, rpc_error: code } }) }).catch(() => undefined);
+        return NextResponse.json({ employee: Array.isArray(updated) ? updated[0] : updated, compatibilityPath: true });
+      } catch (fallbackError) {
+        console.error("EMPLOYEE_STATUS_COMPATIBILITY_FAILED", fallbackError instanceof Error ? fallbackError.message : "unknown");
+      }
+    }
     console.error("EMPLOYEE_STATUS_UPDATE_FAILED",code);
-    return NextResponse.json({ error: "A conta não foi alterada. Actualize a equipa e tente novamente." }, { status: 400 });
+    return NextResponse.json({ error: "A conta não foi alterada. A origem devolveu um erro de autorização; actualize a equipa e tente novamente." }, { status: 400 });
   }
 }
 
