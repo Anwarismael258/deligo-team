@@ -1,32 +1,248 @@
-import {NextRequest,NextResponse}from"next/server";
-import{corporateActor,hqRpc,hqServiceKey,supabaseUrl}from"@/lib/hq-server";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  corporateActor,
+  hqRpc,
+  hqServiceKey,
+  supabaseUrl,
+} from "@/lib/hq-server";
 import { ingestMestre24CentralEvents } from "@/lib/mestre24-central-events";
-const h=(k:string)=>({...{apikey:k,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"},...(k.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${k}`})});
-async function rest(k:string,p:string,i:RequestInit={}){const r=await fetch(`${supabaseUrl()}/rest/v1/${p}`,{...i,headers:{...h(k),...(i.headers||{})},cache:"no-store"});if(!r.ok)throw new Error(await r.text());return r.status===204?null:r.json()}
-const inboxRoles=new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","CUSTOMER_SUPPORT","MARKETING","FIELD"]);
-async function ingestSupportNotifications(employeeId:string,key:string){
-  try{
-    const messages=await rest(key,"support_conversations?sender_type=eq.customer&is_internal=eq.false&select=id,ticket_id,sender_type,message,created_at&order=created_at.desc&limit=100") as Array<Record<string,unknown>>;
-    const externalMessages=(Array.isArray(messages)?messages:[]).filter(message=>String(message.sender_type||"").toLowerCase()==="customer");
-    if(!externalMessages.length)return;
-    const ticketIds=[...new Set(externalMessages.map(message=>String(message.ticket_id||"")).filter(Boolean))];
-    const [tickets,existing]=await Promise.all([
-      rest(key,`support_tickets?id=in.(${ticketIds.join(",")})&select=id,platform_id,customer_name,subject&limit=200`) as Promise<Array<Record<string,unknown>>>,
-      rest(key,`notifications?employee_id=eq.${encodeURIComponent(employeeId)}&source_type=eq.support_message&select=source_id&limit=1000`) as Promise<Array<Record<string,unknown>>>,
+const h = (k: string) => ({
+  ...{
+    apikey: k,
+    "Accept-Profile": "hq",
+    "Content-Profile": "hq",
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+  },
+  ...(k.startsWith("sb_secret_") ? {} : { Authorization: `Bearer ${k}` }),
+});
+async function rest(k: string, p: string, i: RequestInit = {}) {
+  const r = await fetch(`${supabaseUrl()}/rest/v1/${p}`, {
+    ...i,
+    headers: { ...h(k), ...(i.headers || {}) },
+    cache: "no-store",
+  });
+  if (!r.ok) throw new Error(await r.text());
+  return r.status === 204 ? null : r.json();
+}
+const inboxRoles = new Set([
+  "SUPER_ADMIN",
+  "FINANCE",
+  "SUPERVISOR",
+  "CUSTOMER_SUPPORT",
+  "MARKETING",
+  "FIELD",
+]);
+async function ingestSupportNotifications(employeeId: string, key: string) {
+  try {
+    const messages = (await rest(
+      key,
+      "support_conversations?sender_type=eq.customer&is_internal=eq.false&select=id,ticket_id,sender_type,message,created_at&order=created_at.desc&limit=100",
+    )) as Array<Record<string, unknown>>;
+    const externalMessages = (Array.isArray(messages) ? messages : []).filter(
+      (message) =>
+        String(message.sender_type || "").toLowerCase() === "customer",
+    );
+    if (!externalMessages.length) return;
+    const ticketIds = [
+      ...new Set(
+        externalMessages
+          .map((message) => String(message.ticket_id || ""))
+          .filter(Boolean),
+      ),
+    ];
+    const [tickets, existing] = await Promise.all([
+      rest(
+        key,
+        `support_tickets?id=in.(${ticketIds.join(",")})&select=id,platform_id,customer_name,subject&limit=200`,
+      ) as Promise<Array<Record<string, unknown>>>,
+      rest(
+        key,
+        `notifications?employee_id=eq.${encodeURIComponent(employeeId)}&source_type=eq.support_message&select=source_id&limit=1000`,
+      ) as Promise<Array<Record<string, unknown>>>,
     ]);
-    const ticketById=new Map((Array.isArray(tickets)?tickets:[]).map(ticket=>[String(ticket.id),ticket]));
-    const known=new Set((Array.isArray(existing)?existing:[]).map(row=>String(row.source_id||"")));
-    const rows=externalMessages.filter(message=>!known.has(String(message.id||""))).map(message=>{
-      const ticket=ticketById.get(String(message.ticket_id||""));
-      const preview=String(message.message||"Nova mensagem recebida").replace(/\s+/g," ").trim().slice(0,220);
-      const customer=String(ticket?.customer_name||"Cliente").trim();
-      return {employee_id:employeeId,type:"support_message",source_type:"support_message",source_id:String(message.id),title:"Nova mensagem de suporte",body:`${customer}: ${preview}`,platform_id:ticket?.platform_id||null,target_url:`/apoio-cliente?ticket=${encodeURIComponent(String(message.ticket_id||""))}`,priority:"high",dedupe_key:`support-message:${String(message.id)}:${employeeId}`};
-    });
-    if(rows.length)await rest(key,"notifications",{method:"POST",body:JSON.stringify(rows)});
-  }catch(error){
-    console.error("HQ_SUPPORT_NOTIFICATION_INTAKE_FAILED",String(error));
+    const ticketById = new Map(
+      (Array.isArray(tickets) ? tickets : []).map((ticket) => [
+        String(ticket.id),
+        ticket,
+      ]),
+    );
+    const known = new Set(
+      (Array.isArray(existing) ? existing : []).map((row) =>
+        String(row.source_id || ""),
+      ),
+    );
+    const rows = externalMessages
+      .filter((message) => !known.has(String(message.id || "")))
+      .map((message) => {
+        const ticket = ticketById.get(String(message.ticket_id || ""));
+        const preview = String(message.message || "Nova mensagem recebida")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 220);
+        const customer = String(ticket?.customer_name || "Cliente").trim();
+        return {
+          employee_id: employeeId,
+          type: "support_message",
+          source_type: "support_message",
+          source_id: String(message.id),
+          title: "Nova mensagem de suporte",
+          body: `${customer}: ${preview}`,
+          platform_id: ticket?.platform_id || null,
+          target_url: `/apoio-cliente?ticket=${encodeURIComponent(String(message.ticket_id || ""))}`,
+          priority: "high",
+          dedupe_key: `support-message:${String(message.id)}:${employeeId}`,
+        };
+      });
+    if (rows.length)
+      await rest(key, "notifications", {
+        method: "POST",
+        body: JSON.stringify(rows),
+      });
+  } catch (error) {
+    console.error("HQ_SUPPORT_NOTIFICATION_INTAKE_FAILED", String(error));
   }
 }
-export async function GET(req:NextRequest){const a=await corporateActor(),k=hqServiceKey();if(!a||!k)return NextResponse.json({error:"Sessão inválida."},{status:401});if(!inboxRoles.has(a.role))return NextResponse.json({error:"A sua função não tem acesso à inbox central."},{status:403});await Promise.all([hqRpc("hq_refresh_due_notifications_v1",{p_employee_id:a.employee_id}).catch(()=>0),ingestMestre24CentralEvents().catch(error=>{console.error("Mestre24 central event intake failed",error);return null}),ingestSupportNotifications(a.employee_id,k)]);const priority=req.nextUrl.searchParams.get("priority"),unread=req.nextUrl.searchParams.get("unread"),filters=[`employee_id=eq.${a.employee_id}`];if(priority&&priority!=="all")filters.push(`priority=eq.${encodeURIComponent(priority)}`);if(unread==="true")filters.push("read_at=is.null");const [notifications,departments,platforms,employees]=await Promise.all([rest(k,`notifications?${filters.join("&")}&select=*&order=created_at.desc&limit=300`),rest(k,"departments?select=id,name,code&limit=100"),rest(k,"platforms?select=id,name,slug&limit=20"),rest(k,"employees?select=id,display_name,employee_code&limit=500")]);return NextResponse.json({notifications,meta:{departments,platforms,employees:(employees||[]).map((employee:Record<string,unknown>)=>({...employee,name:employee.display_name||"Trabalhador"}))}},{headers:{"Cache-Control":"private, no-store"}})}
-export async function POST(req:NextRequest){const a=await corporateActor(),k=hqServiceKey();if(!a||!k)return NextResponse.json({error:"Sessão inválida."},{status:401});if(!["SUPER_ADMIN","FINANCE","SUPERVISOR"].includes(a.role))return NextResponse.json({error:"Apenas Admin, Finance e Supervisor podem enviar comunicações."},{status:403});try{const b=await req.json().catch(()=>({}))as{title?:string;body?:string;message?:string};const title=String(b.title||"").trim(),body=String(b.body||b.message||"").trim();if(title.length<3||body.length<3)return NextResponse.json({error:"Preencha um título e uma mensagem com pelo menos 3 caracteres."},{status:400});const employees=await rest(k,"employees?status=eq.active&select=id&limit=1000");const rows=(employees||[]).map((e:Record<string,unknown>)=>({employee_id:e.id,type:"manual_communication",title,body,platform_id:null,target_url:"/notificacoes"}));if(rows.length)await rest(k,"notifications",{method:"POST",body:JSON.stringify(rows)});return NextResponse.json({ok:true,recipientCount:rows.length},{status:201})}catch(error){console.error("manual communication failed",error);return NextResponse.json({error:"Não foi possível guardar a comunicação interna. Verifique a ligação ao servidor e a tabela de notificações."},{status:409})}}
-export async function PATCH(req:NextRequest){const a=await corporateActor(),k=hqServiceKey();if(!a||!k)return NextResponse.json({error:"Sessão inválida."},{status:401});const b=await req.json()as{id?:string;ids?:string[];all?:boolean};const ids=Array.isArray(b.ids)?b.ids.map(id=>String(id).trim()).filter(Boolean):[];const path=b.all?`notifications?employee_id=eq.${a.employee_id}&read_at=is.null`:ids.length?`notifications?id=in.(${ids.map(encodeURIComponent).join(",")})&employee_id=eq.${a.employee_id}&read_at=is.null`:`notifications?id=eq.${encodeURIComponent(b.id||"")}&employee_id=eq.${a.employee_id}&read_at=is.null`;const r=await fetch(`${supabaseUrl()}/rest/v1/${path}`,{method:"PATCH",headers:h(k),body:JSON.stringify({read_at:new Date().toISOString()}),cache:"no-store"});if(!r.ok)return NextResponse.json({error:"Não foi possível atualizar."},{status:409});return NextResponse.json({ok:true})}
+export async function GET(req: NextRequest) {
+  const a = await corporateActor(),
+    k = hqServiceKey();
+  if (!a || !k)
+    return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+  if (!inboxRoles.has(a.role))
+    return NextResponse.json(
+      { error: "A sua função não tem acesso à inbox central." },
+      { status: 403 },
+    );
+  await Promise.all([
+    hqRpc("hq_refresh_due_notifications_v1", {
+      p_employee_id: a.employee_id,
+    }).catch(() => 0),
+    ingestMestre24CentralEvents().catch((error) => {
+      console.error("Mestre24 central event intake failed", error);
+      return null;
+    }),
+    ingestSupportNotifications(a.employee_id, k),
+  ]);
+  const priority = req.nextUrl.searchParams.get("priority"),
+    unread = req.nextUrl.searchParams.get("unread"),
+    filters = [`employee_id=eq.${a.employee_id}`];
+  if (priority && priority !== "all")
+    filters.push(`priority=eq.${encodeURIComponent(priority)}`);
+  if (unread === "true") filters.push("read_at=is.null");
+  const [notifications, departments, platforms, employees] = await Promise.all([
+    rest(
+      k,
+      `notifications?${filters.join("&")}&select=*&order=created_at.desc&limit=300`,
+    ),
+    rest(k, "departments?select=id,name,code&limit=100"),
+    rest(k, "platforms?select=id,name,slug&limit=20"),
+    rest(k, "employees?select=id,display_name,employee_code&limit=500"),
+  ]);
+  return NextResponse.json(
+    {
+      notifications,
+      meta: {
+        departments,
+        platforms,
+        employees: (employees || []).map(
+          (employee: Record<string, unknown>) => ({
+            ...employee,
+            name: employee.display_name || "Trabalhador",
+          }),
+        ),
+      },
+    },
+    { headers: { "Cache-Control": "private, no-store" } },
+  );
+}
+export async function POST(req: NextRequest) {
+  const a = await corporateActor(),
+    k = hqServiceKey();
+  if (!a || !k)
+    return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+  if (!["SUPER_ADMIN", "SUPERVISOR", "OPERATIONS_SUPERVISOR"].includes(a.role))
+    return NextResponse.json(
+      {
+        error: "Apenas CEO e Supervisor podem enviar comunicações internas.",
+      },
+      { status: 403 },
+    );
+  try {
+    const b = (await req.json().catch(() => ({}))) as {
+      title?: string;
+      body?: string;
+      message?: string;
+    };
+    const title = String(b.title || "").trim(),
+      body = String(b.body || b.message || "").trim();
+    if (title.length < 3 || body.length < 3)
+      return NextResponse.json(
+        {
+          error:
+            "Preencha um título e uma mensagem com pelo menos 3 caracteres.",
+        },
+        { status: 400 },
+      );
+    const employees = await rest(
+      k,
+      "employees?status=eq.active&select=id&limit=1000",
+    );
+    const rows = (employees || []).map((e: Record<string, unknown>) => ({
+      employee_id: e.id,
+      type: "manual_communication",
+      title,
+      body,
+      platform_id: null,
+      target_url: "/notificacoes",
+    }));
+    if (rows.length)
+      await rest(k, "notifications", {
+        method: "POST",
+        body: JSON.stringify(rows),
+      });
+    return NextResponse.json(
+      { ok: true, recipientCount: rows.length },
+      { status: 201 },
+    );
+  } catch (error) {
+    console.error("manual communication failed", error);
+    return NextResponse.json(
+      {
+        error:
+          "Não foi possível guardar a comunicação interna. Verifique a ligação ao servidor e a tabela de notificações.",
+      },
+      { status: 409 },
+    );
+  }
+}
+export async function PATCH(req: NextRequest) {
+  const a = await corporateActor(),
+    k = hqServiceKey();
+  if (!a || !k)
+    return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+  const b = (await req.json()) as {
+    id?: string;
+    ids?: string[];
+    all?: boolean;
+  };
+  const ids = Array.isArray(b.ids)
+    ? b.ids.map((id) => String(id).trim()).filter(Boolean)
+    : [];
+  const path = b.all
+    ? `notifications?employee_id=eq.${a.employee_id}&read_at=is.null`
+    : ids.length
+      ? `notifications?id=in.(${ids.map(encodeURIComponent).join(",")})&employee_id=eq.${a.employee_id}&read_at=is.null`
+      : `notifications?id=eq.${encodeURIComponent(b.id || "")}&employee_id=eq.${a.employee_id}&read_at=is.null`;
+  const r = await fetch(`${supabaseUrl()}/rest/v1/${path}`, {
+    method: "PATCH",
+    headers: h(k),
+    body: JSON.stringify({ read_at: new Date().toISOString() }),
+    cache: "no-store",
+  });
+  if (!r.ok)
+    return NextResponse.json(
+      { error: "Não foi possível atualizar." },
+      { status: 409 },
+    );
+  return NextResponse.json({ ok: true });
+}
