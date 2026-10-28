@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateAuthorization, hqRest, stagingRest } from "@/lib/hq-server";
+import { getReportData, type ReportType } from "@/lib/report-data";
 
 export const dynamic = "force-dynamic";
 type Row = Record<string, unknown>;
@@ -55,6 +56,33 @@ export async function GET(request: NextRequest) {
       const selectedPlatformRow = platforms.find(item => String(item.id) === selectedPlatform || String(item.slug) === selectedPlatform);
       const taskRows = tasks.filter(row => (!selectedStatus || String(row.status || "").toLowerCase() === selectedStatus) && (!selectedDepartment || String(row.department_id || "") === selectedDepartment) && (!selectedPlatform || String(row.platform_id || "") === String(selectedPlatformRow?.id || selectedPlatform) || String(row.platform_slug || "") === selectedPlatform)); const completed = taskRows.filter(row => String(row.status).toLowerCase() === "completed"); const overdue = taskRows.filter(row => row.due_at && new Date(String(row.due_at)).getTime() < Date.now() && !["completed", "cancelled"].includes(String(row.status).toLowerCase())); const soon = milestones.filter(row => row.due_at && new Date(String(row.due_at)).getTime() >= Date.now() && new Date(String(row.due_at)).getTime() <= Date.now() + 14 * dayMs); return NextResponse.json({ mode, timezone: "Africa/Maputo", range: current, data: { kpis: [metric("active", "Projetos ativos", projects.filter(row => !["completed", "cancelled", "closed"].includes(String(row.status).toLowerCase())).length, "status não concluído/cancelado", "hq.projects"), metric("completed", "Projetos concluídos", projects.filter(row => String(row.status).toLowerCase() === "completed").length, "status = completed", "hq.projects"), metric("pending", "Tarefas pendentes", taskRows.filter(row => !["completed", "cancelled"].includes(String(row.status).toLowerCase())).length, "status não concluído/cancelado", "hq.tasks"), metric("done", "Tarefas concluídas", completed.length, "status = completed", "hq.tasks"), metric("overdue", "Tarefas atrasadas", overdue.length, "due_at < agora e não concluída", "hq.tasks"), metric("milestones", "Marcos próximos", soon.length, "due_at nos próximos 14 dias", "hq.project_milestones")], byProjectStatus: countBy(projects, row => String(row.status || "não indicado")), byPriority: countBy(taskRows, row => String(row.priority || "não indicada")), byDepartment: countBy(taskRows, row => String(row.department_name || row.department_id || "não indicado")), byPlatform: countBy(taskRows, row => { const platform = platforms.find(item => String(item.id) === String(row.platform_id)); return String(platform?.name || platform?.slug || row.platform_id || "não indicado"); }), series: series(current, taskRows, row => row.completed_at || row.created_at), filters: { departments: departments.map(row => ({ id: row.id, name: row.name || row.code })), platforms: platforms.map(row => ({ id: row.slug || row.id, name: row.name || row.slug })) } }, sources: { projects: "hq.projects", tasks: "hq.tasks", milestones: "hq.project_milestones" } }, { headers: { "Cache-Control": "private, no-store" } });
     }
-    const [saved, rawRuns, platforms] = await Promise.all([read("saved_reports?select=*&limit=1000"), read("report_runs?select=*&limit=2000"), read("platforms?select=id,slug,name&limit=50")]); const selectedPlatformRow = platforms.find(item => String(item.id) === selectedPlatform || String(item.slug) === selectedPlatform); const runs = rawRuns.filter(row => !selectedPlatform || String(row.platform_id || "") === String(selectedPlatformRow?.id || selectedPlatform) || String(row.platform_slug || "") === selectedPlatform); const successful = runs.filter(row => !["failed", "error"].includes(String(row.status || "").toLowerCase())); const failed = runs.filter(row => ["failed", "error"].includes(String(row.status || "").toLowerCase())); return NextResponse.json({ mode, timezone: "Africa/Maputo", range: current, data: { kpis: [metric("available", "Relatórios disponíveis", saved.length, "count(saved_reports)", "hq.saved_reports"), metric("generated", "Relatórios gerados", successful.length, "report_runs sem estado failed/error", "hq.report_runs"), metric("exports", "Exportações concluídas", successful.filter(row => String(row.report_type || row.format || "").length > 0).length, "runs com tipo/formato", "hq.report_runs"), metric("failed", "Exportações falhadas", failed.length, "status = failed/error", "hq.report_runs")], byType: countBy(runs, row => String(row.report_type || row.format || "não indicado")), byPlatform: countBy(runs, row => { const p = platforms.find(item => String(item.id) === String(row.platform_id)); return String(p?.name || p?.slug || row.platform_id || "não indicado"); }), byStatus: countBy(runs, row => String(row.status || "concluído/sem estado")), series: series(current, runs, row => row.generated_at || row.created_at), lastUpdated: runs.map(row => String(row.generated_at || row.created_at || "")).filter(Boolean).sort().at(-1) || null, limitations: ["O sistema regista saved_reports, report_schedules e report_runs. Não é apresentada métrica de consultas quando não existe evento de consulta verificável."] }, sources: { saved: "hq.saved_reports", schedules: "hq.report_schedules", runs: "hq.report_runs" } }, { headers: { "Cache-Control": "private, no-store" } });
+    const reportType = (["financial", "marketing", "field", "support"].includes(query.get("reportType") || "") ? query.get("reportType") : "financial") as ReportType;
+    const report = await getReportData(reportType, { period, from: validDate(query.get("from")), to: validDate(query.get("to")), platform: selectedPlatform, department: selectedDepartment, status: selectedStatus, allowedPlatforms: permission?.isSuperAdmin ? null : [...permission?.platformIds || [], ...permission?.platformSlugs || []] });
+    const saved = await read("saved_reports?select=*&limit=1000");
+    const rawRuns = await read("report_runs?select=*&limit=2000");
+    const successful = rawRuns.filter(row => !["failed", "error"].includes(String(row.status || "").toLowerCase()));
+    const failed = rawRuns.filter(row => ["failed", "error"].includes(String(row.status || "").toLowerCase()));
+    const rows = report.records.slice(0, 100);
+    return NextResponse.json({ mode, timezone: "Africa/Maputo", range: report.range, data: {
+      reportType,
+      source: report.source,
+      sourceState: report.sourceState,
+      sourceError: report.sourceError,
+      summary: report.summary,
+      records: rows,
+      kpis: report.summary ? [
+        metric("total", "Registos no período", report.summary.total, "count(registos filtrados)", report.source),
+        metric("value", "Valor identificado", report.summary.value, "soma apenas de valores presentes", report.source),
+        metric("pending", "Pendentes", report.summary.pending, "estado pendente/aberto/em análise", report.source),
+        metric("unavailable", "Métricas indisponíveis", report.limitations.length, "métricas sem fonte verificável", report.source),
+      ] : [metric("total", "Registos no período", null, "fonte indisponível", report.source)],
+      byStatus: report.summary?.statuses || [],
+      byType: [],
+      limitations: report.limitations,
+      filters: { platforms: [], departments: [] },
+      savedCount: saved.length,
+      generatedCount: successful.length,
+      failedCount: failed.length,
+    }, sources: { records: report.source, saved: "hq.saved_reports", runs: "hq.report_runs" } }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Dashboard indisponível." }, { status: 502 }); }
 }

@@ -1307,7 +1307,6 @@ if(active==="Operações de Campo")void refreshField();
           </div>
           <ModuleErrorBoundary resetKey={active}>
           {active === "Relatórios" && !restrictedOperationalRole && <ModuleErrorBoundary resetKey="reports"><CorporateOperationsAnalyticsDashboard mode="reports" /></ModuleErrorBoundary>}
-          {active === "Projectos e Tarefas" && !restrictedOperationalRole && <ModuleErrorBoundary resetKey="projects"><CorporateOperationsAnalyticsDashboard mode="projects" /></ModuleErrorBoundary>}
           {active === "Site Institucional" && <><ModuleErrorBoundary resetKey="institutional-analytics"><CorporateOperationsAnalyticsDashboard mode="institutional" /></ModuleErrorBoundary><ModuleErrorBoundary resetKey="institutional-news"><InstitutionalNewsManager /></ModuleErrorBoundary></>}
           {active === "Vagas" && <><ModuleErrorBoundary resetKey="jobs-analytics"><CorporateOperationsAnalyticsDashboard mode="jobs" /></ModuleErrorBoundary><ModuleErrorBoundary resetKey="jobs-manager"><InstitutionalJobsManager /></ModuleErrorBoundary></>}
           {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !analyticsActive.has(active) && !isAccountScreen && (

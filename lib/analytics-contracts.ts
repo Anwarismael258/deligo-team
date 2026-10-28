@@ -11,6 +11,7 @@ export type AnalyticsFilters = {
   department?: string;
   priority?: string;
   agent?: string;
+  responsible?: string;
   channel?: string;
   eventType?: string;
   location?: string;
