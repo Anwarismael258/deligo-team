@@ -57,8 +57,9 @@ export async function signPlatformPath(platform: PlatformBackend, path: string) 
 }
 
 export async function platformRest(platform: PlatformBackend, path: string, init: RequestInit = {}) {
-  const schemaHeaders = platform === "mestre24" ? { "Accept-Profile": "mestre24", "Content-Profile": "mestre24" } : {};
-  const response = await fetch(`${backendUrl(platform)}/rest/v1/${path}`, { ...init, headers: { ...headers(platform), ...schemaHeaders, ...Object.fromEntries(new Headers(init.headers).entries()) }, cache: "no-store" });
+  const schema = platform === "mestre24" ? "mestre24" : platform === "sarca" ? "sarca" : null;
+  const schemaHeaders: Record<string, string> = schema ? { "Accept-Profile": schema, "Content-Profile": schema } : {};
+  const response = await fetch(`${backendUrl(platform)}/rest/v1/${path}`, { ...init, headers: { ...Object.fromEntries(headers(platform).entries()), ...schemaHeaders, ...Object.fromEntries(new Headers(init.headers).entries()) }, cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_${platform.toUpperCase()}_FAILED`);
   return response.status === 204 ? null : response.json();
 }

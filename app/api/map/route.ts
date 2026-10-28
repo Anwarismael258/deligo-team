@@ -9,6 +9,7 @@ type MapMarker = Record<string, unknown>;
 type MapRoute = { id: string; platform: string; label: string; coordinates: [number, number][]; updatedAt: string };
 
 const coordinate = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 };
@@ -163,19 +164,32 @@ export async function GET() {
     const sarcaAccess = await requireCorporatePermission("operations.view", "sarca");
     if (sarcaAccess) {
       const trips = await safeRows(() => platformRest("sarca", "trips?select=*&status=in.(searching_driver,driver_assigned,driver_arriving,in_progress)&order=updated_at.desc&limit=200")) as MapMarker[] | null;
+      const since = encodeURIComponent(new Date(Date.now() - 5 * 60_000).toISOString());
+      const [driverRows, riderRows] = await Promise.all([
+        safeRows(() => platformRest("sarca", `driver_location_events?select=driver_user_id,latitude,longitude,recorded_at&recorded_at=gte.${since}&order=recorded_at.desc&limit=500`)),
+        safeRows(() => platformRest("sarca", `rider_location_events?select=rider_user_id,trip_id,latitude,longitude,recorded_at&recorded_at=gte.${since}&order=recorded_at.desc&limit=500`)),
+      ]) as [MapMarker[] | null, MapMarker[] | null];
+      const latestDrivers = new Map<string, MapMarker>();
+      const latestRiders = new Map<string, MapMarker>();
+      for (const row of driverRows || []) if (!latestDrivers.has(String(row.driver_user_id))) latestDrivers.set(String(row.driver_user_id), row);
+      for (const row of riderRows || []) if (!latestRiders.has(String(row.trip_id))) latestRiders.set(String(row.trip_id), row);
       for (const trip of trips || []) {
+        const driverPosition = latestDrivers.get(String(trip.driver_user_id));
+        const riderPosition = latestRiders.get(String(trip.id));
+        if (driverPosition) Object.assign(trip, { driver_latitude: driverPosition.latitude, driver_longitude: driverPosition.longitude, driver_recorded_at: driverPosition.recorded_at });
+        if (riderPosition) Object.assign(trip, { rider_latitude: riderPosition.latitude, rider_longitude: riderPosition.longitude, rider_recorded_at: riderPosition.recorded_at });
         const tripId = String(trip.id || "");
         const reference = operationReference(trip, tripId);
         const origin = point(trip.pickup_lat, trip.pickup_lng);
         const destination = point(trip.dropoff_lat, trip.dropoff_lng);
         const updatedAt = typeof trip.updated_at === "string" ? trip.updated_at : checkedAt;
-        if (origin) addMarker({ id: `saraca:trip:${tripId}:origin`, platform: "SARCA", role: "Viagem", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
-        if (destination) addMarker({ id: `saraca:trip:${tripId}:destination`, platform: "SARCA", role: "Rider", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+        if (origin) addMarker({ id: `sarca:trip:${tripId}:origin`, platform: "SARCA", role: "Viagem", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
+        if (destination) addMarker({ id: `sarca:trip:${tripId}:destination`, platform: "SARCA", role: "Rider", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
         const driver = point(firstValue(trip, ["driver_latitude", "driver_current_latitude", "driver_lat", "current_driver_latitude"]), firstValue(trip, ["driver_longitude", "driver_current_longitude", "driver_lng", "current_driver_longitude"]));
         const rider = point(firstValue(trip, ["rider_latitude", "rider_current_latitude", "rider_lat", "current_rider_latitude"]), firstValue(trip, ["rider_longitude", "rider_current_longitude", "rider_lng", "current_rider_longitude"]));
-        if (driver) addMarker({ id: `saraca:trip:${tripId}:driver`, platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt });
-        if (rider) addMarker({ id: `saraca:trip:${tripId}:rider`, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt });
-        if (origin && destination) routes.push({ id: `saraca:trip:${tripId}`, platform: "SARCA", label: `Viagem #${reference}`, coordinates: [origin, destination], updatedAt });
+        if (driver) addMarker({ id: `sarca:trip:${tripId}:driver`, platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt: trip.driver_recorded_at || updatedAt });
+        if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
+        if (origin && destination) routes.push({ id: `sarca:trip:${tripId}`, platform: "SARCA", label: `Viagem #${reference}`, coordinates: [origin, destination], updatedAt });
       }
     }
 

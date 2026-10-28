@@ -106,12 +106,12 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
         const name = pick(row, ["full_name", "church_name", "store_name", "name", "subject", "user_id"]);
         const id = String(row.id || row.user_id || index);
         const platform = String(row._platform || "");
-        const canCorrect = platform === "DeliGo" || platform.includes("Comun");
+        const canCorrect = platform === "DeliGo" || platform === "SARCA" || platform.includes("Comun");
         return <div className="operationalRow" key={id}><div><strong>{name}</strong><small>{pick(row, ["_subject_type", "ticket_number", "id", "user_id"])}</small></div><span>{pick(row, ["_platform", "phone", "city", "location", "role", "priority"])}</span><b className="operationalStatus">{pick(row, ["status", "kyc_status", "is_active"])}</b><span>{pick(row, ["updated_at", "created_at"])}</span><div className="rowActions">
           {module === "support" && selected === "tickets" && <><button onClick={() => setTicketId(id)}>Abrir conversa</button>{String(row.status) !== "resolved" && <button onClick={() => void setTicketStatus(id, "resolved")}>Resolver</button>}</>}
           {module === "marketing" && selected === "campaigns" && <>{String(row.status) !== "published" && <button onClick={() => void updateCampaign(id, "published")}>Publicar</button>}{String(row.status) !== "archived" && <button onClick={() => void updateCampaign(id, "archived")}>Arquivar</button>}</>}
           {isKyc && <button disabled={!media.length} onClick={() => setGallery({ name, media })}>Galeria ({media.length})</button>}
-          {isKyc && data?.permissions?.canDecideKyc && <>{canCorrect && <button onClick={() => void decideKyc(row, "correction")}>Corrigir</button>}<button onClick={() => void decideKyc(row, "reject")}>Rejeitar</button><button onClick={() => void decideKyc(row, "approve")}><CheckCircle2 /> Aprovar</button></>}
+          {isKyc && data?.permissions?.canDecideKyc && <>{canCorrect && <button onClick={() => void decideKyc(row, "correction")}>Pedir correção</button>}<button onClick={() => void decideKyc(row, "reject")}>Rejeitar</button><button onClick={() => void decideKyc(row, "approve")}><CheckCircle2 /> Aprovar</button></>}
         </div></div>;
       })}
       {!rows.length && <div className="peopleEmpty">Nenhum registo corresponde à pesquisa.</div>}

@@ -92,7 +92,7 @@ export async function GET(request: NextRequest) {
     const [deligoKyc, deligoProfiles, sarcaDrivers, comunhaoChurches, taomozSellerKyc, taomozSellers, mestre24Kyc, mestre24Profiles, mestre24HqCases, restaurants, couriers, notes] = await Promise.all([
       getRows("kyc_submissions?select=*&order=updated_at.desc&limit=250"),
       getRows("profiles?select=id,full_name,phone,role,account_status&order=updated_at.desc&limit=500"),
-      getRows("driver_profiles?select=*&order=updated_at.desc&limit=250"),
+      hqRest("platform_kyc_cases?select=*&source_schema=eq.sarca&source_table=eq.driver_documents&order=submitted_at.desc&limit=250").then(rows => (rows as Row[]).map(row => ({ ...row, _hq_case_id: row.id, applicant_name: row.subject_name, user_id: row.subject_user_id }))),
       getRows("church_applications?select=*&order=updated_at.desc&limit=250"),
       getRows("kyc_submissions?select=*&role=eq.seller&order=updated_at.desc&limit=250"),
       getRows("seller_profiles?select=*&order=updated_at.desc&limit=250"),
@@ -168,6 +168,12 @@ export async function PATCH(request: NextRequest) {
     const label = body.platform || "";
     const platform: PlatformBackend | null = label === "DeliGo" ? "deligo" : label === "SARCA" ? "sarca" : label === "TaoMoz" ? "taomoz" : label === "Mestre24" ? "mestre24" : label.includes("Comun") ? "comunhao" : null;
     if (!platform) return NextResponse.json({ error: "Plataforma KYC inválida." }, { status: 400 });
+    if (platform === "sarca") {
+      const employees = await hqRest(`employees?select=auth_user_id&id=eq.${encodeURIComponent(actor.employee_id)}&status=eq.active`) as { auth_user_id: string }[];
+      if (!employees[0]?.auth_user_id) return NextResponse.json({ error: "Identidade do trabalhador indisponível." }, { status: 403 });
+      const result = await hqRpc("hq_decide_platform_kyc_v1", { p_case_id: body.id, p_actor_auth_user_id: employees[0].auth_user_id, p_decision: body.action, p_reason: body.reason?.trim() || null });
+      return NextResponse.json({ ok: true, result });
+    }
     const operation = buildPlatformDecision(platform, body.action as PlatformDecision, body.id, body.reason);
     if (operation.transport === "function") await platformFunction(platform, operation.name, operation.body);
     else if (operation.transport === "rpc") await platformRpc(platform, operation.name, operation.body);

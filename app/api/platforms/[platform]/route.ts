@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireCorporatePermission, hqRpc } from "@/lib/hq-server";
+import { requireCorporatePermission, hqRpc, hqRest } from "@/lib/hq-server";
 import { platformFunction, platformRest, platformRpc, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
 import { buildPlatformDecision, type PlatformDecision } from "@/lib/platform-decisions";
 
@@ -15,7 +15,7 @@ const safeRest = async (platform: PlatformBackend, path: string, source: string,
     return null;
   }
 };
-const mediaFields = ["avatar_url", "profile_photo_url", "profile_image_url", "photo_url", "image_url", "document_url", "file_url", "selfie_url", "document_front_path", "document_back_path", "selfie_path", "proof_url", "photos", "documents", "files", "attachments"];
+const mediaFields = ["storage_path", "file_path", "avatar_url", "profile_photo_url", "profile_image_url", "photo_url", "image_url", "document_url", "file_url", "selfie_url", "document_front_path", "document_back_path", "selfie_path", "proof_url", "photos", "documents", "files", "attachments"];
 const signRecordMedia = async (platform: PlatformBackend, row: Record<string, unknown>) => { const copy = { ...row }; for (const field of mediaFields) { const value = copy[field]; if (typeof value === "string" && value) copy[field] = await signPlatformPath(platform, value); else if (Array.isArray(value)) copy[field] = await Promise.all(value.map(item => typeof item === "string" ? signPlatformPath(platform, item) : item)); } return copy; };
 const signSnapshotMedia = async (platform: PlatformBackend, data: Record<string, unknown>) => { const result: Record<string, unknown> = { ...data }; for (const [key, value] of Object.entries(result)) if (Array.isArray(value)) result[key] = await Promise.all(value.map(item => item && typeof item === "object" ? signRecordMedia(platform, item as Record<string, unknown>) : item)); return result; };
 
@@ -39,7 +39,13 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pla
           categories: await safeRest(platform, "categories?select=id,name,slug,parent_id,active,display_order&order=display_order.asc,name.asc", "categories", sourceErrors),
         }
       : platform === "sarca"
-      ? await platformFunction(platform, "admin-get-dashboard").catch(error => { console.error("HQ_PLATFORM_SOURCE_UNAVAILABLE", { platform, source: "dashboard", error: error instanceof Error ? error.message : String(error) }); sourceErrors.dashboard = "Fonte indisponível"; return {}; })
+      ? {
+          drivers: await safeRest(platform, "driver_profiles?select=*&order=updated_at.desc&limit=250", "drivers", sourceErrors),
+          trips: await safeRest(platform, "trips?select=*&order=created_at.desc&limit=250", "trips", sourceErrors),
+          kyc: await safeRest(platform, "driver_documents?select=*&order=created_at.desc&limit=250", "kyc", sourceErrors),
+          driver_positions: await safeRest(platform, "driver_location_events?select=driver_user_id,latitude,longitude,accuracy_meters,recorded_at&order=recorded_at.desc&limit=250", "driver_positions", sourceErrors),
+          rider_positions: await safeRest(platform, "rider_location_events?select=rider_user_id,trip_id,latitude,longitude,accuracy_meters,recorded_at&order=recorded_at.desc&limit=250", "rider_positions", sourceErrors),
+        }
       : platform === "comunhao"
         ? { applications: await safeRest(platform, "church_applications?select=*&order=created_at.desc&limit=250", "applications", sourceErrors), subscriptions: await safeRest(platform, "church_subscriptions?select=*&order=created_at.desc&limit=100", "subscriptions", sourceErrors), subscription_plans: await safeRest(platform, "subscription_plans?select=code,name,description,price_mzn,currency_code,billing_cycle_days,member_limit,admin_limit,features,is_public,is_paid,is_active,sort_order&is_active=eq.true&order=sort_order.asc,code.asc", "subscription_plans", sourceErrors), notifications: await safeRest(platform, "internal_notifications?select=*&order=created_at.desc&limit=100", "notifications", sourceErrors) }
         : platform === "taomoz"
@@ -62,6 +68,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ p
   try {
     const expectedAction = platform === "comunhao" ? "review_application" : platform === "sarca" ? "review_driver" : platform === "taomoz" ? "review_kyc" : decision;
     if (body.action !== expectedAction) return NextResponse.json({ error: "Acção incompatível com a plataforma." }, { status: 400 });
+    if (platform === "sarca") {
+      const cases = await hqRest(`platform_kyc_cases?select=id&source_schema=eq.sarca&source_table=eq.driver_documents&source_record_id=eq.${encodeURIComponent(body.id)}`) as { id: string }[];
+      if (!cases[0]) return NextResponse.json({ error: "Selecione um documento KYC para rever." }, { status: 400 });
+      const employees = await hqRest(`employees?select=auth_user_id&id=eq.${encodeURIComponent(actor.employee_id)}&status=eq.active`) as { auth_user_id: string }[];
+      if (!employees[0]?.auth_user_id) return NextResponse.json({ error: "Identidade do trabalhador indisponível." }, { status: 403 });
+      const result = await hqRpc("hq_decide_platform_kyc_v1", { p_case_id: cases[0].id, p_actor_auth_user_id: employees[0].auth_user_id, p_decision: decision, p_reason: body.reason?.trim() || null });
+      return NextResponse.json({ ok: true, result });
+    }
     const operation = buildPlatformDecision(platform, decision as PlatformDecision, body.id, body.reason);
     const result = operation.transport === "function"
       ? await platformFunction(platform, operation.name, operation.body)

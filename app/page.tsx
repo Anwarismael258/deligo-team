@@ -1,5 +1,6 @@
 // @ts-nocheck
 "use client";
+import { downloadDocument } from "@/lib/download-document";
 // This operational workspace is incrementally typed; API payloads remain runtime-validated by their route handlers.
 /* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
@@ -37,7 +38,7 @@ import { FinanceCustodyDonut, FinanceKpi, FinanceRevenueBars } from "@/component
 import { ModuleErrorBoundary } from "@/components/ModuleErrorBoundary";
 
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
-const kycDocumentLinks=(caseId:string,docs:unknown[])=>docs.map((doc,index)=>{const item=doc&&typeof doc==="object"?doc as Record<string,unknown>:null,value=typeof doc==="string"?doc:String(item?.signed_url||item?.url||"");if(!/^https?:\/\//i.test(value))return <span className="kycDocumentUnavailable" key={`${caseId}-doc-${index}`}>Documento {index+1}: indisponível</span>;return <span className="kycDocumentLink" key={`${caseId}-doc-${index}`}><strong>Documento {index+1}</strong><a href={value} target="_blank" rel="noreferrer">Abrir</a><a href={value} download={`documento-${index+1}`} target="_blank" rel="noreferrer">Guardar</a></span>});
+const kycDocumentLinks=(caseId:string,docs:unknown[])=>docs.map((doc,index)=>{const item=doc&&typeof doc==="object"?doc as Record<string,unknown>:null,value=typeof doc==="string"?doc:String(item?.signed_url||item?.url||"");if(!/^https?:\/\//i.test(value))return <span className="kycDocumentUnavailable" key={`${caseId}-doc-${index}`}>Documento {index+1}: indisponível</span>;return <span className="kycDocumentLink" key={`${caseId}-doc-${index}`}><strong>Documento {index+1}</strong><a href={value} target="_blank" rel="noreferrer">Abrir</a><a href={value} onClick={event=>{event.preventDefault();const link=event.currentTarget;if(link.dataset.downloading)return;link.dataset.downloading="true";link.textContent="A descarregar…";void downloadDocument(value,`documento-${index+1}`).catch(error=>window.alert(error.message)).finally(()=>{delete link.dataset.downloading;link.textContent="Guardar"})}}>Guardar</a></span>});
 
 const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"];
 const nav = [

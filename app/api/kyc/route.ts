@@ -75,9 +75,12 @@ export async function PATCH(request: NextRequest) {
   }
   if (body.decision !== "approve" && !body.reason?.trim()) return NextResponse.json({ error: "O motivo é obrigatório para rejeitar, suspender ou pedir correção." }, { status: 400 });
   try {
+    const employees = await hqRest(`employees?select=auth_user_id&id=eq.${encodeURIComponent(authorization.actor.employee_id)}&status=eq.active`) as { auth_user_id: string }[];
+    const actorAuthId = employees[0]?.auth_user_id;
+    if (!actorAuthId) return NextResponse.json({ error: "Identidade do trabalhador indisponível." }, { status: 403 });
     const result = await hqRpc("hq_decide_platform_kyc_v1", {
       p_case_id: body.caseId,
-      p_actor_auth_user_id: authorization.actor.authUserId,
+      p_actor_auth_user_id: actorAuthId,
       p_decision: body.decision,
       p_reason: body.reason?.trim() || null,
     });
