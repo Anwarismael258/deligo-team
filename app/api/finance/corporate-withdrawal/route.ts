@@ -16,7 +16,8 @@ async function authenticatedRpc(name: string, body: Record<string, unknown>) {
     cache: "no-store",
   });
   if (!response.ok) throw new Error((await response.text()) || "HQ_RPC_FAILED");
-  return response.json();
+  const text=await response.text();
+  return text.trim()?JSON.parse(text):null;
 }
 
 export async function POST(request: NextRequest) {
@@ -35,33 +36,9 @@ export async function POST(request: NextRequest) {
     }
     const amount = Number(body?.amount);
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Informe um valor válido." }, { status: 400 });
-    const rawFinanceSummary = await hqRpc("hq_deligo_finance_summary_v1", {
-      p_actor_auth_user_id: actor.authUserId,
-      p_from: null,
-      p_to: null,
-    }) as Record<string, unknown>;
-    // The finance RPC returns the canonical values under `summary` and the
-    // platform reconciliation under `breakdown`. Older responses were flat;
-    // support both shapes so a valid confirmed balance is never read as 0.
-    const financeSummary = rawFinanceSummary.summary && typeof rawFinanceSummary.summary === "object"
-      ? rawFinanceSummary.summary as Record<string, unknown>
-      : rawFinanceSummary;
-    const financeBreakdown = rawFinanceSummary.breakdown && typeof rawFinanceSummary.breakdown === "object"
-      ? rawFinanceSummary.breakdown as Record<string, unknown>
-      : {};
-    const confirmedRevenue = Number(financeSummary.corporate_revenue_confirmed ?? financeBreakdown.central_revenue_confirmed ?? 0);
-    const reportedWithdrawable = Number(financeSummary.corporate_profit_withdrawable);
-    const pendingWithdrawals = Number(financeSummary.corporate_pending_withdrawals ?? 0);
-    // During the transition between the legacy and canonical summaries the
-    // profit field can be absent/zero while the confirmed revenue is present.
-    // The confirmed revenue is the authoritative amount shown by the Finance
-    // dashboard. Older summaries returned zero/partial profit components even
-    // while the confirmed corporate wallet contained funds.
-    const withdrawableRevenue = Number.isFinite(reportedWithdrawable) && reportedWithdrawable > 0
-      ? reportedWithdrawable
-      : confirmedRevenue > 0
-        ? Math.max(confirmedRevenue - pendingWithdrawals, 0)
-        : 0;
+    const availability=await hqRpc("corporate_revenue_availability_v1",{},"hq") as Record<string,unknown>;
+    if(availability.corporate_profit_withdrawable==null)throw new Error("Receita disponível temporariamente indisponível.");
+    const withdrawableRevenue=Number(availability.corporate_profit_withdrawable);
     if (!Number.isFinite(withdrawableRevenue) || amount > withdrawableRevenue) {
       return NextResponse.json({
         error: `O valor ultrapassa a receita corporativa confirmada disponível (${withdrawableRevenue.toFixed(2)} MZN).`,
@@ -75,7 +52,7 @@ export async function POST(request: NextRequest) {
       p_amount: amount,
       p_method: "internal_transfer",
       p_phone_number: "HQ_INTERNAL_WALLET",
-      p_idempotency_key: String(body?.idempotencyKey || `hq-${actor.employee_id}-${Date.now()}`).trim(),
+      p_idempotency_key: String(body?.idempotencyKey || `hq-${actor.employee_id}-${crypto.randomUUID()}`).trim(),
     });
     const withdrawalId = String((prepared as Record<string, unknown>).withdrawal_id || "");
     if (!withdrawalId) return NextResponse.json({ error: "Pedido financeiro sem identificador." }, { status: 502 });

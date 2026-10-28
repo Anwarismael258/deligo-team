@@ -59,9 +59,13 @@ export async function GET() {
     // The canonical corporate wallet summary lives in the hq schema.  Calling
     // it as a public `hq_*` function returns 404/null and makes every Finance
     // card render "Indisponível" even when the ledger has data.
-    const corporateRevenue = canViewDeligoFinance
+    let corporateRevenue = canViewDeligoFinance
       ? await fetch(`${supabaseUrl()}/rest/v1/rpc/corporate_revenue_summary_v1`, { method: "POST", headers: { ...rpcHeaders, "Accept-Profile": "hq", "Content-Profile": "hq" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }).then(response => response.ok ? response.json() : null).catch(() => null)
       : null;
+    if(canViewDeligoFinance){
+      const availability=await fetch(`${supabaseUrl()}/rest/v1/rpc/corporate_revenue_availability_v1`,{method:"POST",headers:{...rpcHeaders,"Accept-Profile":"hq","Content-Profile":"hq"},body:"{}",cache:"no-store",signal:AbortSignal.timeout(5000)}).then(response=>response.ok?response.json():null).catch(()=>null);
+      if(availability)corporateRevenue={...(corporateRevenue||{}),...availability};
+    }
     // DeliGo Eats still has canonical personal/customer/restaurant/courier
     // wallets in deligo.legacy_wallets. Keep those balances separate from corporate
     // revenue and use available_balance when the column exists; this endpoint
