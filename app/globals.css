@@ -220,7 +220,7 @@ footer{display:flex;justify-content:space-between;border-top:1px solid var(--lin
 /* Swipe gestures: the sidebar closes left on mobile and open profile sheets close upward. */
 .profileModal{touch-action:pan-y;overscroll-behavior:contain}
 @media(max-width:720px){.profileModal{align-self:end;max-height:calc(100vh - 24px);border-radius:18px 18px 0 0}}
-.shell .kycGalleryBackdrop{background:#020915ed!important;backdrop-filter:blur(8px)}
+.shell .kycGalleryBackdrop{z-index:200!important;background:#020915ed!important;backdrop-filter:blur(8px)}
 .shell .profileModal{background:#0b1b2d!important;border:1px solid #315174;color:#eaf2ff;box-shadow:0 24px 80px #000b}
 .shell .profileModal .kycGalleryHead{border-bottom:1px solid #294766;padding-bottom:14px}
 .shell .profileModal .kycGalleryHead span{color:#69d8ff}

@@ -1,6 +1,6 @@
 import { flushSarcaKycPush } from "@/lib/sarca-kyc-push";
 import { after, NextRequest, NextResponse } from "next/server";
-import { corporateAuthorization, hqRest, hqRpc } from "@/lib/hq-server";
+import { corporateAuthorization, hqRest, hqRpc, stagingRest } from "@/lib/hq-server";
 import { listPlatformStorageObjects, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +61,10 @@ export async function GET(request: NextRequest) {
     : "";
   try {
     const rows = await hqRest(`platform_kyc_cases?select=*,platforms!inner(slug,name,platform_code)&order=submitted_at.desc&limit=300${platformFilter}${statusFilter}${scope}`) as Record<string, unknown>[];
+    const sarcaIds = [...new Set(rows.filter(row => row.source_schema === "sarca").map(row => String(row.subject_user_id || "")).filter(id => /^[0-9a-f-]{36}$/i.test(id)))];
+    const identities = sarcaIds.length ? await stagingRest(`profiles?select=id,user_id,full_name&or=(id.in.(${sarcaIds.join(",")}),user_id.in.(${sarcaIds.join(",")}))`) as Array<{ id: string; user_id?: string; full_name?: string }> : [];
+    const names = new Map(identities.flatMap(profile => [[profile.id, profile.full_name], [profile.user_id, profile.full_name]]));
+    for (const row of rows) if (row.source_schema === "sarca") row.applicant_name = names.get(String(row.subject_user_id)) || "Motorista SARCA";
     if (authorization.isSuperAdmin || authorization.platformSlugs.includes("sarca")) after(() => flushSarcaKycPush());
     return NextResponse.json({ data: await Promise.all(rows.map(withSignedDocuments)), checkedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {

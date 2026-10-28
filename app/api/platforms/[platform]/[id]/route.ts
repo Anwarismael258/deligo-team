@@ -91,6 +91,15 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
     // Keep it as a fallback identity so the gallery still renders all files.
     if (!profile && subject) profile = { ...subject, id: resolvedId };
   }
+  if (platform === "sarca") {
+    const documents = await read(platform, `driver_documents?id=eq.${encoded}&select=*&limit=1`);
+    if (documents[0]?.driver_user_id) {
+      resolvedId = String(documents[0].driver_user_id);
+      profile = (await read(platform, `driver_profiles?user_id=eq.${encodeURIComponent(resolvedId)}&select=*&limit=1`))[0] || profile;
+    }
+    const identities = await stagingRest(`profiles?select=id,user_id,full_name,avatar_url&or=(id.eq.${encodeURIComponent(resolvedId)},user_id.eq.${encodeURIComponent(resolvedId)})&limit=1`) as Record<string,unknown>[];
+    if (identities[0]) profile = { ...identities[0], ...profile, full_name: identities[0].full_name };
+  }
   const subjectEncoded = encodeURIComponent(resolvedId);
   const ids = uniqueRows([{ id: initialId }, { id: resolvedId }, { id: profile?.user_id }, { id: profile?.profile_id }]).map(row => String(row.id)).filter(Boolean);
   const kycPaths = ids.flatMap(value => platform === "mestre24"
