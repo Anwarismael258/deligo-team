@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRest, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
+import {walletOwner} from "@/lib/personal-wallet";
+
 function privilegedHeaders(key: string, profile: string) {
   const result: Record<string, string> = {
     apikey: key,
@@ -43,7 +45,7 @@ function mapCanonicalWallet(wallet: Record<string, unknown>, app?: Record<string
     available_amount: Number(wallet.available_balance_minor || 0) / 100,
     pending_amount: Number(wallet.pending_balance_minor || 0) / 100,
     reserved_amount: Number(wallet.reserved_balance_minor || 0) / 100,
-    withdrawal_enabled: metadata.withdrawal_disabled !== true && metadata.provider_integration === "paysuite",
+    withdrawal_enabled: metadata.withdrawal_disabled !== true && metadata.provider_integration === "paysuite" && process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN) && Boolean(process.env.PAYSUITE_WEBHOOK_SECRET),
   };
 }
 
@@ -61,8 +63,7 @@ export async function GET() {
     // record already points to the canonical identity used by DeliGo's
     // personal wallet. Resolve the wallet owner from the employee record so
     // the profile never displays an unrelated zero-balance legacy wallet.
-    const employeeRows = await hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id`);
-    const walletOwnerId = String(employeeRows?.[0]?.auth_user_id || actor.authUserId);
+    const walletOwnerId = await walletOwner(actor);
     const [legacyResult, canonicalResult, appsResult, hqEmployeeWalletResult] = await Promise.allSettled([
       stagingRest(`wallets?user_id=eq.${encodeURIComponent(walletOwnerId)}&select=id,balance,currency&limit=1`) as Promise<Array<Record<string, unknown>>>,
       // A carteira pessoal é consolidada por utilizador, não por um único
@@ -71,7 +72,7 @@ export async function GET() {
       // continua fora deste filtro porque não tem owner_user_id.
       paymentsRest(key, `wallet_accounts?owner_user_id=eq.${encodeURIComponent(walletOwnerId)}&status=eq.active&select=id,app_id,account_code,account_type,currency_code,available_balance_minor,pending_balance_minor,reserved_balance_minor,metadata`),
       coreRest(key, "apps?select=id,slug,name"),
-      hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(actor.authUserId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=id,wallet_code,wallet_type,currency,available_amount,pending_amount,reserved_amount`),
+      hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(walletOwnerId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=id,wallet_code,wallet_type,currency,available_amount,pending_amount,reserved_amount`),
     ]);
     const legacy = legacyResult.status === "fulfilled" ? legacyResult.value : [];
     const canonical = canonicalResult.status === "fulfilled" ? canonicalResult.value : [];
@@ -105,7 +106,7 @@ export async function GET() {
       available_amount: Number(wallet.available_amount || 0),
       pending_amount: Number(wallet.pending_amount || 0),
       reserved_amount: Number(wallet.reserved_amount || 0),
-      withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
+      withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN) && Boolean(process.env.PAYSUITE_WEBHOOK_SECRET),
     }));
     // The founder's old 10 MZN display balance was created by the previous
     // corporate-withdrawal experiment and is not a valid personal balance.
@@ -147,7 +148,7 @@ export async function GET() {
         // PaySuite wallet when the provider is configured. Keep the button
         // actionable so the user can start that real migration instead of
         // seeing a permanently disabled control for a valid old balance.
-        withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN),
+        withdrawal_enabled: process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN) && Boolean(process.env.PAYSUITE_WEBHOOK_SECRET),
       });
     }
     wallets.push(...visibleHqPersonalWallets);
@@ -169,6 +170,7 @@ export async function GET() {
       pending_amount: walletComponents.reduce((sum, wallet) => sum + Number(wallet.pending_amount || 0), 0),
       reserved_amount: walletComponents.reduce((sum, wallet) => sum + Number(wallet.reserved_amount || 0), 0),
       withdrawal_enabled: walletComponents.some((wallet) => wallet.withdrawal_enabled === true),
+      withdrawable_amount: walletComponents.filter(wallet=>wallet.withdrawal_enabled===true).reduce((sum,wallet)=>sum+Number(wallet.available_amount||0),0),
     };
     wallets.splice(0, wallets.length, unifiedWallet);
 
@@ -177,7 +179,7 @@ export async function GET() {
     const unifiedReservedAmount = wallets.reduce((sum, wallet) => sum + Number(wallet.reserved_amount || 0), 0);
     const unifiedWithdrawableAmount = wallets
       .filter((wallet) => wallet.withdrawal_enabled === true)
-      .reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
+      .reduce((sum, wallet) => sum + Number(wallet.withdrawable_amount || 0), 0);
 
     return NextResponse.json({
       profile,

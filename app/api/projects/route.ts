@@ -54,6 +54,7 @@ export async function GET(){
     for(const name of ["projects","members","milestones","updates"]) data[name]=(data[name] as Array<Record<string,unknown>>).filter(r=>ids.has(name==="projects"?r.id:r.project_id));
     const taskIds=new Set(tasks.map(t=>t.id));
     data.dependencies=(data.dependencies as Array<Record<string,unknown>>).filter(r=>taskIds.has(r.task_id));
+    data.updates=(data.updates as Array<Record<string,unknown>>).filter(r=>r.task_id&&taskIds.has(r.task_id));
   }
   const notices=await rest(c.key,`notifications?employee_id=eq.${c.actor.employee_id}&source_type=eq.task&select=source_id,read_at&limit=2000`);
   data.tasks=tasks.map(t=>({...t,unread:t.assigned_to===c.actor.employee_id&&notices.some((n:Record<string,unknown>)=>n.source_id===t.id&&!n.read_at)}));
@@ -79,7 +80,8 @@ export async function POST(req:NextRequest){
     else if(body.resource==="update")table="project_updates",record={...record,created_by:c.actor.employee_id};
     else return NextResponse.json({error:"Tipo de registo inválido."},{status:400});
     const created=(await rest(c.key,table,{method:"POST",body:JSON.stringify(record)}))?.[0];
-    if(body.resource==="task"&&record.assigned_to)await rest(c.key,"notifications",{method:"POST",body:JSON.stringify([{employee_id:record.assigned_to,type:"task_assigned",title:"Nova tarefa atribuída",body:String(record.title||"Tarefa"),target_url:"/minhas-tarefas",priority:String(record.priority||"normal"),source_type:"task",source_id:created.id}])});
+    // The database assignment trigger owns task notifications and deduplicates them.
+
     await audit(c.key,c.actor.employee_id,`${body.resource}_created`,body.resource,created.id,null,created);
     return NextResponse.json({record:created},{status:201});
   }catch(error){
