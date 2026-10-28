@@ -35,12 +35,33 @@ export async function POST(request: NextRequest) {
     }
     const amount = Number(body?.amount);
     if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: "Informe um valor válido." }, { status: 400 });
-    const financeSummary = await hqRpc("hq_deligo_finance_summary_v1", {
+    const rawFinanceSummary = await hqRpc("hq_deligo_finance_summary_v1", {
       p_actor_auth_user_id: actor.authUserId,
       p_from: null,
       p_to: null,
     }) as Record<string, unknown>;
-    const withdrawableRevenue = Number(financeSummary.corporate_profit_withdrawable ?? 0);
+    // The finance RPC returns the canonical values under `summary` and the
+    // platform reconciliation under `breakdown`. Older responses were flat;
+    // support both shapes so a valid confirmed balance is never read as 0.
+    const financeSummary = rawFinanceSummary.summary && typeof rawFinanceSummary.summary === "object"
+      ? rawFinanceSummary.summary as Record<string, unknown>
+      : rawFinanceSummary;
+    const financeBreakdown = rawFinanceSummary.breakdown && typeof rawFinanceSummary.breakdown === "object"
+      ? rawFinanceSummary.breakdown as Record<string, unknown>
+      : {};
+    const confirmedRevenue = Number(financeSummary.corporate_revenue_confirmed ?? financeBreakdown.central_revenue_confirmed ?? 0);
+    const reportedWithdrawable = Number(financeSummary.corporate_profit_withdrawable);
+    const pendingWithdrawals = Number(financeSummary.corporate_pending_withdrawals ?? 0);
+    // During the transition between the legacy and canonical summaries the
+    // profit field can be absent/zero while the confirmed revenue is present.
+    // Use the confirmed revenue minus already-pending requests only in that
+    // explicit mismatch; the approval RPC remains the final balance check.
+    const profitComponents = Number(financeSummary.deligo_profit ?? 0) + Number(financeSummary.mestre24_profit ?? 0);
+    const withdrawableRevenue = Number.isFinite(reportedWithdrawable) && reportedWithdrawable > 0
+      ? reportedWithdrawable
+      : profitComponents <= 0 && confirmedRevenue > 0
+        ? Math.max(confirmedRevenue - pendingWithdrawals, 0)
+        : 0;
     if (!Number.isFinite(withdrawableRevenue) || amount > withdrawableRevenue) {
       return NextResponse.json({
         error: `O valor ultrapassa a receita corporativa confirmada disponível (${withdrawableRevenue.toFixed(2)} MZN).`,

@@ -12,7 +12,7 @@ type Payload = { collections: Record<string, Row[]>; checkedAt: string; permissi
 const config = {
   marketing: { title: "Centro de Marketing", icon: Megaphone, sets: { requests: "Pedidos", campaigns: "Campanhas", events: "Eventos" } },
   support: { title: "Centro de Suporte", icon: Headphones, sets: { tickets: "Tickets", messages: "Conversas", disputes: "Disputas" } },
-  field: { title: "Operações Field", icon: MapPinned, sets: { verifications: "Todos os KYC", deligoKyc: "DeliGo", sarcaDrivers: "SARCA", comunhaoChurches: "Comunhão", taomozSellers: "TaoMoz", restaurants: "Restaurantes", couriers: "Estafetas", notes: "Notas internas" } },
+  field: { title: "Operações Field", icon: MapPinned, sets: { verifications: "Todos os KYC", deligoKyc: "DeliGo", sarcaDrivers: "SARCA", comunhaoChurches: "Comunhão", taomozSellers: "DeliGo Market", restaurants: "Restaurantes", couriers: "Estafetas", notes: "Notas internas" } },
 } as const;
 
 const pick = (row: Row, keys: string[]) => keys.map((key) => row[key]).find((item) => item !== null && item !== undefined && String(item).trim())?.toString() || "—";

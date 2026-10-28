@@ -470,7 +470,13 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell .content :is(.analyticsDashboardShell,.platformAnalyticsPanel,.executiveOverviewDashboard,.platformModule,.financeDashboard,.financeWorkspace) .analyticsEmptyState strong{color:#f4f8ff!important}
 .shell .content .peoplePanel,.shell .content .peopleTable,.shell .content .platformModule,.shell .content .moduleToolbar,.shell .content .fieldGovernanceGrid>article,.shell .content .fieldMissionList,.shell .content .fieldDetailGrid>article,.shell .content .financePanel,.shell .content .workflowInbox,.shell .content .internalInboxWorkspace,.shell .content .reportGrid>article,.shell .content .reportSaved>article,.shell .content .legalGrid>article,.shell .content .assetWorkspace,.shell .content .hrLifecycle,.shell .content .hrEventActions,.shell .content .auditWorkspace,.shell .content .auditDetailGrid>article,.shell .content .permissionMatrix,.shell .content .processActivityGrid>article{background:#102238!important;border-color:#294766!important;color:#eaf2ff}
 .shell .content .peopleToolbar,.shell .content .peoplePanel .peopleToolbar,.shell .content .peopleTable .peopleHeader,.shell .content .moduleToolbar,.shell .content .financeTableHead,.shell .content .reportGrid>article>div{background:#132a43!important;border-color:#294766!important;color:#b8cce0}
-.shell .content .peopleRow,.shell .content .fieldMissionList article,.shell .content .fieldDetailGrid p,.shell .content .financeTableRow,.shell .content .reportSaved p,.shell .content .legalRow,.shell .content .auditRow,.shell .content .workflowInboxList article{background:transparent!important;border-color:#294766!important;color:#d9e8f7}
+.shell .content .peopleRow,.shell .content .fieldMissionList article,.shell .content .fieldDetailGrid p,.shell .content .financeTableRow,.shell .content .reportSaved p,.shell .content .legalRow,.shell .content .auditRow,.shell .content .workflowInboxList article{background:transparent!important;border-color:#294766!important;color:#d9e8f7}.shell .content .personIdentity .personAvatar{width:32px;height:32px;border-radius:50%;object-fit:cover;display:block;background:#17304a;border:1px solid #3b82f6}
+
+/* Access governance stays enforced by the backend, but is intentionally hidden from the Team UI. */
+.shell .peopleAccessControls,
+.shell .permissionMatrix {
+  display: none !important;
+}
 .shell .content .peopleRow:hover,.shell .content .workflowInboxList article:hover{background:#17304a!important}
 .shell .content .workflowInbox .financeEntryForm{background:#102238!important;border-color:#294766!important;color:#eaf2ff}
 .shell .content .workflowInbox .financeEntryForm label>span{color:#b8cae0!important}

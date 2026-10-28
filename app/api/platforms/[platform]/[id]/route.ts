@@ -16,7 +16,7 @@ const read = async (platform: SupportedPlatform, path: string) => {
     return [];
   }
 };
-const mediaFields = ["photo_url", "avatar_url", "profile_photo_url", "profile_image_url", "image_url", "logo_url", "cover_url", "menu_image_url", "menu_images", "gallery", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_docs", "kyc_documents", "files", "attachments", "identity_document"];
+const mediaFields = ["photo_url", "photo", "picture", "avatar_url", "profile_photo_url", "profile_photo_path", "profile_image_url", "profile_picture", "profile_image", "image_url", "logo_url", "cover_url", "menu_image_url", "menu_images", "gallery", "media", "document_url", "file_url", "selfie_url", "selfie", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "selfie_path", "proof_url", "nuit_url", "bi_url", "photos", "documents", "document_references", "kyc_docs", "kyc_documents", "kyc_media", "files", "attachments", "identity_document"];
 const mediaPathFields = new Set(["url", "path", "reference", "storage_path", "file_url", "document_url", "photo_url", "image_url"]);
 const signMediaValue = async (platform: SupportedPlatform, value: unknown): Promise<unknown> => {
   if (typeof value === "string") return value ? await signPlatformPath(platform, value) : value;

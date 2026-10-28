@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateAuthorization, supabaseUrl } from "@/lib/hq-server";
+import { corporateAuthorization, hqRest, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
 const allowedRoles = new Set(["SUPER_ADMIN", "SUPERVISOR", "CUSTOMER_SUPPORT", "FINANCE", "ACCOUNTING"]);
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]);
@@ -18,6 +18,14 @@ export async function POST(request: NextRequest) {
   const contact = String(form.get("contact") || "").replace(/[^0-9]/g, "");
   const file = form.get("file");
   if (!ticketId || !(file instanceof File)) return NextResponse.json({ error: "Selecione um ficheiro e um atendimento." }, { status: 400 });
+  const ticketFilter = `id=eq.${encodeURIComponent(ticketId)}&select=id`;
+  const [hqTickets, stagingTickets] = await Promise.all([
+    hqRest(`support_tickets?${ticketFilter}`).catch(() => []),
+    stagingRest(`support_tickets?${ticketFilter}`).catch(() => []),
+  ]);
+  if (!((Array.isArray(hqTickets) && hqTickets.length) || (Array.isArray(stagingTickets) && stagingTickets.length))) {
+    return NextResponse.json({ error: "O atendimento indicado não existe ou já não está disponível." }, { status: 404 });
+  }
   if (!allowedTypes.has(file.type)) return NextResponse.json({ error: "Formato não permitido. Use JPG, PNG, WEBP, GIF ou PDF." }, { status: 400 });
   if (file.size <= 0 || file.size > maxBytes) return NextResponse.json({ error: "O ficheiro deve ter até 10 MB." }, { status: 400 });
   const safeName = file.name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "anexo";

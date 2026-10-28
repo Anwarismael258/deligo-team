@@ -28,3 +28,10 @@ test("a integração existente mantém escrita limitada a pagamentos e payouts",
   assert.match(withdraw, /paysuiteRequest[\s\S]*\/payouts/);
   assert.match(read("app/api/payments/paysuite/webhook/route.ts"), /x-signature/);
 });
+
+test("o levantamento usa o proprietário canónico da carteira do trabalhador", () => {
+  const withdraw = read("app/api/profile/withdraw/route.ts");
+  assert.match(withdraw, /const personalWalletOwnerId = String\(employeeRows\?\.\[0\]\?\.auth_user_id \|\| actor\.authUserId\)/);
+  assert.match(withdraw, /owner_user_id=eq\.\$\{encodeURIComponent\(personalWalletOwnerId\)\}/);
+  assert.doesNotMatch(withdraw, /walletFilter[\s\S]{0,260}owner_user_id=eq\.\$\{encodeURIComponent\(actor\.authUserId\)\}/);
+});

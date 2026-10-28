@@ -12,7 +12,7 @@ type Point = { date: string; newUsers: number; memberships: number; tasksCreated
 type Breakdown = Array<{ label: string; value: number }>;
 type Data = {
   range?: { from: string; to: string };
-  users?: { total: number; newUsers: number; previousNewUsers: number; changePercent: number | null; active: number | null; suspended: number | null; pending: number | null; byPlatform: Breakdown; byRole: Breakdown; byStatus: Breakdown };
+  users?: { total: number; newUsers: number; previousNewUsers: number; changePercent: number | null; active: number | null; suspended: number | null; pending: number | null; byPlatform: Breakdown; byRole: Breakdown; byPlatformRole?: Breakdown; byStatus: Breakdown };
   team?: { total: number; active: number; byDepartment: Breakdown; tasksCreated: number; tasksCompleted: number; previousTasksCompleted: number; tasksOverdue: number; taskStates: Breakdown; changePercent: number | null };
   series?: Point[];
   filters?: { platforms?: string[]; departments?: Array<{ id?: string; code?: string; name?: string }> };
@@ -105,7 +105,7 @@ export function UserTeamDashboard({ mode, teamDirectory = [] }: { mode: Mode; te
       <ChartContainer title={mode === "users" ? "Evolução de novos registos" : "Evolução de tarefas concluídas"} description="Série diária real; Série histórica indisponível quando a fonte não devolve eventos verificáveis.">
         <AnalyticsLineChart data={(data?.series || []).map(point => ({ date: point.date, value: mode === "users" ? point.newUsers : point.tasksCompleted }))} label={mode === "users" ? "Novos utilizadores" : "Tarefas concluídas"} />
       </ChartContainer>
-      {mode === "users" && <ChartContainer title="Tipos de utilizador" description="Papéis confirmados pela associação de plataforma."><AnalyticsHorizontalBarChart data={(users?.byRole || []).map(item => ({ label: labelize(item.label), value: item.value }))} label="Utilizadores por tipo" /></ChartContainer>}
+      {mode === "users" && <ChartContainer title="Tipos de utilizador por plataforma" description="Papéis confirmados por cada uma das cinco plataformas."><AnalyticsHorizontalBarChart data={(users?.byPlatformRole || users?.byRole || []).map(item => ({ label: labelize(item.label), value: item.value }))} label="Utilizadores por plataforma e tipo" /></ChartContainer>}
       <div className="analyticsDataNote">{data?.limitations?.[0] || "Fonte actualizada no período seleccionado."}{team && <span> · Conclusões agregadas: <TrendIndicator changePercent={team.changePercent} /></span>}</div>
     </>}
   </section>;

@@ -4,6 +4,14 @@ import { corporateAuthorization, hqRest } from "@/lib/hq-server";
 export const dynamic = "force-dynamic";
 
 const safeQuery = (value: string) => value.replace(/[,%()]/g, " ").trim();
+const roleLabel = (membership: Record<string, unknown>) => {
+  const raw = membership.roles;
+  const values: unknown[] = Array.isArray(raw) ? raw : typeof raw === "string" && raw.trim().startsWith("[") ? (() => { try { const parsed = JSON.parse(raw) as unknown; return Array.isArray(parsed) ? parsed : [raw]; } catch { return [raw]; } })() : [raw];
+  const roles = values.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map(value => value.trim());
+  if (roles.length) return roles.join(" / ");
+  const slug = String(membership.app_slug || "").toLowerCase();
+  return slug === "deligo" ? "Cliente / Restaurante / Estafeta" : slug === "comunhao" ? "Membro / Igreja" : slug === "taomoz" ? "Comprador / Vendedor / Entregador" : slug === "sarca" ? "Passageiro / Motorista" : slug === "mestre24" ? "Cliente / Profissional" : "Utilizador";
+};
 
 export async function GET(request: NextRequest) {
   const authorization = await corporateAuthorization();
@@ -21,8 +29,8 @@ export async function GET(request: NextRequest) {
     const users = new Map<string, Record<string, unknown>>();
     for (const membership of memberships) {
       const id = String(membership.user_id);
-      const current = users.get(id) || { user_id: id, full_name: membership.full_name, display_name: membership.display_name, primary_phone: membership.primary_phone, primary_email: membership.primary_email, profile_status: membership.profile_status, apps: [] as Record<string, unknown>[] };
-      (current.apps as Record<string, unknown>[]).push({ slug: membership.app_slug, name: membership.app_name, role: membership.roles, status: membership.membership_status, joined_at: membership.joined_at, last_seen_at: membership.last_seen_at });
+      const current = users.get(id) || { user_id: id, full_name: membership.full_name, display_name: membership.display_name, primary_phone: membership.primary_phone, primary_email: membership.primary_email, profile_status: membership.profile_status, avatar_url: membership.avatar_url || membership.profile_photo_url || membership.profile_image_url || null, profile_photo_url: membership.profile_photo_url || null, profile_image_url: membership.profile_image_url || null, photo_url: membership.photo_url || null, image_url: membership.image_url || null, apps: [] as Record<string, unknown>[] };
+      (current.apps as Record<string, unknown>[]).push({ slug: membership.app_slug, name: membership.app_name, role: roleLabel(membership), status: membership.membership_status, joined_at: membership.joined_at, last_seen_at: membership.last_seen_at });
       users.set(id, current);
     }
     const result = await Promise.all([...users.values()].map(async (user) => {

@@ -25,6 +25,7 @@ const safeRows = async <T,>(loader: () => Promise<T>): Promise<T | null> => {
 };
 
 const firstValue = (row: MapMarker, keys: string[]) => keys.map((key) => row[key]).find((value) => value !== null && value !== undefined && value !== "");
+const operationReference = (row: MapMarker, fallback: string) => String(firstValue(row, ["order_number", "order_code", "reference", "tracking_number", "code"]) || fallback);
 
 export async function GET() {
   if (!(await cookies()).get("hq_access_token")?.value || !(await corporateActor())) {
@@ -81,12 +82,14 @@ export async function GET() {
         addMarker({ id: `deligo:restaurant:${String(restaurant.id)}`, platform: "DeliGo", role: "Restaurante", workerName: restaurant.name, status: restaurant.is_open ? "disponivel" : "offline", service: `${restaurant.active_orders || 0} pedidos ativos`, latitude: location[0], longitude: location[1], updatedAt: checkedAt });
       }
       for (const order of deligo?.orders || []) {
+        const orderId = String(order.id || "");
+        const reference = operationReference(order, orderId);
         const origin = point(order.origin_latitude, order.origin_longitude);
         const destination = point(order.destination_latitude, order.destination_longitude);
         const updatedAt = typeof order.updated_at === "string" ? order.updated_at : checkedAt;
-        if (origin) addMarker({ id: `deligo:order:${String(order.id)}:origin`, platform: "DeliGo", role: "Pedido", service: String(order.id), status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
-        if (destination) addMarker({ id: `deligo:order:${String(order.id)}:destination`, platform: "DeliGo", role: "Cliente", service: String(order.id), status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
-        if (origin && destination) routes.push({ id: `deligo:order:${String(order.id)}`, platform: "DeliGo", label: `Pedido ${String(order.id).slice(0, 8)}`, coordinates: [origin, destination], updatedAt });
+        if (origin) addMarker({ id: `deligo:order:${orderId}:origin`, platform: "DeliGo", role: "Pedido", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
+        if (destination) addMarker({ id: `deligo:order:${orderId}:destination`, platform: "DeliGo", role: "Cliente", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+        if (origin && destination) routes.push({ id: `deligo:order:${orderId}`, platform: "DeliGo", label: `Pedido #${reference}`, coordinates: [origin, destination], updatedAt });
       }
 
       // Some DeliGo environments expose coordinates in the platform tables,
@@ -107,19 +110,51 @@ export async function GET() {
         if (!active(order)) continue;
         const id = String(order.id || order.order_id || "");
         if (!id) continue;
+        const reference = operationReference(order, id);
         const origin = point(firstValue(order, ["origin_latitude", "pickup_latitude", "restaurant_latitude", "pickup_lat"]), firstValue(order, ["origin_longitude", "pickup_longitude", "restaurant_longitude", "pickup_lng"]));
         const destination = point(firstValue(order, ["destination_latitude", "delivery_latitude", "customer_latitude", "dropoff_lat"]), firstValue(order, ["destination_longitude", "delivery_longitude", "customer_longitude", "dropoff_lng"]));
         const updatedAt = String(firstValue(order, ["updated_at", "created_at"]) || checkedAt);
-        if (origin) addMarker({ id: `deligo:order:${id}:origin`, platform: "DeliGo", role: "Pedido", service: id, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
-        if (destination) addMarker({ id: `deligo:order:${id}:destination`, platform: "DeliGo", role: "Cliente", service: id, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
-        if (origin && destination && !routes.some((route) => route.id === `deligo:order:${id}`)) routes.push({ id: `deligo:order:${id}`, platform: "DeliGo", label: `Pedido ${id.slice(0, 8)}`, coordinates: [origin, destination], updatedAt });
+        if (origin) addMarker({ id: `deligo:order:${id}:origin`, platform: "DeliGo", role: "Pedido", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
+        if (destination) addMarker({ id: `deligo:order:${id}:destination`, platform: "DeliGo", role: "Cliente", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+        if (origin && destination && !routes.some((route) => route.id === `deligo:order:${id}`)) routes.push({ id: `deligo:order:${id}`, platform: "DeliGo", label: `Pedido #${reference}`, coordinates: [origin, destination], updatedAt });
       }
       for (const delivery of deliveries || []) {
         if (!active(delivery)) continue;
         const id = String(delivery.id || delivery.delivery_id || delivery.order_id || "");
         const current = point(firstValue(delivery, ["current_latitude", "latitude", "current_lat"]), firstValue(delivery, ["current_longitude", "longitude", "current_lng"]));
         if (!id || !current) continue;
-        addMarker({ id: `deligo:delivery:${id}:current`, platform: "DeliGo", role: "Estafeta", service: String(delivery.order_id || id), status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
+        addMarker({ id: `deligo:delivery:${id}:current`, platform: "DeliGo", role: "Estafeta", service: `#${operationReference(delivery, String(delivery.order_id || id))}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
+      }
+    }
+
+    // DeliGo Market uses the same read-only operational contract when the
+    // platform exposes its active orders and delivery positions. A missing
+    // endpoint remains unavailable; it is never represented as zero data.
+    const marketAccess = await requireCorporatePermission("operations.view", "taomoz");
+    if (marketAccess) {
+      const [marketOrders, marketDeliveries] = await Promise.all([
+        safeRows(() => platformRest("taomoz", "orders?select=*&order=updated_at.desc&limit=500")),
+        safeRows(() => platformRest("taomoz", "deliveries?select=*&order=updated_at.desc&limit=500")),
+      ]) as [MapMarker[] | null, MapMarker[] | null];
+      const activeMarket = (row: MapMarker) => !["delivered", "cancelled", "failed", "completed"].includes(String(row.status || "").toLowerCase());
+      for (const order of marketOrders || []) {
+        if (!activeMarket(order)) continue;
+        const id = String(order.id || order.order_id || "");
+        if (!id) continue;
+        const reference = operationReference(order, id);
+        const origin = point(firstValue(order, ["origin_latitude", "pickup_latitude", "seller_latitude", "pickup_lat"]), firstValue(order, ["origin_longitude", "pickup_longitude", "seller_longitude", "pickup_lng"]));
+        const destination = point(firstValue(order, ["destination_latitude", "delivery_latitude", "customer_latitude", "dropoff_lat"]), firstValue(order, ["destination_longitude", "delivery_longitude", "customer_longitude", "dropoff_lng"]));
+        const updatedAt = String(firstValue(order, ["updated_at", "created_at"]) || checkedAt);
+        if (origin) addMarker({ id: `market:order:${id}:origin`, platform: "DeliGo Market", role: "Encomenda", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
+        if (destination) addMarker({ id: `market:order:${id}:destination`, platform: "DeliGo Market", role: "Cliente", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+        if (origin && destination) routes.push({ id: `market:order:${id}`, platform: "DeliGo Market", label: `Encomenda #${reference}`, coordinates: [origin, destination], updatedAt });
+      }
+      for (const delivery of marketDeliveries || []) {
+        if (!activeMarket(delivery)) continue;
+        const id = String(delivery.id || delivery.delivery_id || delivery.order_id || "");
+        const current = point(firstValue(delivery, ["current_latitude", "latitude", "current_lat"]), firstValue(delivery, ["current_longitude", "longitude", "current_lng"]));
+        if (!id || !current) continue;
+        addMarker({ id: `market:delivery:${id}:current`, platform: "DeliGo Market", role: "Entregador", service: `#${operationReference(delivery, String(delivery.order_id || id))}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
       }
     }
 
@@ -127,14 +162,20 @@ export async function GET() {
     // to workers who have the platform operations permission.
     const sarcaAccess = await requireCorporatePermission("operations.view", "sarca");
     if (sarcaAccess) {
-      const trips = await safeRows(() => platformRest("sarca", "trips?select=id,status,pickup_lat,pickup_lng,dropoff_lat,dropoff_lng,requested_at,updated_at&status=in.(searching_driver,driver_assigned,driver_arriving,in_progress)&order=updated_at.desc&limit=200")) as MapMarker[] | null;
+      const trips = await safeRows(() => platformRest("sarca", "trips?select=*&status=in.(searching_driver,driver_assigned,driver_arriving,in_progress)&order=updated_at.desc&limit=200")) as MapMarker[] | null;
       for (const trip of trips || []) {
+        const tripId = String(trip.id || "");
+        const reference = operationReference(trip, tripId);
         const origin = point(trip.pickup_lat, trip.pickup_lng);
         const destination = point(trip.dropoff_lat, trip.dropoff_lng);
         const updatedAt = typeof trip.updated_at === "string" ? trip.updated_at : checkedAt;
-        if (origin) markers.push({ id: `saraca:trip:${String(trip.id)}:origin`, platform: "SARCA", role: "Viagem", service: String(trip.id), status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
-        if (destination) markers.push({ id: `saraca:trip:${String(trip.id)}:destination`, platform: "SARCA", role: "Cliente", service: String(trip.id), status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
-        if (origin && destination) routes.push({ id: `saraca:trip:${String(trip.id)}`, platform: "SARCA", label: `Viagem ${String(trip.id).slice(0, 8)}`, coordinates: [origin, destination], updatedAt });
+        if (origin) addMarker({ id: `saraca:trip:${tripId}:origin`, platform: "SARCA", role: "Viagem", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
+        if (destination) addMarker({ id: `saraca:trip:${tripId}:destination`, platform: "SARCA", role: "Rider", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+        const driver = point(firstValue(trip, ["driver_latitude", "driver_current_latitude", "driver_lat", "current_driver_latitude"]), firstValue(trip, ["driver_longitude", "driver_current_longitude", "driver_lng", "current_driver_longitude"]));
+        const rider = point(firstValue(trip, ["rider_latitude", "rider_current_latitude", "rider_lat", "current_rider_latitude"]), firstValue(trip, ["rider_longitude", "rider_current_longitude", "rider_lng", "current_rider_longitude"]));
+        if (driver) addMarker({ id: `saraca:trip:${tripId}:driver`, platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt });
+        if (rider) addMarker({ id: `saraca:trip:${tripId}:rider`, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt });
+        if (origin && destination) routes.push({ id: `saraca:trip:${tripId}`, platform: "SARCA", label: `Viagem #${reference}`, coordinates: [origin, destination], updatedAt });
       }
     }
 

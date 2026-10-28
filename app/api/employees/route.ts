@@ -32,6 +32,12 @@ async function readAuthError(response: Response) {
   }
 }
 
+function rpcErrorCode(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const match = message.match(/(?:code|message|error)"?\s*[:=]\s*"?([A-Z][A-Z0-9_]+)/i);
+  return (match?.[1] || message).toUpperCase();
+}
+
 async function findAuthUserByPhone(serviceKey: string, phone: string) {
   const response = await fetch(`${supabaseUrl()}/auth/v1/admin/users?page=1&per_page=1000`, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
@@ -40,7 +46,11 @@ async function findAuthUserByPhone(serviceKey: string, phone: string) {
   });
   if (!response.ok) return null;
   const body = await response.json().catch(() => ({})) as { users?: Array<{ id: string; phone?: string | null }> };
-  return body.users?.find(user => String(user.phone || "") === phone) || null;
+  const wanted = phone.replace(/\D/g, "");
+  return body.users?.find(user => {
+    const candidate = String(user.phone || "").replace(/\D/g, "");
+    return candidate === wanted || (candidate.endsWith(wanted.slice(-9)) && wanted.endsWith(candidate.slice(-9)));
+  }) || null;
 }
 
 export async function GET() {
@@ -111,6 +121,7 @@ export async function POST(request: NextRequest) {
     if (message.includes("INVALID_DEPARTMENT_OR_ROLE")) return NextResponse.json({ error: "O cargo não está disponível no catálogo do backend." }, { status: 409 });
     if (message.includes("EMPLOYEE_ADMIN_FORBIDDEN")) return NextResponse.json({ error: "Este perfil não pode cadastrar trabalhadores." }, { status: 403 });
     if (message.includes("EMPLOYEE_CREATE_TIMEOUT")) return NextResponse.json({ error: "O backend demorou a responder. O cadastro não foi confirmado; actualize a equipa antes de tentar novamente." }, { status: 504 });
+    if (message.includes("HQ_EMPLOYEE_AUTH_ALREADY_LINKED")) return NextResponse.json({ error: "Esta identidade já está associada a outro trabalhador da Central. Actualize a lista antes de tentar novamente." }, { status: 409 });
     return NextResponse.json({ error: "Não foi possível concluir o cadastro." }, { status: 400 });
   }
 }
@@ -144,7 +155,14 @@ export async function PATCH(request: NextRequest) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
     if (result.auth_user_id) await fetch(`${supabaseUrl()}/auth/v1/admin/users/${result.auth_user_id}`, { method: "PUT", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ ban_duration: action === "suspend" || action === "archive" ? "876000h" : "none", user_metadata: { hq_role: result.role } }) });
     return NextResponse.json({ employee: result });
-  } catch { return NextResponse.json({ error: "A conta protegida não pode ser alterada ou a operação falhou." }, { status: 400 }); }
+  } catch (error) {
+    const code=rpcErrorCode(error);
+    if(code.includes("FOUNDER_ACCOUNT_PROTECTED")) return NextResponse.json({error:"A conta do CEO fundador está protegida."},{status:403});
+    if(code.includes("NOT_FOUND")) return NextResponse.json({error:"O trabalhador já não existe. Actualize a lista da equipa."},{status:404});
+    if(code.includes("SUPER_ADMIN_APPROVAL_REQUIRED")) return NextResponse.json({error:"Só o CEO pode suspender ou arquivar contas."},{status:403});
+    console.error("EMPLOYEE_STATUS_UPDATE_FAILED",code);
+    return NextResponse.json({ error: "A conta não foi alterada. Actualize a equipa e tente novamente." }, { status: 400 });
+  }
 }
 
 export async function PUT(request: NextRequest) {

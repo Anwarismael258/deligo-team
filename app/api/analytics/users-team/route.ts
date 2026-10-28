@@ -47,7 +47,18 @@ function seriesFor(current: { from: string; to: string }, users: Row[], tasks: R
   return [...points.values()];
 }
 
-function appName(row: Row) { return String(row.app_name || row.platform_name || row.app_slug || "Plataforma não indicada"); }
+function appName(row: Row) {
+  const value = String(row.app_name || row.platform_name || row.app_slug || "Plataforma não indicada");
+  return value.toLowerCase() === "taomoz" ? "DeliGo Market" : value;
+}
+function rolesFor(row: Row) {
+  const raw = row.roles;
+  const values: unknown[] = Array.isArray(raw) ? raw : typeof raw === "string" && raw.trim().startsWith("[") ? (() => { try { const parsed = JSON.parse(raw) as unknown; return Array.isArray(parsed) ? parsed : [raw]; } catch { return [raw]; } })() : [raw];
+  const roles = values.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map(value => value.trim());
+  if (roles.length) return roles;
+  const slug = String(row.app_slug || "").toLowerCase();
+  return [slug === "deligo" ? "customer / restaurant / courier" : slug === "comunhao" ? "member / church" : slug === "taomoz" ? "buyer / seller / delivery" : slug === "sarca" ? "passenger / driver" : slug === "mestre24" ? "client / professional" : "utilizador"];
+}
 function state(row: Row) { return String(row.profile_status || row.membership_status || row.status || "indisponível").toLowerCase(); }
 
 export async function GET(request: NextRequest) {
@@ -76,10 +87,16 @@ export async function GET(request: NextRequest) {
     for (const user of users || []) { const id = String(user.user_id || ""); const joined = dateOnly(user.joined_at); if (id && joined && (!firstJoin.has(id) || joined < firstJoin.get(id)!)) firstJoin.set(id, joined); }
     const usersByPlatform = new Map<string, number>();
     const usersByRole = new Map<string, number>();
+    const usersByPlatformRole = new Map<string, number>();
     const userStates = new Map<string, number>();
     for (const user of users || []) {
       usersByPlatform.set(appName(user), (usersByPlatform.get(appName(user)) || 0) + 1);
-      const role = String(user.roles || "não indicado"); usersByRole.set(role, (usersByRole.get(role) || 0) + 1);
+      const roles = rolesFor(user);
+      for (const role of roles) {
+        usersByRole.set(role, (usersByRole.get(role) || 0) + 1);
+        const platformRole = `${appName(user)} · ${role}`;
+        usersByPlatformRole.set(platformRole, (usersByPlatformRole.get(platformRole) || 0) + 1);
+      }
       const status = state(user); userStates.set(status, (userStates.get(status) || 0) + 1);
     }
     const userCountIn = (r: { from: string; to: string }) => [...firstJoin.values()].filter(value => value >= r.from && value <= r.to).length;
@@ -97,7 +114,7 @@ export async function GET(request: NextRequest) {
     const priorSeries = seriesFor(prior, users || [], priorTasks);
     return NextResponse.json({
       timezone: "Africa/Maputo", period, range: current, previousRange: prior,
-      users: { total: uniqueUsers.size, newUsers: userCountIn(current), previousNewUsers: userCountIn(prior), changePercent: percent(userCountIn(current), userCountIn(prior)), active: userStates.get("active") ?? null, suspended: userStates.get("suspended") ?? null, pending: userStates.get("pending") ?? userStates.get("invited") ?? null, byPlatform: [...usersByPlatform.entries()].map(([label, value]) => ({ label, value })), byRole: [...usersByRole.entries()].map(([label, value]) => ({ label, value })), byStatus: [...userStates.entries()].map(([label, value]) => ({ label, value })) },
+      users: { total: uniqueUsers.size, newUsers: userCountIn(current), previousNewUsers: userCountIn(prior), changePercent: percent(userCountIn(current), userCountIn(prior)), active: userStates.get("active") ?? null, suspended: userStates.get("suspended") ?? null, pending: userStates.get("pending") ?? userStates.get("invited") ?? null, byPlatform: [...usersByPlatform.entries()].map(([label, value]) => ({ label, value })), byRole: [...usersByRole.entries()].map(([label, value]) => ({ label, value })), byPlatformRole: [...usersByPlatformRole.entries()].map(([label, value]) => ({ label, value })), byStatus: [...userStates.entries()].map(([label, value]) => ({ label, value })) },
       team: { total: filteredEmployees.length, active: filteredEmployees.filter(employee => String(employee.status) === "active").length, byDepartment: [...departmentsOut.entries()].map(([label, value]) => ({ label, value })), tasksCreated: currentTasks.filter(task => inRange(task.created_at, current)).length, tasksCompleted: completed(currentTasks), previousTasksCompleted: priorTasks.filter(task => String(task.status) === "completed" && inRange(task.completed_at, prior)).length, tasksOverdue: overdue, taskStates: [...taskStates.entries()].map(([label, value]) => ({ label, value })), changePercent: percent(completed(currentTasks), priorTasks.filter(task => String(task.status) === "completed" && inRange(task.completed_at, prior)).length) },
       series: currentSeries, previousSeries: priorSeries,
       filters: { platforms: authorization.isSuperAdmin ? [...new Set((users || []).map(row => String(row.app_slug || "")).filter(Boolean))] : authorization.platformSlugs, departments: (departments || []).filter(department => department.active !== false).map(department => ({ id: department.id, code: department.code, name: department.name })) },

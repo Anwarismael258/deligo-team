@@ -3,7 +3,7 @@ import{corporateActor,hqRpc,hqServiceKey,supabaseUrl}from"@/lib/hq-server";
 import { ingestMestre24CentralEvents } from "@/lib/mestre24-central-events";
 const h=(k:string)=>({...{apikey:k,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"},...(k.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${k}`})});
 async function rest(k:string,p:string,i:RequestInit={}){const r=await fetch(`${supabaseUrl()}/rest/v1/${p}`,{...i,headers:{...h(k),...(i.headers||{})},cache:"no-store"});if(!r.ok)throw new Error(await r.text());return r.status===204?null:r.json()}
-const inboxRoles=new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","CUSTOMER_SUPPORT","MARKETING"]);
+const inboxRoles=new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","CUSTOMER_SUPPORT","MARKETING","FIELD"]);
 async function ingestSupportNotifications(employeeId:string,key:string){
   try{
     const messages=await rest(key,"support_conversations?sender_type=eq.customer&is_internal=eq.false&select=id,ticket_id,sender_type,message,created_at&order=created_at.desc&limit=100") as Array<Record<string,unknown>>;

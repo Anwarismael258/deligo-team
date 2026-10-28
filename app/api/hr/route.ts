@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hqRpc, requireCorporatePermission, supabaseUrl } from "@/lib/hq-server";
 const resources = ["hr_contracts","hr_documents","hr_attendance","hr_leave_requests","hr_payroll_records","hr_employee_events"] as const;
+const writableFields: Record<string, readonly string[]> = {
+  hr_contracts: ["employee_id", "contract_type", "starts_on", "ends_on", "status", "document_path"],
+  hr_documents: ["employee_id", "document_type", "storage_path", "expires_on"],
+  hr_attendance: ["employee_id", "work_date", "shift_code", "checked_in_at", "checked_out_at", "status", "minutes_late"],
+  hr_leave_requests: ["employee_id", "leave_type", "starts_on", "ends_on", "status"],
+};
 const headers = (key:string) => ({ apikey:key, Authorization:`Bearer ${key}`, "Accept-Profile":"hq", "Content-Profile":"hq", "Content-Type":"application/json", Prefer:"return=representation" });
+
+function pickWritableRecord(resource: string, input: Record<string, unknown>) {
+  const fields = writableFields[resource] || [];
+  return Object.fromEntries(fields.filter((field) => Object.prototype.hasOwnProperty.call(input, field)).map((field) => [field, input[field]]));
+}
 
 export async function GET() {
   const authorization=await requireCorporatePermission("hr.viewEmployees"),actor=authorization?.actor;
@@ -19,10 +30,13 @@ export async function POST(request:NextRequest) {
   if(!actor) return NextResponse.json({error:"Sem permissão para gerir este registo de RH."},{status:403});
   const key=process.env.SUPABASE_SERVICE_ROLE_KEY; if(!key)return NextResponse.json({error:"Serviço de RH indisponível."},{status:503});
   if(!body.resource||!resources.includes(body.resource as typeof resources[number])||!body.record) return NextResponse.json({error:"Registo de RH inválido."},{status:400});
+  if (typeof body.record !== "object" || Array.isArray(body.record)) return NextResponse.json({error:"Registo de RH inválido."},{status:400});
+  const safeRecord = writableFields[body.resource] ? pickWritableRecord(body.resource, body.record) : body.record;
+  if (Object.keys(safeRecord).length === 0) return NextResponse.json({error:"Nenhum campo permitido para este registo de RH."},{status:400});
   let record:Record<string,unknown>;
   if(body.resource==="hr_payroll_records"||body.resource==="hr_employee_events") record=await hqRpc("hq_create_hr_record_v1",{p_resource:body.resource,p_record:body.record}) as Record<string,unknown>;
   else {
-    const response=await fetch(`${supabaseUrl()}/rest/v1/${body.resource}`,{method:"POST",headers:headers(key),body:JSON.stringify(body.record)});
+    const response=await fetch(`${supabaseUrl()}/rest/v1/${body.resource}`,{method:"POST",headers:headers(key),body:JSON.stringify(safeRecord)});
     if(!response.ok)return NextResponse.json({error:"Não foi possível guardar o registo de RH."},{status:400});
     record=(await response.json())[0] as Record<string,unknown>;
   }

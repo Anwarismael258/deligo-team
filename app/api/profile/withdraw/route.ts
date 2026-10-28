@@ -111,8 +111,8 @@ export async function POST(request: NextRequest) {
     // constraining it to the authenticated worker's personal wallet.
     const requestedWalletId = body?.walletId || body?.wallet_id;
     const walletFilter = requestedWalletId
-      ? `id=eq.${encodeURIComponent(requestedWalletId)}&owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`
-      : `owner_user_id=eq.${encodeURIComponent(actor.authUserId)}`;
+      ? `id=eq.${encodeURIComponent(requestedWalletId)}&owner_user_id=eq.${encodeURIComponent(personalWalletOwnerId)}`
+      : `owner_user_id=eq.${encodeURIComponent(personalWalletOwnerId)}`;
     // Consolidate every personal wallet owned by this worker. Corporate
     // wallets have no owner_user_id and are never included here.
     const wallets = await paymentsRest(`wallet_accounts?${walletFilter}&status=eq.active&currency_code=eq.MZN&select=*`) as Wallet[];

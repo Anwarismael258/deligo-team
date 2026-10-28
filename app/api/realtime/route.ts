@@ -2,7 +2,7 @@ import {NextRequest,NextResponse} from "next/server";
 import {corporateAuthorization,stagingRest} from "@/lib/hq-server";
 
 export const dynamic="force-dynamic";
-const inboxRoles=new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","CUSTOMER_SUPPORT"]);
+const inboxRoles=new Set(["SUPER_ADMIN","FINANCE","SUPERVISOR","CUSTOMER_SUPPORT","MARKETING","FIELD"]);
 
 export async function GET(request:NextRequest){
   const authorization=await corporateAuthorization();
