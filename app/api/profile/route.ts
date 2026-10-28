@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, hqRest, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqRest, hqRpc, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 import { detectMozambiqueWalletOperator } from "@/lib/mozambique-wallet";
 
 const paysuiteAvailable = () => (process.env.PAYSUITE_ENABLED === "true" && Boolean(process.env.PAYSUITE_API_TOKEN)) || Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY);
@@ -59,6 +59,8 @@ export async function GET() {
     const actor = await corporateActor();
     const key = hqServiceKey();
     if (!actor || !key) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
+
+    await hqRpc("sync_personal_checkout_deposits_v1", {p_employee_id:actor.employee_id}, "hq").catch(error=>console.error("HQ_DEPOSIT_SYNC_FAILED",error));
 
     // The employee profile is the primary resource. Wallet adapters are
     // optional: a missing legacy table or a temporarily unavailable app
