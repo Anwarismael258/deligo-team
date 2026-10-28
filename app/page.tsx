@@ -4,13 +4,13 @@
 /* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Activity, BarChart3, Bell, Car, CheckCircle2, ChartNoAxesCombined, ChevronRight, Church, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Hammer, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, ListTodo, Mail, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, Star, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { MessageSquare, Activity, BarChart3, Bell, Car, CheckCircle2, ChartNoAxesCombined, ChevronRight, Church, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Hammer, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, ListTodo, Mail, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, Star, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 import LiveOperationsMap, { type OperationsMapMarker } from "@/components/LiveOperationsMap";
 import {TechnologyRegistry} from "./components/TechnologyRegistry";
 import {AcquisitionWorkspace} from "./components/AcquisitionWorkspace";
 import {WorkflowInbox} from "./components/WorkflowInbox";
 import {NotificationCenter} from "./components/NotificationCenter";
-import {ManualCommunication} from "./components/ManualCommunication";
+import {InternalInbox} from "./components/InternalInbox";
 import {ProjectsTasksWorkspace} from "./components/ProjectsTasksWorkspace";
 import {MyTasksCenter} from "./components/MyTasksCenter";
 import {ApprovalRules} from "./components/ApprovalRules";
@@ -44,6 +44,7 @@ const nav = [
   ["□", "Finanças"],
   ["▣", "Triunfal Microcrédito"],
   ["✉", "Caixa de Entrada"],
+  ["✉", "Inbox interna"],
   ["↗", "Marketing"],
   ["▦", "Site Institucional"],
   ["▣", "Vagas"],
@@ -55,7 +56,7 @@ const nav = [
   ["♢", "Centro de Notificações"],
 ];
 const navGroups: Array<[string,string[]]> = [
-  ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças","Triunfal Microcrédito","Caixa de Entrada"]],
+  ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças","Triunfal Microcrédito","Caixa de Entrada","Inbox interna"]],
   ["OPERAÇÕES", ["Marketing","Site Institucional","Vagas","Operações de Campo","Mapa operacional","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
 
@@ -63,6 +64,7 @@ const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : l
 const notificationModuleFor = (notification: FinanceRecord) => {
   const source = String(notification.source_type || notification.type || "").toLowerCase();
   const target = String(notification.target_url || "").toLowerCase();
+  if (target.startsWith("/inbox-interna") || source === "internal_message") return "Inbox interna";
   if (target.startsWith("/utilizadores") || source.includes("user")) return "Utilizadores";
   if (target.startsWith("/pessoas") || source.includes("employee")) return "Pessoas";
   if (target.startsWith("/recursos-humanos") || source.startsWith("hr_")) return "Recursos Humanos";
@@ -93,7 +95,7 @@ const notificationPlatformFor = (notification: FinanceRecord) => {
 
 const moduleIcons: Record<string, LucideIcon> = {
   "Visão geral": LayoutDashboard, "Plataformas": PanelsTopLeft, "Utilizadores": Users, "Mapa operacional": MapPinned, "Direcção Executiva": Landmark,
-  "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Triunfal Microcrédito": WalletCards, "Caixa de Entrada": Mail, "Contabilidade": Coins,
+  "Pessoas": Users, "Recursos Humanos": UserRound, "Finanças": WalletCards, "Triunfal Microcrédito": WalletCards, "Caixa de Entrada": Mail, "Inbox interna": MessageSquare, "Contabilidade": Coins,
   "Jurídico": Scale, "Conformidade e Risco": ShieldCheck, "Tecnologia / IT": Database,
   "Compras": ShoppingBag, "Património": PackageCheck, "Marketing": Megaphone, "Operações de Campo": Route,
   "Apoio ao Cliente": Headphones, "Site Institucional": Megaphone, "Vagas": ClipboardCheck, "Avaliações & Reputação": Star, "Aquisição de Parceiros": Handshake, "Embaixadores": HeartHandshake,
@@ -159,6 +161,7 @@ const modulePresentation: Record<string, { description: string; action: string; 
   "Recursos Humanos": { description: "Acompanha contratos, assiduidade, férias e todo o ciclo do trabalhador.", action: "Iniciar onboarding", primary: "Trabalhadores", secondary: "Pedidos de RH", visual: "Ciclo de pessoas", status: "Serviços de RH", color: "#9b5a8d" },
   "Finanças": { description: "Controla tesouraria, orçamento, receitas e despesas com segregação de funções.", action: "Novo lançamento", primary: "Movimentos", secondary: "Aprovações financeiras", visual: "Fluxo financeiro", status: "Serviços financeiros", color: "#258260" },
   "Triunfal Microcrédito": { description: "Recebe e acompanha pedidos de microcrédito enviados pelo site institucional.", action: "Abrir pedidos", primary: "Pedidos pendentes", secondary: "Notas internas", visual: "Fluxo de microcrédito", status: "Ligado ao backend", color: "#2563eb" },
+  "Inbox interna": { description: "Mensagens, ficheiros e reuniões entre trabalhadores da Central.", action: "Nova conversa", primary: "Conversas", secondary: "Não lidas", visual: "Comunicação da equipa", status: "Inbox interna", color: "#4bc4cd" },
   "Caixa de Entrada": { description: "Mensagens recebidas através do site institucional por área autorizada.", action: "Abrir mensagens", primary: "Mensagens novas", secondary: "Respostas e notas", visual: "Caixa de entrada", status: "Ligado ao backend", color: "#466bba" },
   "Contabilidade": { description: "Organiza lançamentos, reconciliações, impostos e demonstrações contabilísticas.", action: "Novo lançamento", primary: "Lançamentos", secondary: "Reconciliações", visual: "Fecho contabilístico", status: "Motor contabilístico", color: "#4c73a8" },
   "Jurídico": { description: "Protege contratos, licenças, documentos societários e obrigações legais.", action: "Novo processo", primary: "Processos", secondary: "Prazos legais", visual: "Exposição jurídica", status: "Arquivo jurídico", color: "#7559b7" },
@@ -213,6 +216,7 @@ const routeByModule: Record<string, string> = {
   "Projectos e Tarefas": "/projectos-tarefas",
   "Apoio Interno": "/apoio-interno",
   "Centro de Notificações": "/notificacoes",
+  "Inbox interna": "/inbox-interna",
   "Minhas Tarefas": "/minhas-tarefas",
   "Aprovações": "/aprovacoes",
   "BI / Análises": "/analises",
@@ -267,7 +271,7 @@ const personas = {
 
 const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", FINANCE_DIRECTOR: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
 const unpublishedModules = new Set(["Embaixadores"]);
-const universalModules = new Set<string>(["Mapa operacional", "Projectos e Tarefas", "Minhas Tarefas"]);
+const universalModules = new Set<string>(["Mapa operacional", "Projectos e Tarefas", "Minhas Tarefas", "Inbox interna"]);
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
 const modulePermission:Record<string,string>={"Utilizadores":"users.view","Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Triunfal Microcrédito":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platform.manage","Homologação":"homologation.manage"};
 
@@ -1172,6 +1176,7 @@ if(active==="Operações de Campo")void refreshField();
             </section>
           }
           {active === "Triunfal Microcrédito" && <MicrocreditWorkspace />}
+          {active === "Inbox interna" && <InternalInbox/>}
           {active === "Caixa de Entrada" && <><CommunicationAnalyticsDashboard mode="inbox" /><InboxWorkspace /></>}
           {active === "Contabilidade"&&<section className="accountingWorkspace">
             <div className="accountingHero"><div><span>MOTOR CONTABILÍSTICO</span><h2>Diário, razão e demonstrações</h2><p>Operações financeiras contabilizáveis alimentam automaticamente lançamentos equilibrados e idempotentes.</p></div><div><button onClick={()=>setShowAccountingForm(!showAccountingForm)}>Novo registo</button><button onClick={()=>window.location.assign("/api/accounting/export")}>Exportar CSV</button></div></div>
@@ -1397,7 +1402,7 @@ if(active==="Operações de Campo")void refreshField();
           </section></>}
           {active==="Recursos Humanos"&&<section className="hrEventActions"><div className="hrLifecycleHead"><div><span>FLUXOS INTERDEPARTAMENTAIS</span><h2>Contratação e desligamento</h2><p>RH inicia e o backend encaminha Jurídico, Direção, Pessoas, IT, Património, Finanças e Contabilidade.</p></div><button className="hrCreateButton" onClick={()=>setShowWorkforceForm(!showWorkforceForm)}>Iniciar processo</button></div>{showWorkforceForm&&<form className="hrEventForm" onSubmit={createWorkforceRequest}><label><span>Processo</span><select value={workforceKind} onChange={event=>setWorkforceKind(event.target.value)}><option value="hiring">Contratação</option><option value="offboarding">Desligamento</option></select></label>{workforceKind==="hiring"?<><label><span>Nome do candidato</span><input name="candidateName" required/></label><label><span>Telefone</span><input name="candidatePhone"/></label><label><span>Cargo</span><input name="jobTitle" required/></label><label><span>Departamento</span><select name="departmentId" required><option value="">Selecionar</option>{(workforceData.departments||[]).map(department=><option key={department.id} value={department.id}>{String(department.name)}</option>)}</select></label><label><span>Role previsto</span><input name="requestedRoleCode"/></label><label><span>Salário proposto</span><input name="proposedSalary" type="number" min="0" step=".01"/></label></>:<label><span>Colaborador</span><select name="employeeId" required><option value="">Selecionar</option>{managedEmployees.filter(employee=>employee.status==="active").map(employee=><option key={employee.id} value={employee.id}>{employee.name} · {employee.employee_code}</option>)}</select></label>}<label><span>Plataforma</span><select name="platformId"><option value="">Grupo</option>{(workforceData.platforms||[]).map(platform=><option key={platform.id} value={platform.id}>{String(platform.name)}</option>)}</select></label><label><span>Motivo</span><input name="reason" required minLength={3}/></label><button type="submit">Iniciar e encaminhar</button></form>}<div className="procurementList">{(workforceData.requests||[]).map(request=><article key={request.id}><div><strong>RH-{String(request.request_number)} · {String(request.request_type)==="hiring"?String(request.candidate_name):managedEmployees.find(employee=>employee.id===request.employee_id)?.name||"Colaborador"}</strong><span>{String(request.request_type)} · {String(request.status)}</span></div>{request.request_type==="hiring"&&!request.employee_id&&<button onClick={()=>void linkWorkforceEmployee(String(request.id))}>Associar conta criada</button>}</article>)}{!(workforceData.requests||[]).length&&<div className="peopleEmpty">Sem processos laborais.</div>}</div>{workforceNotice&&<div className="operationalNotice">{workforceNotice}</div>}</section>}
           {active==="Pessoas"&&selectedEmployee&&hasPermission("settings.manage")&&<PermissionMatrix employeeId={selectedEmployee.id} overrides={employeePermissions} onChange={(permissionCode,allowed)=>void employeeGovernanceAction({employeeId:selectedEmployee.id,action:"set_permission",permissionCode,allowed})}/>}
-          {active==="Centro de Notificações"&&<><CommunicationAnalyticsDashboard mode="notifications"/><NotificationCenter/><ManualCommunication/></>}
+          {active==="Centro de Notificações"&&<><CommunicationAnalyticsDashboard mode="notifications"/><NotificationCenter/></>}
           {active==="Minhas Tarefas"&&<ProjectsTasksWorkspace/>}
           {active==="Aprovações"&&<ApprovalRules/>}
           {workflowDepartmentByModule[active]&&active!=="Apoio ao Cliente"&&active!=="Marketing"&&active!=="Finanças"&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>}
