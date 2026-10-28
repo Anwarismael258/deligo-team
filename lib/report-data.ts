@@ -47,6 +47,7 @@ const periodDates = (filters: ReportFilters) => {
   if (filters.from && filters.to) return { from: filters.from.slice(0, 10), to: filters.to.slice(0, 10) };
   const days = filters.period === "today" ? 1 : filters.period === "last_7_days" ? 7 : filters.period === "last_90_days" ? 90 : 30;
   const end = new Date();
+  if(filters.period==="this_year")return {from:`${end.getFullYear()}-01-01`,to:end.toISOString().slice(0,10)};
   const start = new Date(end.getTime() - (days - 1) * 86_400_000);
   return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
 };
@@ -57,27 +58,27 @@ const normalize = (type: ReportType, row: Row): ReportRecord => {
     id: text(row, ["id", "uuid", "reference", "external_reference"]) || "sem-id",
     date: date(row, dateKeys),
     reference: text(row, ["reference", "external_reference", "ticket_number", "code"]),
-    platform: text(row, ["platform_name", "platform_slug", "platform"]),
-    category: text(row, ["category", "type", "transaction_type", "department", "request_type"]),
+    platform: text(row, ["platform_name", "platform_slug", "platform", "external_source"]),
+    category: text(row, ["category", "type", "transaction_type", "department", "request_type", "dispute_type", "visit_type", "campaign_type"]),
     value: number(row, ["amount", "value", "budget_amount", "budget"]),
     currency: text(row, ["currency", "currency_code"]),
     status: text(row, ["status", "state"]),
     responsible: text(row, ["responsible_name", "agent_name", "assigned_to_name", "assigned_to", "created_by"]),
     client: text(row, ["customer_name", "client_name", "customer", "requester_name"]),
-    subject: text(row, ["subject", "title", "name", "description"]),
+    subject: text(row, ["subject", "title", "name", "description", "reason"]),
     metadata: row,
   };
 };
 async function sourceRows(type: ReportType): Promise<{ rows: Row[]; source: string; state: SourceState; error?: string }> {
-  const config: Record<ReportType, { source: string; read: () => Promise<unknown> }> = {
-    financial: { source: "hq.financial_transactions", read: () => hqRest("financial_transactions?select=*&order=occurred_at.desc&limit=5000") },
-    marketing: { source: "public.marketing_campaigns", read: () => stagingRest("marketing_campaigns?select=*&order=created_at.desc&limit=5000") },
-    field: { source: "hq.field_visits", read: () => hqRest("field_visits?select=*&order=planned_at.desc&limit=5000") },
-    support: { source: "public.support_tickets", read: () => stagingRest("support_tickets?select=*&order=opened_at.desc&limit=5000") },
+  const config: Record<ReportType, { source: string; read: (offset:number) => Promise<unknown> }> = {
+    financial: { source: "hq.financial_transactions", read: (offset) => hqRest(`financial_transactions?select=*&order=occurred_at.desc,id.desc&limit=1000&offset=${offset}`) },
+    marketing: { source: "public.marketing_campaigns", read: (offset) => stagingRest(`marketing_campaigns?select=*&order=created_at.desc,id.desc&limit=1000&offset=${offset}`) },
+    field: { source: "hq.field_visits", read: (offset) => hqRest(`field_visits?select=*&order=planned_at.desc,id.desc&limit=1000&offset=${offset}`) },
+    support: { source: "public.support_tickets", read: (offset) => stagingRest(`support_tickets?select=*&order=created_at.desc,id.desc&limit=1000&offset=${offset}`) },
   };
   try {
-    const result = await config[type].read();
-    const rows = Array.isArray(result) ? result as Row[] : [];
+    const rows:Row[]=[];
+    for(let offset=0;offset<5000;offset+=1000){const result=await config[type].read(offset);if(!Array.isArray(result))throw new Error("Resposta inválida da fonte.");rows.push(...result as Row[]);if(result.length<1000)break;}
     return { rows, source: config[type].source, state: rows.length ? "fresh" : "empty" };
   } catch (error) {
     return { rows: [], source: config[type].source, state: "unavailable", error: error instanceof Error ? error.message.slice(0, 240) : "Fonte indisponível" };
@@ -87,8 +88,8 @@ export async function getReportData(type: ReportType, filters: ReportFilters = {
   const source = await sourceRows(type);
   const range = periodDates(filters);
   const records = source.rows.map(row => normalize(type, row)).filter(record => {
-    const day = isoDay(record.date);
-    const inPeriod = !day || (day >= range.from && day <= range.to);
+    const day = record.date ? new Intl.DateTimeFormat("en-CA",{timeZone:"Africa/Maputo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(record.date)) : null;
+    const inPeriod = Boolean(day) && (day! >= range.from && day! <= range.to);
     const status = !filters.status || String(record.status || "").toLowerCase() === filters.status.toLowerCase();
     const department = !filters.department || [record.category, String(record.metadata.department_id || ""), String(record.metadata.department || "")].some(value => value?.toLowerCase() === filters.department?.toLowerCase());
     const responsible = !filters.responsible || String(record.responsible || "").toLowerCase().includes(filters.responsible.toLowerCase());
@@ -111,5 +112,5 @@ export async function getReportData(type: ReportType, filters: ReportFilters = {
     statuses: [...statuses.entries()].map(([label, value]) => ({ label, value })),
     metricsUnavailable: type === "support" ? ["Tempo de primeira resposta", "Tempo de resolução"] : type === "field" ? ["KYC aprovado", "Parceiros integrados"] : type === "marketing" ? ["Alcance", "Conversões", "Retorno"] : [],
   };
-  return { type, range, source: source.source, sourceState: source.state, sourceError: source.error || null, summary, records, limitations: summary?.metricsUnavailable || (unavailable ? ["A fonte autorizada não respondeu."] : []) };
+  return { type, range, source: source.source, sourceState: source.state, sourceError: source.error || null, summary, records, limitations: [...(summary?.metricsUnavailable || (unavailable ? ["A fonte autorizada não respondeu."] : [])), ...(source.rows.length>=5000?["Fonte limitada aos 5000 registos mais recentes; resultados podem ser parciais."]:[])] };
 }

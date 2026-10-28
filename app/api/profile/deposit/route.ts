@@ -15,7 +15,7 @@ export async function POST(request:NextRequest){
   // phone/operator, and checks wallet ownership. Never accept those from the UI.
   const wallets=await stagingRest(`wallets?user_id=eq.${encodeURIComponent(actor.authUserId)}&currency=eq.MZN&is_active=eq.true&select=id&order=is_default.desc,created_at.asc&limit=1`);
   if(!wallets?.[0]?.id)return NextResponse.json({error:"A conta ainda não tem uma carteira pessoal activa para depósitos."},{status:409});
-  const response=await fetch(`${supabaseUrl()}/functions/v1/wallet-deposit-v2`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({wallet_id:wallets[0].id,amount:minor/100}),cache:"no-store",signal:AbortSignal.timeout(45000)});
+  const response=await fetch(`${supabaseUrl()}/functions/v1/wallet-deposit-v2`,{method:"POST",headers:{apikey:key,Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({wallet_id:wallets[0].id,amount:minor/100,return_url:"https://www.deligoteam.online/meu-perfil"}),cache:"no-store",signal:AbortSignal.timeout(45000)});
   const data=await response.json().catch(()=>null);
   if(!response.ok||!data?.success)return NextResponse.json({error:data?.error||"Não foi possível iniciar o checkout PaySuite."},{status:response.ok?502:response.status});
   const checkout=new URL(String(data.checkout_url||""));

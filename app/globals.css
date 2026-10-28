@@ -911,3 +911,10 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .shell .workspace > header .accountMenu{width:min(300px,calc(100vw - 32px))}
 .shell .workspace > header .accountMenuHead strong{overflow-wrap:anywhere}
 .shell .content header{isolation:auto}
+
+
+/* Queue title stays in document flow below the main application header. */
+.shell .supportWorkspace .supportTicketList .panelTitle{position:relative!important;top:auto!important;z-index:auto!important;display:block!important;height:auto!important;min-height:0;overflow:visible!important;padding:18px 16px!important;line-height:1.5;background:#0d2943!important}
+.shell .supportWorkspace .supportTicketList .panelTitle h2{font-size:19px!important;line-height:1.4!important;margin:0 0 6px!important;white-space:normal!important;color:#f5fbff!important}
+.shell .supportWorkspace .supportTicketList .panelTitle p{font-size:12px!important;line-height:1.5!important;margin:0!important;white-space:normal!important;color:#b6cede!important}
+.shell .supportWorkspace .supportScreenHeader{height:auto!important;min-height:0;top:auto;overflow:visible;z-index:auto}

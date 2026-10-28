@@ -1,3 +1,4 @@
+import {cookies} from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRest, hqRpc, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 import { detectMozambiqueWalletOperator } from "@/lib/mozambique-wallet";
@@ -60,6 +61,8 @@ export async function GET() {
     const key = hqServiceKey();
     if (!actor || !key) return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
 
+    const profileToken=(await cookies()).get("hq_access_token")?.value;
+    if(profileToken&&process.env.SUPABASE_ANON_KEY){await fetch(`${supabaseUrl()}/functions/v1/wallet-deposit-v2`,{method:"POST",headers:{apikey:process.env.SUPABASE_ANON_KEY,Authorization:`Bearer ${profileToken}`,"Content-Type":"application/json"},body:JSON.stringify({action:"reconcile"}),signal:AbortSignal.timeout(20000),cache:"no-store"}).then(async response=>{if(!response.ok)console.error("HQ_DEPOSIT_RECONCILIATION_FAILED",response.status)}).catch(error=>console.error("HQ_DEPOSIT_RECONCILIATION_FAILED",error));}
     await hqRpc("sync_personal_checkout_deposits_v1", {p_employee_id:actor.employee_id}, "hq").catch(error=>console.error("HQ_DEPOSIT_SYNC_FAILED",error));
 
     // The employee profile is the primary resource. Wallet adapters are
