@@ -442,6 +442,7 @@ export function HQApp() {
   const [notificationToast,setNotificationToast]=useState<FinanceRecord|null>(null);
   const notificationUnreadRef=useRef<Set<string>>(new Set());
   const notificationLoadedRef=useRef(false);
+   const notificationRefreshBusyRef=useRef(false);
   const notificationToastTimerRef=useRef<number|null>(null);
   const [managedEmployees, setManagedEmployees] = useState<ManagedEmployee[]>([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
@@ -718,7 +719,7 @@ export function HQApp() {
       setOwnWallets(Array.isArray(data.wallets) ? data.wallets : []);
     }).catch(error => { setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
   }, [ownProfile, sessionUser?.id]);
-  const refreshNotifications=async()=>{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)};
+   const refreshNotifications=async()=>{if(notificationRefreshBusyRef.current)return;notificationRefreshBusyRef.current=true;try{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)}finally{notificationRefreshBusyRef.current=false}};
   useEffect(() => {
     if (active !== "Visão geral" || !sessionUser) return;
     let cancelled = false;
@@ -1007,7 +1008,6 @@ if(active==="Operações de Campo")void refreshField();
     if(active==="Pessoas")void refreshEmployees();
     if(active==="Recursos Humanos"){void refreshWorkforce();fetch("/api/hr",{cache:"no-store"}).then(r=>r.ok?r.json():Promise.reject()).then(r=>setHrData(r.data||{})).catch(()=>undefined)}
     if(workflowDepartmentByModule[active])void refreshWorkflows();
-    void refreshNotifications().catch(()=>undefined);
   },[realtimeVersion]);
 
   useEffect(() => {
