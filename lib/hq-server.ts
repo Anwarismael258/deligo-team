@@ -101,8 +101,11 @@ export async function hqRpc(name: string, body: Record<string, unknown> = {}, pr
   const serviceKey = hqServiceKey();
   if (!serviceKey) throw new Error("HQ_SERVICE_ROLE_NOT_CONFIGURED");
   const response = await fetch(`${supabaseUrl()}/rest/v1/rpc/${name}`, { method: "POST", headers: privilegedHeaders(serviceKey,{"Accept-Profile":profile,"Content-Profile":profile}), body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(5000) });
-  if (!response.ok) throw new Error((await response.text()) || "HQ_RPC_FAILED");
-  return response.json();
+  const text = await response.text();
+  if (!response.ok) throw new Error(text || "HQ_RPC_FAILED");
+  // PostgREST returns an empty successful response for RETURNS void RPCs
+  // such as chat_read_v1. These operations have no JSON value to decode.
+  return text.trim() ? JSON.parse(text) : null;
 }
 
 export async function stagingRest(path: string, init: RequestInit = {}) {
