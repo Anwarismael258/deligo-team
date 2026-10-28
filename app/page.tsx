@@ -525,6 +525,7 @@ export function HQApp() {
   const [showFieldAdvanced,setShowFieldAdvanced]=useState(false);
   const [fieldKind,setFieldKind]=useState("visit");
   const [fieldNotice,setFieldNotice]=useState("");
+  const fieldRefreshVersion=useRef(0);
   const fieldDecisionInFlight=useRef(new Set<string>());
   const [fieldDecisionBusy,setFieldDecisionBusy]=useState<Record<string,boolean>>({});
   const [supportData,setSupportData]=useState<Record<string,FinanceRecord[]>>({});
@@ -826,6 +827,8 @@ export function HQApp() {
   const refreshMarketing=async()=>{const r=await fetch("/api/marketing",{cache:"no-store"});if(!r.ok)throw new Error();const result=await r.json();setMarketingData(result.data||{});setMarketingReports(result.reports||[])};
   useEffect(()=>{if(active!=="Marketing")return;refreshMarketing().catch(()=>{setMarketingData({});setMarketingReports([]);setMarketingNotice("Não foi possível carregar Marketing para este perfil.")})},[active]);
   const refreshField=async()=>{
+    const version=++fieldRefreshVersion.current;
+    try{
     const [fieldResponse,operationsResponse,kycResponse]=await Promise.all([
       fetch("/api/field",{cache:"no-store"}),
       fetch("/api/operations?module=field",{cache:"no-store"}),
@@ -858,7 +861,9 @@ export function HQApp() {
     });
     const canonicalIds=new Set(canonicalCases.map((row:FinanceRecord)=>[row.entity_reference,row.subject_user_id].filter(Boolean).map(value=>String(value)) ).flat());
     const aggregateWithoutCanonical=aggregate.filter((row:FinanceRecord)=>!canonicalIds.has(String(row.entity_reference||row.id)));
+    if(version!==fieldRefreshVersion.current)return;
     setFieldData({...field,field_kyc_cases:[...native,...mergedCanonical,...aggregateWithoutCanonical]});
+    }catch(error){if(version!==fieldRefreshVersion.current)return;throw error;}
   };
   useEffect(()=>{if(active!=="Operações de Campo"||!sessionUser?.id)return;refreshField().catch(()=>{setFieldData({});setFieldNotice("Não foi possível carregar Operações de Campo para este perfil.")})},[active,sessionUser?.id]);
   const ensureNotificationAudio=()=>{try{const AudioContextClass=window.AudioContext||window.webkitAudioContext;if(!AudioContextClass)return null;const context=supportAudioRef.current||new AudioContextClass();supportAudioRef.current=context;if(context.state==="suspended")void context.resume();return context}catch{return null}}
@@ -963,9 +968,11 @@ export function HQApp() {
     if(reason===null)return;
     if(needsReason&&reason.trim().length<6){setFieldNotice("Indique um motivo com pelo menos 6 caracteres.");return;}
     const isHqCase=entityId.startsWith("hq-"),decision=action.startsWith("approve")?"approve":action.startsWith("reject")?"reject":"correction";
+    fieldRefreshVersion.current++;
     fieldDecisionInFlight.current.add(entityId);setFieldDecisionBusy(current=>({...current,[entityId]:true}));setFieldNotice("A registar decisão…");
     try{
       const response=await submitKycDecision(isHqCase?"/api/kyc":"/api/field",isHqCase?{caseId:entityId.slice(3),decision,reason}:{entityId,action,reason});
+      fieldRefreshVersion.current++;
       const status=response.result?.status||(decision==="approve"?"approved":decision==="reject"?"rejected":"correction_requested");
       setFieldData(current=>({...current,field_kyc_cases:(current.field_kyc_cases||[]).map(row=>String(row.id)===entityId?{...row,status}:row)}));
       setFieldNotice(response.result?.message||(response.result?.driver_status==="active"?"Motorista activo no SARCA.":"Decisão registada e auditada."));

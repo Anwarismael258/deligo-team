@@ -19,6 +19,7 @@ const config = {
 const pick = (row: Row, keys: string[]) => keys.map((key) => row[key]).find((item) => item !== null && item !== undefined && String(item).trim())?.toString() || "—";
 
 export default function OperationalModule({ module }: { module: ModuleKey }) {
+  const loadVersion = useRef(0);
   const kycInFlight = useRef(new Set<string>());
   const [kycBusy, setKycBusy] = useState<Record<string, boolean>>({});
   const [data, setData] = useState<Payload | null>(null);
@@ -34,9 +35,11 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
   const Icon = meta.icon;
 
   const load = useCallback(async () => {
+    const version=++loadVersion.current;
     setNotice("A sincronizar…");
     const response = await fetch(`/api/operations?module=${module}`, { cache: "no-store" });
     const result = await response.json();
+    if(version!==loadVersion.current)return;
     if (!response.ok) { setNotice(result.error || "Falha ao carregar."); return; }
     setData(result);
     setSelected((current) => current || Object.keys(result.collections)[0]);
@@ -56,9 +59,11 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
     const reason=action==="approve"?"":window.prompt(action==="reject"?"Motivo da rejeição":"Correções necessárias");
     if(reason===null)return;
     if(action!=="approve"&&reason.trim().length<6){setNotice("Indique um motivo com pelo menos 6 caracteres.");return;}
+    loadVersion.current++;
     kycInFlight.current.add(id);setKycBusy(current=>({...current,[id]:true}));setNotice("A registar decisão…");
     try{
       const response=await submitKycDecision("/api/operations",{module:"field",entity:"kyc",id,platform:String(row._platform||""),action,reason});
+      loadVersion.current++;
       const status=response.result?.status||(action==="approve"?"approved":action==="reject"?"rejected":"correction_requested");
       setData(current=>current?{...current,collections:Object.fromEntries(Object.entries(current.collections).map(([name,rows])=>[name,rows.map(item=>String(item.id||item.user_id)===id?{...item,status}:item)]))}:current);
       setNotice(response.result?.message||"Decisão registada.");
