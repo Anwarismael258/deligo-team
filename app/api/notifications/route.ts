@@ -5,6 +5,7 @@ import {
   hqServiceKey,
   supabaseUrl,
 } from "@/lib/hq-server";
+import {dedupeNotifications} from "@/lib/notification-dedupe";
 import { ingestMestre24CentralEvents } from "@/lib/mestre24-central-events";
 const h = (k: string) => ({
   ...{
@@ -33,7 +34,7 @@ const inboxRoles = new Set([
   "MARKETING",
   "FIELD",
 ]);
-async function ingestSupportNotifications(employeeId: string, key: string) {
+async function ingestSupportNotifications(employeeId: string, key: string, all=false) {
   try {
     const messages = (await rest(
       key,
@@ -54,7 +55,7 @@ async function ingestSupportNotifications(employeeId: string, key: string) {
     const [tickets, existing] = await Promise.all([
       rest(
         key,
-        `support_tickets?id=in.(${ticketIds.join(",")})&select=id,platform_id,customer_name,subject&limit=200`,
+        `support_tickets?id=in.(${ticketIds.join(",")})${all?"":`&assigned_to=eq.${employeeId}`}&select=id,platform_id,customer_name,subject&limit=200`,
       ) as Promise<Array<Record<string, unknown>>>,
       rest(
         key,
@@ -73,7 +74,7 @@ async function ingestSupportNotifications(employeeId: string, key: string) {
       ),
     );
     const rows = externalMessages
-      .filter((message) => !known.has(String(message.id || "")))
+      .filter((message) => ticketById.has(String(message.ticket_id||""))&&!known.has(String(message.id || "")))
       .map((message) => {
         const ticket = ticketById.get(String(message.ticket_id || ""));
         const preview = String(message.message || "Nova mensagem recebida")
@@ -95,7 +96,8 @@ async function ingestSupportNotifications(employeeId: string, key: string) {
         };
       });
     if (rows.length)
-      await rest(key, "notifications", {
+      await rest(key, "notifications?on_conflict=employee_id,dedupe_key", {
+        headers:{Prefer:"resolution=ignore-duplicates,return=representation"},
         method: "POST",
         body: JSON.stringify(rows),
       });
@@ -108,11 +110,6 @@ export async function GET(req: NextRequest) {
     k = hqServiceKey();
   if (!a || !k)
     return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
-  if (!inboxRoles.has(a.role))
-    return NextResponse.json(
-      { error: "A sua função não tem acesso à inbox central." },
-      { status: 403 },
-    );
   await Promise.all([
     hqRpc("hq_refresh_due_notifications_v1", {
       p_employee_id: a.employee_id,
@@ -121,7 +118,7 @@ export async function GET(req: NextRequest) {
       console.error("Mestre24 central event intake failed", error);
       return null;
     }),
-    ingestSupportNotifications(a.employee_id, k),
+    (["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT"].includes(a.role)?ingestSupportNotifications(a.employee_id, k,["SUPER_ADMIN","SUPERVISOR"].includes(a.role)):Promise.resolve()),
   ]);
   const priority = req.nextUrl.searchParams.get("priority"),
     unread = req.nextUrl.searchParams.get("unread"),
@@ -140,7 +137,7 @@ export async function GET(req: NextRequest) {
   ]);
   return NextResponse.json(
     {
-      notifications,
+      notifications:dedupeNotifications(notifications),
       meta: {
         departments,
         platforms,

@@ -1,6 +1,8 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
+import {hqServiceKey} from "@/lib/hq-server";
+
 function validSignature(raw: string, signature: string) {
   const secret = process.env.PAYSUITE_WEBHOOK_SECRET;
   if (!secret || !signature) return false;
@@ -21,12 +23,12 @@ export async function POST(request: NextRequest) {
   if (!event.event || !supported.includes(event.event)) return NextResponse.json({ received: true, ignored: true });
   const providerId = event.data?.id;
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = hqServiceKey();
   if (!providerId || !url || !key) return NextResponse.json({ error: "Inbox PaySuite não configurada." }, { status: 503 });
   const payloadHash = createHash("sha256").update(raw).digest("hex");
   const response = await fetch(`${url}/rest/v1/provider_webhook_events`, {
     method: "POST",
-    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", "Content-Profile": "payments", Prefer: "resolution=ignore-duplicates,return=minimal" },
+    headers: { apikey: key, ...(key.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${key}`}), "Content-Type": "application/json", "Content-Profile": "payments", Prefer: "resolution=ignore-duplicates,return=minimal" },
     body: JSON.stringify({ provider: "paysuite", signature: request.headers.get("x-signature"), provider_event_type: event.event, external_reference: event.data?.reference || null, payload: event })
   });
   if (!response.ok) return NextResponse.json({ error: "Não foi possível registar o evento PaySuite." }, { status: 503 });
@@ -35,11 +37,11 @@ export async function POST(request: NextRequest) {
     const reference = String(data?.reference || "").trim();
     if (!reference) return NextResponse.json({ error: "Payout sem referência idempotente." }, { status: 400 });
     const lookup = await fetch(`${url}/rest/v1/payout_requests?metadata->>reference=eq.${encodeURIComponent(reference)}&select=id,status&limit=1`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": "payments", "Content-Profile": "payments" }, cache: "no-store",
+      headers: { apikey: key, ...(key.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${key}`}), "Accept-Profile": "payments", "Content-Profile": "payments" }, cache: "no-store",
     });
     const [payout] = lookup.ok ? await lookup.json() as Array<{ id?: string }> : [];
     const hqLookup = !payout?.id ? await fetch(`${url}/rest/v1/payout_requests?metadata->>reference=eq.${encodeURIComponent(reference)}&select=id,status&limit=1`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}`, "Accept-Profile": "hq", "Content-Profile": "hq" }, cache: "no-store",
+      headers: { apikey: key, ...(key.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${key}`}), "Accept-Profile": "hq", "Content-Profile": "hq" }, cache: "no-store",
     }) : null;
     const [hqPayout] = hqLookup?.ok ? await hqLookup.json() as Array<{ id?: string }> : [];
     const payoutId = payout?.id || hqPayout?.id;
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
       const rpcBody = event.event === "payout.success"
         ? { p_payout_request_id: hqPayout.id, p_provider_reference: providerId }
         : { p_payout_request_id: hqPayout.id, p_reason: String(data?.failure_reason || data?.message || "PaySuite rejeitou o payout") };
-      const payoutRpc = await fetch(`${url}/rest/v1/rpc/${rpcName}`, { method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify(rpcBody) });
+      const payoutRpc = await fetch(`${url}/rest/v1/rpc/${rpcName}`, { method: "POST", headers: { apikey: key, ...(key.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${key}`}), "Content-Type": "application/json" }, body: JSON.stringify(rpcBody) });
       if (!payoutRpc.ok) return NextResponse.json({ error: "Evento recebido, mas a carteira HQ não foi reconciliada." }, { status: 503 });
       return NextResponse.json({ received: true, event: event.event, provider_id: providerId, payout: await payoutRpc.json().catch(() => null) });
     }
@@ -57,14 +59,14 @@ export async function POST(request: NextRequest) {
     const rpcBody = event.event === "payout.success"
       ? { p_payout_request_id: payout.id, p_provider_reference: providerId }
       : { p_payout_request_id: payout.id, p_reason: String(data?.failure_reason || data?.message || "PaySuite rejeitou o payout") };
-    const payoutRpc = await fetch(`${url}/rest/v1/rpc/${rpcName}`, { method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify(rpcBody) });
+    const payoutRpc = await fetch(`${url}/rest/v1/rpc/${rpcName}`, { method: "POST", headers: { apikey: key, ...(key.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${key}`}), "Content-Type": "application/json" }, body: JSON.stringify(rpcBody) });
     if (!payoutRpc.ok) return NextResponse.json({ error: "Evento recebido, mas a carteira não foi reconciliada." }, { status: 503 });
     return NextResponse.json({ received: true, event: event.event, provider_id: providerId, payout: await payoutRpc.json().catch(() => null) });
   }
-  const amountMinor = Number(data?.amount_minor ?? data?.amountMinor ?? data?.amount ?? 0);
+  const amountMinor = Number(data?.amount_minor ?? data?.amountMinor ?? Math.round(Number(data?.amount||0)*100));
   const rpc = await fetch(`${url}/rest/v1/rpc/process_paysuite_webhook_v1`, {
     method: "POST",
-    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    headers: { apikey: key, ...(key.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${key}`}), "Content-Type": "application/json" },
     body: JSON.stringify({ p_signature: request.headers.get("x-signature"), p_event_type: event.event, p_external_reference: data?.reference || null, p_amount_minor: amountMinor, p_provider_reference: data?.id || null, p_status: data?.status || (event.event === "payment.success" ? "settled" : event.event === "payment.failed" ? "failed" : event.event), p_payload: event })
   });
   if (!rpc.ok) return NextResponse.json({ error: "Evento recebido, mas o settlement financeiro falhou." }, { status: 503 });

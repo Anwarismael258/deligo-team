@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
     const messages = rawMessages.filter(message => !isOutbound(message));
     const sentMessages = rawMessages.filter(isOutbound);
     const ids = new Set(rawMessages.map(message => String(message.id || "")));
-    const allReplies = await stagingRest("inbox_replies?select=*&order=created_at.asc&limit=2000") as Array<Record<string, unknown>>;
+    const allReplies = (ids.size?await stagingRest(`inbox_replies?message_id=in.(${[...ids].join(",")})&select=*&order=created_at.asc&limit=2000`):[]) as Array<Record<string, unknown>>;
     const replies = allReplies.filter(reply => ids.has(String(reply.message_id || "")));
     return NextResponse.json({ messages, sentMessages, replies, allowedMailboxes: ctx.areas, meta: { source: "staging.inbox_messages", received: messages.length, sent: sentMessages.length, unread: messages.filter(message => !messageMeta(message).read_at).length } });
   } catch { return NextResponse.json({ error: "Não foi possível carregar a caixa de entrada." }, { status: 500 }); }
