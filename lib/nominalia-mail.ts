@@ -6,6 +6,32 @@ export const inboxRecipients: Record<string, string> = {
   carreiras: "carreiras@deligotriunfal.site",
 };
 
+/** Mailbox access is enforced server-side and mirrored by the UI. */
+export const inboxAreas = Object.keys(inboxRecipients);
+const inboxAreasByRole: Record<string, string[]> = {
+  SUPER_ADMIN: inboxAreas,
+  CEO: inboxAreas,
+  SUPERVISOR: ["geral", "comercial"],
+  OPERATIONS_SUPERVISOR: ["geral", "comercial"],
+  CUSTOMER_SUPPORT: ["geral"],
+  MARKETING: ["comercial"],
+  FINANCE: [],
+  FINANCE_DIRECTOR: [],
+  FIELD: [],
+};
+
+export function inboxAreasForRole(role: string | null | undefined) {
+  return [...(inboxAreasByRole[String(role || "").toUpperCase()] || [])];
+}
+
+export function canAccessInboxArea(role: string | null | undefined, area: string | null | undefined) {
+  return Boolean(area && inboxAreasForRole(role).includes(area));
+}
+
+export function inboxSendersForRole(role: string | null | undefined) {
+  return inboxAreasForRole(role).map(area => inboxRecipients[area]).filter(Boolean);
+}
+
 const senderDisplayNames: Record<string, string> = {
   "geral@deligotriunfal.site": "DeliGo Geral",
   "comercial@deligotriunfal.site": "DeliGo Comercial",

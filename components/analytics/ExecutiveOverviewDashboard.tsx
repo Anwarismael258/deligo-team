@@ -29,7 +29,7 @@ const money = (value: number | null) => value == null ? null : Number(value.toFi
 const numberValue = (value: unknown) => typeof value === "number" && Number.isFinite(value) ? value : null;
 const overviewVisualStyles = `.executiveOverviewDashboard .analyticsKpiCard{background:linear-gradient(145deg,#10253b,#0b1727);border-color:#315174;color:#eaf2ff;box-shadow:0 10px 24px #02071155}.executiveOverviewDashboard .analyticsKpiCard>span{color:#9db6ce}.executiveOverviewDashboard .analyticsKpiCard>strong{color:#f5f9ff}.executiveOverviewDashboard .analyticsKpiCard>small{color:#86a1bd}.executiveOverviewDashboard .analyticsChartContainer{background:linear-gradient(145deg,#10253b,#0b1727);border-color:#315174;color:#eaf2ff}.executiveOverviewDashboard .analyticsChartHeading h3{color:#f5f9ff}.executiveOverviewDashboard .analyticsChartHeading p{color:#9db6ce}.executiveOverviewDashboard .overviewConsolidatedLabel{margin:0;padding:12px 14px;border:1px solid #315174;border-radius:10px;background:#0b1b2d;color:#9db6ce;font-size:11px;text-align:right;box-shadow:0 8px 20px #02071144}`;
 
-export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh, refreshKey = 0, realtimeState = "unknown", realtimeCheckedAt }: { dashboard: ExecutiveDashboardData | null; commandCenter: CommandCenter | null; onRefresh: () => void; refreshKey?: number; realtimeState?: MonitorState; realtimeCheckedAt?: string }) {
+export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh, refreshKey = 0, realtimeState = "unknown", realtimeCheckedAt, restrictedOperationalView = false }: { dashboard: ExecutiveDashboardData | null; commandCenter: CommandCenter | null; onRefresh: () => void; refreshKey?: number; realtimeState?: MonitorState; realtimeCheckedAt?: string; restrictedOperationalView?: boolean }) {
   const [filters, setFilters] = useState<AnalyticsFilters>({ period: "last_30_days", timezone: "Africa/Maputo" });
   const [history, setHistory] = useState<HistoryData | null>(null);
   const [historyError, setHistoryError] = useState("");
@@ -42,6 +42,7 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
   const liveFeed = (commandCenter?.liveFeed || []).filter((event, index, events) => events.findIndex(candidate => String(candidate.id) === String(event.id)) === index).slice(0, 3);
   const latestEventKey = liveFeed[0] ? String(liveFeed[0].id) : "";
   useEffect(() => {
+    if (restrictedOperationalView) { setHistory(null); setHistoryError(""); return; }
     const previous = previousEventRef.current;
     previousEventRef.current = latestEventKey || previousEventRef.current;
     if (!previous || !latestEventKey || previous === latestEventKey || document.visibilityState !== "visible") return;
@@ -57,7 +58,7 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
     let cancelled = false;
     fetch(`/api/analytics/history?${params.toString()}`, { cache: "no-store" }).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.error || "Não foi possível carregar a série histórica."); return body as HistoryData; }).then(data => { if (!cancelled) { setHistory(data); setHistoryError(""); } }).catch(error => { if (!cancelled) { setHistory(null); setHistoryError(error instanceof Error ? error.message : "Não foi possível carregar a série histórica."); } });
     return () => { cancelled = true; };
-  }, [filters.period, filters.from, filters.to, filters.platform, refreshKey]);
+  }, [filters.period, filters.from, filters.to, filters.platform, refreshKey, restrictedOperationalView]);
   const pendingAlerts = [commandCenter?.summary?.pendingKyc, commandCenter?.summary?.openSupport, commandCenter?.summary?.notificationWork].reduce<number | null>((sum, value) => {
     const numeric = numberValue(value);
     return numeric == null ? sum : (sum ?? 0) + numeric;
@@ -100,6 +101,11 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
       <div className="centralNowHeading"><div><span className="centralNowEyebrow">FEED AUTORIZADO</span><h2 id="central-now-title">A acontecer agora</h2><p>Os últimos eventos recebidos pela Central.</p></div><span className="centralNowStatus">{liveFeed.length ? `${liveFeed.length} recentes` : "Sem eventos"}</span></div>
       {liveFeed.length ? <div className="centralNowList">{liveFeed.map(event => <button className="centralNowItem" type="button" key={String(event.id)} onClick={() => window.location.assign(eventHref(event))}><span className="centralNowDot" aria-hidden="true" /><span className="centralNowBody"><strong>{eventLabel(event)}</strong><small>{eventPlatform(event)} · {event.occurred_at ? new Date(event.occurred_at).toLocaleString("pt-MZ") : "hora não indicada"}</small></span><span className="centralNowArrow" aria-hidden="true">→</span></button>)}</div> : <div className="centralNowEmpty">Nenhum evento real autorizado disponível neste momento.</div>}
     </section>
+    {restrictedOperationalView ? <KPIGrid items={[
+      { id: "active-users", label: "Utilizadores no directório", value: peopleCount || null, unit: "count", sourceStatus: peopleCount ? "fresh" : "unavailable", source: "Directório autorizado" },
+      { id: "platforms-operational", label: "Plataformas operacionais", value: connectedPlatforms || null, unit: "count", sourceStatus: connectedPlatforms ? "fresh" : "unavailable", source: "Estado de integração HQ" },
+      { id: "critical-alerts", label: "Alertas operacionais", value: pendingAlerts, unit: "count", sourceStatus: pendingAlerts == null ? "unavailable" : "fresh", source: "KYC, suporte e notificações" },
+    ]} /> : <>
     <DashboardFilters value={filters} onChange={setFilters} platforms={platformNames} />
     <div className="analyticsExecutiveGrid">
       <ChartContainer title="Evolução das receitas" description="Valores confirmados pela fonte financeira; sem estimativas.">
@@ -119,5 +125,6 @@ export function ExecutiveOverviewDashboard({ dashboard, commandCenter, onRefresh
       </ChartContainer>
     </div>
     <KPIGrid items={kpis} />
+    </>}
   </section>;
 }

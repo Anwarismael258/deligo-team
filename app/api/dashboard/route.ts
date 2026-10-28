@@ -245,8 +245,10 @@ export async function GET() {
         pendingKyc: pendingKyc.length,
         openSupport: openSupport.length,
         ticketsSold: eventTickets.length,
-        ticketRevenue: eventTickets.reduce((sum, item) => sum + Number(item.price || 0), 0),
-        ticketProfit: eventTickets.reduce((sum, item) => sum + Number(item.deligo_commission || 0), 0),
+        ...(canViewDeligoFinance ? {
+          ticketRevenue: eventTickets.reduce((sum, item) => sum + Number(item.price || 0), 0),
+          ticketProfit: eventTickets.reduce((sum, item) => sum + Number(item.deligo_commission || 0), 0),
+        } : {}),
       },
     };
     return NextResponse.json({ ...dashboard, platforms: enrichedPlatforms, modules: mergedModules, deligoOperations, deligoFinance, historical_total_value: totalValue, governance: ["SUPER_ADMIN","FINANCE"].includes(actorRole) ? deligoTriunfalGovernance : null, executive }, {

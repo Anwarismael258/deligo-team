@@ -31,9 +31,11 @@ async function audit(key:string,actorId:string,action:string,targetType:string,t
 export async function GET(){
   const c=await context();
   if(!c)return NextResponse.json({error:"Sem acesso a Projectos e Tarefas."},{status:403});
+  const assignedOnly = ["MARKETING", "FIELD", "CUSTOMER_SUPPORT"].includes(c.actor.role);
+  const employeeId = encodeURIComponent(String(c.actor.employee_id));
   const sources:[string,string][]=[
     ["projects","projects?select=*&order=updated_at.desc&limit=300"],
-    ["tasks","tasks?select=*&order=due_at.asc.nullslast&limit=800"],
+    ["tasks",assignedOnly ? `tasks?assigned_to=eq.${employeeId}&select=*&order=due_at.asc.nullslast&limit=800` : "tasks?select=*&order=due_at.asc.nullslast&limit=800"],
     ["members","project_members?select=*&limit=600"],
     ["milestones","project_milestones?select=*&order=due_date.asc.nullslast&limit=500"],
     ["dependencies","task_dependencies?select=*&limit=800"],
@@ -44,6 +46,24 @@ export async function GET(){
   ];
   const pairs=await Promise.all(sources.map(async([name,path])=>{try{return [name,await rest(c.key,path)]}catch{return [name,[]]}}));
   const data=Object.fromEntries(pairs) as Record<string,unknown>;
+  if (assignedOnly) {
+    const tasks = Array.isArray(data.tasks) ? data.tasks as Array<Record<string, unknown>> : [];
+    const taskIds = new Set(tasks.map(task => String(task.id)));
+    const projectIds = new Set(tasks.map(task => String(task.project_id)).filter(Boolean));
+    const keep = (value: unknown, ids: Set<string>) => ids.has(String(value));
+    data.projects = (Array.isArray(data.projects) ? data.projects : []).filter((item) => keep((item as Record<string, unknown>).id, projectIds));
+    data.milestones = (Array.isArray(data.milestones) ? data.milestones : []).filter((item) => keep((item as Record<string, unknown>).project_id, projectIds));
+    data.dependencies = (Array.isArray(data.dependencies) ? data.dependencies : []).filter((item) => keep((item as Record<string, unknown>).task_id, taskIds));
+    data.updates = (Array.isArray(data.updates) ? data.updates : []).filter((item) => {
+      const row = item as Record<string, unknown>;
+      return (row.task_id != null && taskIds.has(String(row.task_id))) || (row.project_id != null && projectIds.has(String(row.project_id)));
+    });
+    data.members = (Array.isArray(data.members) ? data.members : []).filter((item) => {
+      const row = item as Record<string, unknown>;
+      return String(row.employee_id || "") === String(c.actor.employee_id) || projectIds.has(String(row.project_id));
+    });
+    data.employees = (Array.isArray(data.employees) ? data.employees : []).filter((item) => String((item as Record<string, unknown>).id || "") === String(c.actor.employee_id));
+  }
   if(Array.isArray(data.employees)) data.employees=(data.employees as Array<Record<string,unknown>>).map(employee=>({...employee,name:employee.display_name||"Trabalhador",status:String(employee.status||"").toLowerCase()}));
   return NextResponse.json({data},{headers:{"Cache-Control":"private, no-store"}});
 }
