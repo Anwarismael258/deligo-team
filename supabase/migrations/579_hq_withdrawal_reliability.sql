@@ -5,6 +5,8 @@ create table if not exists hq.employee_withdrawal_intents(
  client_id uuid not null,amount_minor bigint not null check(amount_minor>0),method text not null check(method in ('mpesa','emola','mkesh')),
  response jsonb,http_status integer not null default 202,created_at timestamptz not null default now(),unique(employee_id,client_id)
 );
+alter table hq.employee_withdrawal_intents drop constraint if exists employee_withdrawal_intents_method_check;
+alter table hq.employee_withdrawal_intents add constraint employee_withdrawal_intents_method_check check(method in ('mpesa','emola','mkesh'));
 alter table hq.employee_withdrawal_intents enable row level security;
 revoke all on hq.employee_withdrawal_intents from public,anon,authenticated;
 grant all on hq.employee_withdrawal_intents to service_role;
