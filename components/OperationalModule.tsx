@@ -1,7 +1,8 @@
 "use client";
 
+import { submitKycDecision } from "@/lib/kyc-decision-client";
 import Image from "next/image";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, Headphones, MapPinned, Megaphone, RefreshCw } from "lucide-react";
 
 type ModuleKey = "marketing" | "support" | "field";
@@ -18,6 +19,8 @@ const config = {
 const pick = (row: Row, keys: string[]) => keys.map((key) => row[key]).find((item) => item !== null && item !== undefined && String(item).trim())?.toString() || "—";
 
 export default function OperationalModule({ module }: { module: ModuleKey }) {
+  const kycInFlight = useRef(new Set<string>());
+  const [kycBusy, setKycBusy] = useState<Record<string, boolean>>({});
   const [data, setData] = useState<Payload | null>(null);
   const [selected, setSelected] = useState("");
   const [query, setQuery] = useState("");
@@ -48,13 +51,19 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
   const activeTicket = useMemo(() => (data?.collections.tickets || []).find((row) => String(row.id) === ticketId) || null, [data, ticketId]);
 
   const decideKyc = async (row: Row, action: "approve" | "reject" | "correction") => {
-    const reason = action === "approve" ? "" : window.prompt(action === "reject" ? "Motivo da rejeição" : "Correções necessárias") || "";
-    if (action !== "approve" && reason.trim().length < 6) { setNotice("Indique um motivo com pelo menos 6 caracteres."); return; }
-    setNotice("A registar decisão KYC…");
-    const response = await fetch("/api/operations", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ module: "field", entity: "kyc", id: String(row.id || row.user_id), platform: String(row._platform || ""), action, reason }) });
-    const result = await response.json();
-    if (!response.ok) { setNotice(result.error || "Não foi possível concluir a decisão."); return; }
-    await load();
+    const id=String(row.id||row.user_id);
+    if(kycInFlight.current.has(id))return;
+    const reason=action==="approve"?"":window.prompt(action==="reject"?"Motivo da rejeição":"Correções necessárias");
+    if(reason===null)return;
+    if(action!=="approve"&&reason.trim().length<6){setNotice("Indique um motivo com pelo menos 6 caracteres.");return;}
+    kycInFlight.current.add(id);setKycBusy(current=>({...current,[id]:true}));setNotice("A registar decisão…");
+    try{
+      const response=await submitKycDecision("/api/operations",{module:"field",entity:"kyc",id,platform:String(row._platform||""),action,reason});
+      const status=response.result?.status||(action==="approve"?"approved":action==="reject"?"rejected":"correction_requested");
+      setData(current=>current?{...current,collections:Object.fromEntries(Object.entries(current.collections).map(([name,rows])=>[name,rows.map(item=>String(item.id||item.user_id)===id?{...item,status}:item)]))}:current);
+      setNotice(response.result?.message||"Decisão registada.");
+    }catch(error){setNotice(error instanceof Error?error.message:"Não foi possível concluir a decisão.");}
+    finally{kycInFlight.current.delete(id);setKycBusy(current=>({...current,[id]:false}));}
   };
 
   const setTicketStatus = async (id: string, action: string) => {
@@ -111,7 +120,7 @@ export default function OperationalModule({ module }: { module: ModuleKey }) {
           {module === "support" && selected === "tickets" && <><button onClick={() => setTicketId(id)}>Abrir conversa</button>{String(row.status) !== "resolved" && <button onClick={() => void setTicketStatus(id, "resolved")}>Resolver</button>}</>}
           {module === "marketing" && selected === "campaigns" && <>{String(row.status) !== "published" && <button onClick={() => void updateCampaign(id, "published")}>Publicar</button>}{String(row.status) !== "archived" && <button onClick={() => void updateCampaign(id, "archived")}>Arquivar</button>}</>}
           {isKyc && <button disabled={!media.length} onClick={() => setGallery({ name, media })}>Galeria ({media.length})</button>}
-          {isKyc && data?.permissions?.canDecideKyc && <>{canCorrect && <button onClick={() => void decideKyc(row, "correction")}>Pedir correção</button>}<button onClick={() => void decideKyc(row, "reject")}>Rejeitar</button><button onClick={() => void decideKyc(row, "approve")}><CheckCircle2 /> Aprovar</button></>}
+          {isKyc && data?.permissions?.canDecideKyc && <>{canCorrect && <button disabled={Boolean(kycBusy[id])} onClick={() => void decideKyc(row, "correction")}>Pedir correção</button>}<button disabled={Boolean(kycBusy[id])} onClick={() => void decideKyc(row, "reject")}>Rejeitar</button><button disabled={Boolean(kycBusy[id])} onClick={() => void decideKyc(row, "approve")}><CheckCircle2 /> Aprovar</button></>}
         </div></div>;
       })}
       {!rows.length && <div className="peopleEmpty">Nenhum registo corresponde à pesquisa.</div>}

@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { flushSarcaKycPush } from "@/lib/sarca-kyc-push";
+import { after, NextRequest, NextResponse } from "next/server";
 import { corporateAuthorization, hqRest, hqRpc } from "@/lib/hq-server";
 import { listPlatformStorageObjects, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
 
@@ -60,6 +61,7 @@ export async function GET(request: NextRequest) {
     : "";
   try {
     const rows = await hqRest(`platform_kyc_cases?select=*,platforms!inner(slug,name,platform_code)&order=submitted_at.desc&limit=300${platformFilter}${statusFilter}${scope}`) as Record<string, unknown>[];
+    if (authorization.isSuperAdmin || authorization.platformSlugs.includes("sarca")) after(() => flushSarcaKycPush());
     return NextResponse.json({ data: await Promise.all(rows.map(withSignedDocuments)), checkedAt: new Date().toISOString() }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Fila KYC indisponível." }, { status: 502 });
@@ -84,6 +86,8 @@ export async function PATCH(request: NextRequest) {
       p_decision: body.decision,
       p_reason: body.reason?.trim() || null,
     });
+    const notificationId = (result as { notification_id?: string } | null)?.notification_id;
+    if (notificationId) after(() => flushSarcaKycPush(notificationId));
     return NextResponse.json({ result });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "A decisão KYC não foi aplicada." }, { status: 409 });

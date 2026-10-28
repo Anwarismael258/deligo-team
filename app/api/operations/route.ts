@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { flushSarcaKycPush } from "@/lib/sarca-kyc-push";
+import { after, NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRest, hqRpc, stagingRest } from "@/lib/hq-server";
 import { buildPlatformDecision, type PlatformDecision } from "@/lib/platform-decisions";
 import { platformFunction, platformRest, platformRpc, signPlatformPath, type PlatformBackend } from "@/lib/platform-backends";
@@ -172,6 +173,8 @@ export async function PATCH(request: NextRequest) {
       const employees = await hqRest(`employees?select=auth_user_id&id=eq.${encodeURIComponent(actor.employee_id)}&status=eq.active`) as { auth_user_id: string }[];
       if (!employees[0]?.auth_user_id) return NextResponse.json({ error: "Identidade do trabalhador indisponível." }, { status: 403 });
       const result = await hqRpc("hq_decide_platform_kyc_v1", { p_case_id: body.id, p_actor_auth_user_id: employees[0].auth_user_id, p_decision: body.action, p_reason: body.reason?.trim() || null });
+      const notificationId = (result as { notification_id?: string } | null)?.notification_id;
+      if (notificationId) after(() => flushSarcaKycPush(notificationId));
       return NextResponse.json({ ok: true, result });
     }
     const operation = buildPlatformDecision(platform, body.action as PlatformDecision, body.id, body.reason);
