@@ -73,15 +73,23 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const employeeProfiles = await hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id,personal_phone`) as Array<{ auth_user_id?: string | null; personal_phone?: string | null }>;
-    const walletOwnerId = String(employeeProfiles?.[0]?.auth_user_id || actor.authUserId);
-    const operator = detectMozambiqueWalletOperator(String(employeeProfiles?.[0]?.personal_phone || ""));
+    const [employeeProfiles, employeeContacts] = await Promise.all([
+      hqRest(`employee_display_profiles?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=personal_phone`) as Promise<Array<{ personal_phone?: string | null }>>,
+      hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id,phone_e164`) as Promise<Array<{ auth_user_id?: string | null; phone_e164?: string | null }>>,
+    ]);
+    // Keep the payout owner identical to the owner resolved by /api/profile.
+    // employee_display_profiles.auth_user_id was populated by an older flow
+    // and can point at a legacy identity, which made the profile show one
+    // wallet while the payout RPC checked another one.
+    const walletOwnerId = personalWalletOwnerId;
+    const payoutPhone = employeeProfiles?.[0]?.personal_phone || employeeContacts?.[0]?.phone_e164 || "";
+    const operator = detectMozambiqueWalletOperator(String(payoutPhone));
     const { phone, method } = operator;
     const idempotencyKey = `employee-payout-${actor.authUserId}-${crypto.randomUUID()}`;
     const hqWallets = await hqRest(`logical_wallets?owner_user_id=eq.${encodeURIComponent(walletOwnerId)}&wallet_type=eq.employee&status=eq.active&currency=eq.MZN&select=wallet_code,available_amount&limit=10`) as Array<{ wallet_code?: string; available_amount?: number }>;
     const hqAvailable = (Array.isArray(hqWallets) ? hqWallets : []).reduce((sum, wallet) => sum + Number(wallet.available_amount || 0), 0);
     if (hqAvailable >= amount) {
-      const prepared = await hqRpc("hq_prepare_employee_paysuite_payout_v1", { p_actor_auth_user_id: actor.authUserId, p_amount: amount, p_method: method, p_phone_number: phone, p_idempotency_key: idempotencyKey }) as Record<string, unknown>;
+      const prepared = await hqRpc("hq_prepare_employee_paysuite_payout_v1", { p_actor_auth_user_id: walletOwnerId, p_amount: amount, p_method: method, p_phone_number: phone, p_idempotency_key: idempotencyKey }) as Record<string, unknown>;
       const payoutId = String(prepared.payout_request_id || "");
       const reference = String(prepared.reference || "");
       try {
