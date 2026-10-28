@@ -21,9 +21,9 @@ export function FinanceKpi({ label, value, note, icon, tone }: FinanceKpiProps) 
     <article className={`financeOverviewKpi financeOverviewKpi-${tone}`}>
       <div className="financeOverviewKpiIcon" aria-hidden="true">{icon}</div>
       <div className="financeOverviewKpiBody">
-        <div className="financeOverviewKpiLabel"><span>{label}</span><span className="financeInfoHint" title={note} aria-label={`Informação: ${note}`}>i</span></div>
+        <div className="financeOverviewKpiLabel"><span>{label}</span>{note ? <span className="financeInfoHint" title={note} aria-label={`Informação: ${note}`}>i</span> : null}</div>
         <strong>{value}</strong>
-        <small>{note}</small>
+        {note ? <small>{note}</small> : null}
       </div>
     </article>
   );

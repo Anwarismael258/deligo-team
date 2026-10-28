@@ -1345,8 +1345,8 @@ if(active==="Operações de Campo")void refreshField();
           {active === "Finanças" && <section className="financeWorkspace">
             <div className="financeOverviewKpis">
               <FinanceKpi label="Receita da Central" value={corporateConfirmedRevenue == null ? "Indisponível" : money(corporateConfirmedRevenue)} tone="violet" icon={<Coins size={22} />} note="Comissões, taxas e receitas líquidas confirmadas. Não inclui carteiras de terceiros." />
-              <FinanceKpi label="Carteiras de terceiros" value={financialBreakdown?.user_wallets_available == null ? "Indisponível" : money(Number(financialBreakdown.user_wallets_available))} tone="cyan" icon={<WalletCards size={22} />} note="Saldo disponível de clientes, restaurantes, estafetas, vendedores, drivers e riders." />
-              <FinanceKpi label="Total sob custódia" value={financialBreakdown?.total_funds_controlled_available == null ? "Indisponível" : money(Number(financialBreakdown.total_funds_controlled_available))} tone="blue" icon={<Landmark size={22} />} note="Receita confirmada mais carteiras de terceiros, sem dupla contagem." />
+              <FinanceKpi label="Carteiras de terceiros" value={financialBreakdown?.user_wallets_available == null ? "Indisponível" : money(Number(financialBreakdown.user_wallets_available))} tone="cyan" icon={<WalletCards size={22} />} note="" />
+              <FinanceKpi label="Total sob custódia" value={financialBreakdown?.total_funds_controlled_available == null ? "Indisponível" : money(Number(financialBreakdown.total_funds_controlled_available))} tone="blue" icon={<Landmark size={22} />} note="" />
             </div>
             <div className="financeVisualGrid">
               <FinanceRevenueBars formatValue={money} items={["deligo","mestre24","sarca","comunhao","taomoz"].map(slug=>{const platform=platformBreakdown(slug);const label=slug==="deligo"?"DeliGo Eats":slug==="mestre24"?"Mestre24":slug==="sarca"?"SARCA":slug==="comunhao"?"Comunhão":"DeliGo Market";return {slug,label,value:typeof platform?.central_revenue_confirmed === "number" ? Number(platform.central_revenue_confirmed) : null};})} />
