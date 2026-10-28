@@ -442,6 +442,7 @@ export function HQApp() {
   const [profileEditing,setProfileEditing]=useState(false);
   const [profileSaveBusy,setProfileSaveBusy]=useState(false);
   const [ownWallets,setOwnWallets]=useState<Array<Record<string,unknown>>>([]);
+  const [personalBalanceBreakdown,setPersonalBalanceBreakdown]=useState<Record<string,number>|null>(null);
   const [profileWalletNotice,setProfileWalletNotice]=useState("");
   const withdrawalInFlight=useRef(false);
   const [profileDepositAmount,setProfileDepositAmount]=useState("");
@@ -608,6 +609,12 @@ export function HQApp() {
   const personalWalletTotal=ownWallets.reduce((sum,wallet)=>sum+Number(wallet.available_amount||0),0);
   const personalWalletPending=ownWallets.reduce((sum,wallet)=>sum+Number(wallet.pending_amount||0),0);
   const personalWalletReserved=ownWallets.reduce((sum,wallet)=>sum+Number(wallet.reserved_amount||0),0);
+  useEffect(()=>{
+    if(!isAccountScreen||personalWalletReserved<=0)return;
+    let cancelled=false;let timer:ReturnType<typeof setTimeout>;
+    const refresh=async()=>{try{if(document.visibilityState!=="hidden"){const response=await fetch("/api/profile",{cache:"no-store"});const data=await response.json();if(!cancelled&&response.ok){setOwnWallets(Array.isArray(data.wallets)?data.wallets:[]);setPersonalBalanceBreakdown(data.reconciliation||null)}}}catch{}finally{if(!cancelled)timer=setTimeout(refresh,5000)}};
+    timer=setTimeout(refresh,5000);return()=>{cancelled=true;clearTimeout(timer)};
+  },[isAccountScreen,personalWalletReserved]);
   const corporateSummary=dashboard?.deligoFinance?.summary;
   const financialBreakdown=dashboard?.deligoFinance?.breakdown;
   const breakdownPlatforms=Array.isArray(financialBreakdown?.platforms) ? financialBreakdown.platforms : [];
@@ -668,7 +675,8 @@ export function HQApp() {
     if (!response.ok) { setFinanceNotice(data.error || "OTP inválido ou pedido expirado."); return; }
     sessionStorage.removeItem(`hq-corporate-request:${sessionUser?.id}:${corporateWithdrawal.amount}`);
     void fetch("/api/dashboard",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(data=>{if(data)setDashboard(normalizeDashboardNames(data))}).catch(()=>undefined);
-    setCorporateWithdrawalStep("done"); setFinanceNotice("Transferência interna confirmada para a carteira pessoal. O levantamento PaySuite continua separado.");
+    void fetch("/api/profile",{cache:"no-store"}).then(async response=>{if(!response.ok)return;const data=await response.json();setOwnWallets(Array.isArray(data.wallets)?data.wallets:[]);setPersonalBalanceBreakdown(data.reconciliation||null)}).catch(()=>undefined);
+    setCorporateWithdrawalStep("done"); setFinanceNotice(`Transferência de ${money(Number(corporateWithdrawal.amount))} concluída. O saldo da carteira pessoal e o disponível corporativo foram atualizados.`);
   };
   const resendCorporateWithdrawalOtp = async () => {
     setFinanceNotice("A solicitar novo OTP…");
@@ -741,6 +749,7 @@ export function HQApp() {
       setOwnProfile(data.profile || null);
       setProfileBiography(String(data.profile?.biography || ""));
       setOwnWallets(Array.isArray(data.wallets) ? data.wallets : []);
+      setPersonalBalanceBreakdown(data.reconciliation||null);
     }).catch(error => { setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
   }, [active, sessionUser?.id]);
    const refreshNotifications=async()=>{if(notificationRefreshBusyRef.current)return;notificationRefreshBusyRef.current=true;try{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)}finally{notificationRefreshBusyRef.current=false}};
@@ -1356,7 +1365,7 @@ if(active==="Operações de Campo")void refreshField();
           {active === "Relatórios" && !restrictedOperationalRole && <ModuleErrorBoundary resetKey="reports"><CorporateOperationsAnalyticsDashboard mode="reports" /></ModuleErrorBoundary>}
           {active === "Site Institucional" && <><ModuleErrorBoundary resetKey="institutional-analytics"><CorporateOperationsAnalyticsDashboard mode="institutional" /></ModuleErrorBoundary><ModuleErrorBoundary resetKey="institutional-news"><InstitutionalNewsManager /></ModuleErrorBoundary></>}
           {active === "Vagas" && <><ModuleErrorBoundary resetKey="jobs-analytics"><CorporateOperationsAnalyticsDashboard mode="jobs" /></ModuleErrorBoundary><ModuleErrorBoundary resetKey="jobs-manager"><InstitutionalJobsManager /></ModuleErrorBoundary></>}
-          {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Inbox interna" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !analyticsActive.has(active) && !isAccountScreen && (
+          {active !== "Visão geral" && active !== "Plataformas" && active !== "Apoio ao Cliente" && active !== "Inbox interna" && active !== "Mapa operacional" && active !== "Finanças" && active !== "Marketing" && active !== "Operações de Campo" && !analyticsActive.has(active) && !isAccountScreen && (
             <section className="moduleContext">
               <div><span>MÓDULO</span><h2>{displayModuleLabel(active)}</h2><p>{activePresentation?.description || "O conteúdo e as acções apresentados respeitam o role, a plataforma e as permissões do utilizador."}</p></div>
               <div className="moduleLinks">
@@ -1381,13 +1390,13 @@ if(active==="Operações de Campo")void refreshField();
           </section>}
           {active === "Finanças" && <section className="financeWorkspace">
             <div className="financeOverviewKpis">
-              <FinanceKpi label="Receita da Central" value={corporateConfirmedRevenue == null ? "Indisponível" : money(corporateConfirmedRevenue)} tone="violet" icon={<Coins size={22} />} note="Comissões, taxas e receitas líquidas confirmadas. Não inclui carteiras de terceiros." />
+              <FinanceKpi label="Receita disponível da Central" value={corporateSummary?.corporate_profit_withdrawable == null ? "Indisponível" : money(Number(corporateSummary.corporate_profit_withdrawable))} tone="violet" icon={<Coins size={22} />} note={`Receita acumulada: ${corporateConfirmedRevenue==null?"Indisponível":money(corporateConfirmedRevenue)} · Já transferido: ${money(Number(corporateSummary?.corporate_revenue_transferred||0))}`} />
               <FinanceKpi label="Carteiras de terceiros" value={financialBreakdown?.user_wallets_available == null ? "Indisponível" : money(Number(financialBreakdown.user_wallets_available))} tone="cyan" icon={<WalletCards size={22} />} note="" />
               <FinanceKpi label="Total sob custódia" value={financialBreakdown?.total_funds_controlled_available == null ? "Indisponível" : money(Number(financialBreakdown.total_funds_controlled_available))} tone="blue" icon={<Landmark size={22} />} note="" />
             </div>
             <div className="financeVisualGrid">
               <FinanceRevenueBars formatValue={money} items={["deligo","mestre24","sarca","comunhao","taomoz"].map(slug=>{const platform=platformBreakdown(slug);const label=slug==="deligo"?"DeliGo Eats":slug==="mestre24"?"Mestre24":slug==="sarca"?"SARCA":slug==="comunhao"?"Comunhão":"DeliGo Market";return {slug,label,value:typeof platform?.central_revenue_confirmed === "number" ? Number(platform.central_revenue_confirmed) : null};})} />
-              <FinanceCustodyDonut centralRevenue={typeof corporateConfirmedRevenue === "number" ? corporateConfirmedRevenue : null} thirdPartyWallets={typeof financialBreakdown?.user_wallets_available === "number" ? Number(financialBreakdown.user_wallets_available) : null} custodyTotal={typeof financialBreakdown?.total_funds_controlled_available === "number" ? Number(financialBreakdown.total_funds_controlled_available) : null} formatValue={money} />
+              <FinanceCustodyDonut centralRevenue={typeof financialBreakdown?.corporate_custody_available === "number" ? Number(financialBreakdown.corporate_custody_available) : null} thirdPartyWallets={typeof financialBreakdown?.user_wallets_available === "number" ? Number(financialBreakdown.user_wallets_available) : null} custodyTotal={typeof financialBreakdown?.total_funds_controlled_available === "number" ? Number(financialBreakdown.total_funds_controlled_available) : null} formatValue={money} />
             </div>
             {["SUPER_ADMIN", "FINANCE"].includes(sessionUser?.hq_role || "") && <form className="financeEntryForm financeTransferForm" onSubmit={transferToWorker}>
               <label><span>Enviar da receita corporativa para trabalhador</span><select required value={workerTransfer.employeeId} onChange={event => setWorkerTransfer(current => ({ ...current, employeeId: event.target.value }))}><option value="">{workerTransferEmployees.length ? "Seleccionar trabalhador activo" : "Nenhum trabalhador activo elegível"}</option>{workerTransferEmployees.map(employee => <option value={employee.id} key={employee.id}>{employee.name} · {employee.employee_code || employee.role || "Trabalhador"}</option>)}</select></label>
@@ -1395,9 +1404,9 @@ if(active==="Operações de Campo")void refreshField();
               <button className="primaryAction" disabled={workerTransferBusy || !workerTransferEmployees.length}>{workerTransferBusy ? "A transferir…" : "Enviar para carteira interna"}</button>
             </form>}
 
-            {corporateWithdrawalStep === "idle" && <form className="financeEntryForm financeWithdrawalForm" onSubmit={prepareCorporateWithdrawal}><label><span>Valor a levantar da receita corporativa disponível (MZN)</span><input type="number" min="0.01" step="0.01" required value={corporateWithdrawal.amount} onChange={event => setCorporateWithdrawal(current => ({ ...current, amount: event.target.value }))} /></label><button className="primaryAction" disabled={corporateWithdrawalBusy}>{corporateWithdrawalBusy?"A validar…":"Solicitar levantamento interno"}</button><small>Disponível para solicitar: {corporateSummary?.corporate_profit_withdrawable==null?"A actualizar…":money(Number(corporateSummary.corporate_profit_withdrawable))}. Admin e Finanças confirmam com OTP; a transferência interna não tem taxa PaySuite.</small></form>}
+            {corporateWithdrawalStep === "idle" && <form className="financeEntryForm financeWithdrawalForm" onSubmit={prepareCorporateWithdrawal}><label><span>Valor a levantar da receita corporativa disponível (MZN)</span><input type="number" min="0.01" step="0.01" required value={corporateWithdrawal.amount} onChange={event => setCorporateWithdrawal(current => ({ ...current, amount: event.target.value }))} /></label><button className="primaryAction" disabled={corporateWithdrawalBusy}>{corporateWithdrawalBusy?"A validar…":"Solicitar levantamento interno"}</button><small>Disponível para solicitar: {corporateSummary?.corporate_profit_withdrawable==null?"A actualizar…":money(Number(corporateSummary.corporate_profit_withdrawable))}. Receita acumulada: {money(Number(corporateSummary?.corporate_revenue_confirmed||0))} · Já transferido: {money(Number(corporateSummary?.corporate_revenue_transferred||0))}. Admin e Finanças confirmam com OTP; a transferência interna não tem taxa PaySuite.</small></form>}
             {corporateWithdrawalStep === "otp" && <form className="financeEntryForm" onSubmit={confirmCorporateWithdrawal}><label><span>OTP do segundo aprovador</span><input inputMode="numeric" autoComplete="one-time-code" required value={corporateWithdrawal.otp} onChange={event => setCorporateWithdrawal(current => ({ ...current, otp: event.target.value }))} /></label><div className="financeActionRow"><button className="primaryAction">Confirmar e transferir para a carteira</button><button type="button" className="secondaryAction" onClick={resendCorporateWithdrawalOtp}>Enviar novo OTP</button></div></form>}
-            {corporateWithdrawalStep === "done" && <button className="primaryAction" onClick={() => { setCorporateWithdrawalStep("idle"); setCorporateWithdrawal(current => ({ ...current, amount: "", withdrawalId: "", otp: "" })); }}>Novo pedido</button>}
+            {corporateWithdrawalStep === "done" && <button className="primaryAction" onClick={() => { setCorporateWithdrawalStep("idle"); setCorporateWithdrawal(current => ({ ...current, amount: "", withdrawalId: "", otp: "" })); }}>Iniciar outra transferência</button>}
             {financeNotice && <div className="operationalNotice">{financeNotice}</div>}
               {false && <>
               <div className="financeHero">
@@ -1694,6 +1703,7 @@ if(active==="Operações de Campo")void refreshField();
               <div className="profileSectionTitle"><span>CARTEIRA DIGITAL</span><h2>Saldo pessoal</h2><p>Saldo real da carteira do trabalhador no backend central.</p></div>
               <>
                 <div className="walletBalanceRow walletUnifiedRow"><div><strong>Saldo pessoal consolidado</strong><span>Todos os saldos pessoais associados ao mesmo utilizador/número · não inclui a carteira corporativa</span></div><b>{money(personalWalletTotal)}</b></div>
+                {personalBalanceBreakdown&&<div className="walletBalanceMeta"><span>Carteiras conciliadas: {money(Number(personalBalanceBreakdown.canonical_available_amount||0))}</span><span>Transferências internas: {money(Number(personalBalanceBreakdown.internal_available_amount||0))}</span>{Number(personalBalanceBreakdown.excluded_legacy_amount)>0&&<span>Saldo antigo pendente de reconciliação, não incluído: {money(Number(personalBalanceBreakdown.excluded_legacy_amount))}</span>}</div>}
                 {["SUPER_ADMIN","FINANCE"].includes(sessionUser?.hq_role||"")&&<form className="financeEntryForm walletDepositForm" onSubmit={depositOwnWallet}><label><span>Montante a depositar (MZN)</span><input aria-label="Montante a depositar" inputMode="decimal" type="number" min="1" max="10000000" step="0.01" required value={profileDepositAmount} onChange={event=>setProfileDepositAmount(event.target.value)} placeholder="Ex.: 100"/></label><button type="submit" className="primaryAction" disabled={profileDepositBusy}>{profileDepositBusy?"A abrir checkout…":"Depositar"}</button><small>Número e operadora identificados automaticamente pela conta. Vai continuar no checkout seguro da PaySuite.</small><small>Taxa PaySuite: 3% · {Number(profileDepositAmount)>0?`Taxa: ${money(Math.round(Number(profileDepositAmount)*3)/100)} · Saldo a receber: ${money((Math.round(Number(profileDepositAmount)*100)-Math.round(Number(profileDepositAmount)*3))/100)}`:"Ex.: 100 MT → taxa de 3 MT → recebe 97 MT."} O saldo entra após confirmação do pagamento.</small></form>}
                 <form className="financeEntryForm walletWithdrawForm" onSubmit={event=>{event.preventDefault();void withdrawOwnWallet()}}><label><span>Montante a levantar (MZN)</span><input inputMode="decimal" type="number" min="1.04" step="0.01" max={personalWithdrawableTotal||undefined} required value={profileWithdrawal.amount} onChange={event=>setProfileWithdrawal(current=>({...current,amount:event.target.value}))} placeholder="Ex.: 10" /></label><button type="submit" className={`primaryAction walletWithdrawButton ${personalWithdrawableTotal>0&&!profileWithdrawal.busy?"isAvailable":""}`} disabled={personalWithdrawableTotal<=0||profileWithdrawal.busy}>{profileWithdrawal.busy?"A processar…":"Levantar saldo"}</button></form>
                 {(personalWalletPending>0||personalWalletReserved>0)&&<div className="walletBalanceMeta"><span>Pendente: {money(personalWalletPending)}</span><span>Reservado: {money(personalWalletReserved)}</span></div>}

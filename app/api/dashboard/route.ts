@@ -1,4 +1,4 @@
-import {custodyWalletAmounts} from "@/lib/finance-custody";
+import {custodyWalletAmounts,custodyOwnership} from "@/lib/finance-custody";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deligoTriunfalGovernance } from "@/lib/governance";
@@ -163,6 +163,15 @@ export async function GET() {
       const sumMinor = (rows: Array<Record<string, unknown>>, key: string) => rows.reduce((total, row) => total + Number(row[key] || 0), 0) / 100;
       const canonicalGlobalAvailable = sumMinor(canonicalGlobalPaymentWallets, "available_balance_minor");
       const canonicalGlobalPending = sumMinor(canonicalGlobalPaymentWallets, "pending_balance_minor");
+      const employeeWallets = await fetch(`${supabaseUrl()}/rest/v1/logical_wallets?select=owner_user_id,available_amount,pending_amount,metadata&wallet_type=eq.employee&status=eq.active&currency=eq.MZN`,{headers:{...rpcHeaders,"Accept-Profile":"hq"},cache:"no-store",signal:AbortSignal.timeout(5000)}).then(async response=>{if(!response.ok)throw new Error("Employee custody source unavailable");return response.json()}).catch(()=>{custodySourcesHealthy=false;return [];}) as Array<Record<string,unknown>>;
+      const eligibleEmployees = employeeWallets.filter(row=>!testUserIds.has(String(row.owner_user_id))&&(row.metadata as Record<string,unknown>|null)?.test_mode!==true&&(row.metadata as Record<string,unknown>|null)?.fictitious!==true);
+      const employeeAvailable = eligibleEmployees.reduce((sum,row)=>sum+Number(row.available_amount||0),0);
+      const employeePending = eligibleEmployees.reduce((sum,row)=>sum+Number(row.pending_amount||0),0);
+      const custodyAmounts = (revenue:number,external:number) => {
+        const corporate=corporateRevenue as Record<string,unknown>|null;
+        try{return custodyOwnership(revenue,Number(corporate?.corporate_revenue_transferred),Number(corporate?.corporate_wallet_available),external,employeeAvailable);}
+        catch{custodySourcesHealthy=false;return {corporate_custody_available:null,employee_wallets_available:null,user_wallets_available:null,total_funds_controlled_available:null};}
+      };
       const normalize = (value: Record<string, unknown>) => {
         const sourcePlatforms = Array.isArray(value.platforms) ? value.platforms as Array<Record<string, unknown>> : [];
         const platforms = sourcePlatforms.some(row => String(row.slug) === "deligo")
@@ -176,13 +185,11 @@ export async function GET() {
           : deligoWalletAvailable == null
             ? sourcePlatforms
             : [...sourcePlatforms, { slug: "deligo", name: "DeliGo Eats", gross_confirmed: 0, central_revenue_confirmed: 0, provider_fees_confirmed: 0, wallet_available: deligoWalletAvailable, wallet_pending: deligoWalletPending ?? 0, funds_total: deligoWalletAvailable + (deligoWalletPending ?? 0), wallet_sources: deligoWalletSources }];
-        // HQ employee wallets are personal balances. They are intentionally
-        // excluded from the DeliGo custody aggregate and remain visible only
-        // in the authenticated worker profile.
         const available = platforms.reduce((total, row) => total + Number(row.wallet_available || 0), 0) + canonicalGlobalAvailable;
         const pending = platforms.reduce((total, row) => total + Number(row.wallet_pending || 0), 0) + canonicalGlobalPending;
         const centralRevenue = Number(value.central_revenue_confirmed || 0);
-        return { ...value, platforms, global_user_wallet_available: canonicalGlobalAvailable, global_user_wallet_pending: canonicalGlobalPending, custody_sources_healthy:custodySourcesHealthy, user_wallets_available: custodySourcesHealthy?available:null, user_wallets_pending: pending, total_funds_controlled_available: custodySourcesHealthy?centralRevenue + available:null, total_funds_controlled_pending: pending };
+        const ownership=custodyAmounts(centralRevenue,available);
+        return { ...value, platforms, ...ownership, global_user_wallet_available: canonicalGlobalAvailable, global_user_wallet_pending: canonicalGlobalPending, custody_sources_healthy:custodySourcesHealthy, user_wallets_available: custodySourcesHealthy?ownership.user_wallets_available:null, user_wallets_pending: pending+employeePending, total_funds_controlled_available: custodySourcesHealthy?ownership.total_funds_controlled_available:null, total_funds_controlled_pending: pending+employeePending };
       };
       if (rpc && typeof rpc === "object") return normalize(rpc as Record<string, unknown>);
       const [platformRows, appRows, eventRows] = await Promise.all([
@@ -228,7 +235,8 @@ export async function GET() {
       const platformWalletPending = platforms.reduce((total, row) => total + row.wallet_pending, 0);
       const corporateWallet = Number((corporateRevenue as Record<string, unknown> | null)?.corporate_wallet_available || 0);
       const centralRevenue = platforms.reduce((total, row) => total + row.central_revenue_confirmed, 0);
-      return { currency: "MZN", source: "hq.platform_financial_events + deligo.legacy_wallets + payments.wallet_accounts + hq.logical_wallets", platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), custody_sources_healthy:custodySourcesHealthy, user_wallets_available: custodySourcesHealthy?platformWalletAvailable + sum(globalWallets, "available_balance_minor"):null, user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), total_funds_controlled_available: custodySourcesHealthy?centralRevenue + platformWalletAvailable + sum(globalWallets, "available_balance_minor"):null, total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor"), legacy_revenue_included: false };
+      const ownership=custodyAmounts(centralRevenue,platformWalletAvailable + sum(globalWallets, "available_balance_minor"));
+      return { currency: "MZN", source: "hq.platform_financial_events + deligo.legacy_wallets + payments.wallet_accounts + hq.logical_wallets", ...ownership, platforms, corporate_wallet_available: corporateWallet, central_revenue_confirmed: centralRevenue, gross_platform_volume_confirmed: platforms.reduce((total, row) => total + row.gross_confirmed, 0), custody_sources_healthy:custodySourcesHealthy, user_wallets_available: custodySourcesHealthy?ownership.user_wallets_available:null, user_wallets_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor") + employeePending, total_funds_controlled_available: custodySourcesHealthy?ownership.total_funds_controlled_available:null, total_funds_controlled_pending: platformWalletPending + sum(globalWallets, "pending_balance_minor") + employeePending, legacy_revenue_included: false };
     })() : null;
     // Keep this separate from corporate profit: it is only an informational
     // total for user wallets, never the corporate wallet or corporate revenue.

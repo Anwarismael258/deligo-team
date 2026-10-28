@@ -1,3 +1,4 @@
+import { personalWalletAmounts } from "@/lib/finance-custody";
 import {cookies} from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, hqRest, hqRpc, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
@@ -45,6 +46,7 @@ function mapCanonicalWallet(wallet: Record<string, unknown>, app?: Record<string
     source_kind: "canonical",
     currency: wallet.currency_code,
     available_amount: Number(wallet.available_balance_minor || 0) / 100,
+    excluded_legacy_amount: Number(wallet.excluded_legacy_seed_minor || 0) / 100,
     pending_amount: Number(wallet.pending_balance_minor || 0) / 100,
     reserved_amount: Number(wallet.reserved_balance_minor || 0) / 100,
     // The shared Supabase Edge Function may own the provider integration, so
@@ -63,6 +65,7 @@ export async function GET() {
 
     const profileToken=(await cookies()).get("hq_access_token")?.value;
     if(profileToken&&process.env.SUPABASE_ANON_KEY){await fetch(`${supabaseUrl()}/functions/v1/wallet-deposit-v2`,{method:"POST",headers:{apikey:process.env.SUPABASE_ANON_KEY,Authorization:`Bearer ${profileToken}`,"Content-Type":"application/json"},body:JSON.stringify({action:"reconcile"}),signal:AbortSignal.timeout(20000),cache:"no-store"}).then(async response=>{if(!response.ok)console.error("HQ_DEPOSIT_RECONCILIATION_FAILED",response.status)}).catch(error=>console.error("HQ_DEPOSIT_RECONCILIATION_FAILED",error));}
+    if(process.env.HQ_EMPLOYEE_PAYOUT_READY==="true"&&profileToken&&process.env.SUPABASE_ANON_KEY){const endpoint=process.env.HQ_EMPLOYEE_PAYOUT_ENDPOINT==="admin-corporate-withdrawal"?"admin-corporate-withdrawal":"central-employee-payout";await fetch(`${supabaseUrl()}/functions/v1/${endpoint}`,{method:"POST",headers:{apikey:process.env.SUPABASE_ANON_KEY,Authorization:`Bearer ${profileToken}`,"Content-Type":"application/json"},body:JSON.stringify({action:"central_employee_reconcile"}),signal:AbortSignal.timeout(20000),cache:"no-store"}).catch(error=>console.error("HQ_PAYOUT_RECONCILIATION_PENDING",error));}
     await hqRpc("sync_personal_checkout_deposits_v1", {p_employee_id:actor.employee_id}, "hq").catch(error=>console.error("HQ_DEPOSIT_SYNC_FAILED",error));
 
     // The employee profile is the primary resource. Wallet adapters are
@@ -100,7 +103,8 @@ export async function GET() {
     if (appsResult.status === "rejected") console.warn("profile app catalog unavailable", appsResult.reason);
     const profile = profileRows?.[0] || null;
     const appById = new Map((Array.isArray(apps) ? apps : []).map((app: Record<string, unknown>) => [String(app.id), app]));
-    const canonicalWallets = (Array.isArray(canonical) ? canonical : [])
+    const reconciledCanonical = await personalWalletAmounts(Array.isArray(canonical) ? canonical : [], walletOwnerId, path => paymentsRest(key,path));
+    const canonicalWallets = reconciledCanonical
       .filter((wallet: Record<string, unknown>) => {
         const metadata = wallet.metadata && typeof wallet.metadata === "object" ? wallet.metadata as Record<string, unknown> : {};
         const accountCode = String(wallet.account_code || "");
@@ -125,16 +129,8 @@ export async function GET() {
       reserved_amount: Number(wallet.reserved_amount || 0),
       withdrawal_enabled: paysuiteAvailable(),
     }));
-    // The founder's old 10 MZN display balance was created by the previous
-    // corporate-withdrawal experiment and is not a valid personal balance.
-    // Keep its ledger history intact, but do not expose or make it withdrawable
-    // until a reconciled internal transfer creates a new personal balance.
-    const visibleHqPersonalWallets = hqPersonalWallets.filter((wallet) => !(
-      actor.employee_code === "DG-0001"
-      && Number(wallet.available_amount || 0) === 10
-      && Number(wallet.pending_amount || 0) === 0
-      && Number(wallet.reserved_amount || 0) === 0
-    ));
+    // Every settled employee credit remains visible, independent of its amount.
+    const visibleHqPersonalWallets = hqPersonalWallets;
     const hqPersonalWalletHasFunds = visibleHqPersonalWallets.some((wallet) =>
       Number(wallet.available_amount || 0) > 0 || Number(wallet.pending_amount || 0) > 0 || Number(wallet.reserved_amount || 0) > 0,
     );
@@ -204,6 +200,11 @@ export async function GET() {
     return NextResponse.json({
       profile,
       wallets,
+      reconciliation: {
+        excluded_legacy_amount: canonicalWallets.reduce((sum,wallet)=>sum+Number(wallet.excluded_legacy_amount||0),0),
+        canonical_available_amount: canonicalWallets.reduce((sum,wallet)=>sum+Number(wallet.available_amount||0),0),
+        internal_available_amount: visibleHqPersonalWallets.reduce((sum,wallet)=>sum+Number(wallet.available_amount||0),0),
+      },
       unified_available_amount: unifiedAvailableAmount,
       unified_pending_amount: unifiedPendingAmount,
       unified_reserved_amount: unifiedReservedAmount,

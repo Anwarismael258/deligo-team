@@ -42,7 +42,7 @@ export function FinanceRevenueBars({ items, formatValue }: FinanceRevenueBarsPro
     <section className="financeVisualCard financeRevenueChart" aria-labelledby="finance-revenue-title">
       <div className="financeVisualHeading">
         <div><span className="financeEyebrow">COMPARAÇÃO</span><h2 id="finance-revenue-title">Receita por plataforma</h2></div>
-        <span className="financeChartLegend">Receita confirmada</span>
+        <span className="financeChartLegend">Receita acumulada</span>
       </div>
       <div className="financeRevenueRows" role="list" aria-label="Receita confirmada por plataforma">
         {items.map(item => {
