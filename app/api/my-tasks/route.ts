@@ -1,10 +1,10 @@
 import {NextRequest, NextResponse} from "next/server";
-import {corporateActor,supabaseUrl} from "@/lib/hq-server";
-const h=(k:string)=>({apikey:k,Authorization:`Bearer ${k}`,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json"});
+import {corporateActor,hqServiceKey,supabaseUrl} from "@/lib/hq-server";
+const h=(k:string)=>({apikey:k,...(k.startsWith("sb_secret_")?{}:{Authorization:`Bearer ${k}`}),"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json"});
 async function rest(k:string,p:string,init:RequestInit={}){const r=await fetch(`${supabaseUrl()}/rest/v1/${p}`,{...init,headers:{...h(k),...(init.headers||{})},cache:"no-store"});if(!r.ok)throw new Error(await r.text());return r.status===204?null:r.json()}
 type Row=Record<string,unknown>;
 const item=(kind:string,row:Row,title:unknown,description:unknown,status:unknown,priority:unknown,dueAt:unknown,url:string)=>({id:`${kind}:${row.id}`,sourceType:kind,sourceId:row.id,title:String(title||"Sem título"),description:String(description||""),status:String(status||"pending"),priority:String(priority||"normal"),dueAt:dueAt||null,platformId:row.platform_id||null,departmentId:row.department_id||row.current_department_id||row.target_department_id||null,responsibleId:row.assigned_to||row.owner_employee_id||null,taskOrigin:row.task_origin||null,taskType:row.task_type||null,url,updatedAt:row.updated_at||row.created_at});
-export async function GET(){const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!actor||!key)return NextResponse.json({error:"Sessão inválida."},{status:401});const employee=(await rest(key,`employees?id=eq.${actor.employee_id}&select=id,department_id`))?.[0],department=String(employee?.department_id||""),admin=["SUPER_ADMIN","FINANCE"].includes(actor.role);const [tasks,approvals,internal,tickets,steps,projects,contracts,departments,platforms]=await Promise.all([
+export async function GET(){const actor=await corporateActor(),key=hqServiceKey();if(!actor||!key)return NextResponse.json({error:"Sessão inválida."},{status:401});const employee=(await rest(key,`employees?id=eq.${actor.employee_id}&select=id,department_id`))?.[0],department=String(employee?.department_id||""),admin=["SUPER_ADMIN","FINANCE"].includes(actor.role);const [tasks,approvals,internal,tickets,steps,projects,contracts,departments,platforms]=await Promise.all([
  rest(key,`tasks?assigned_to=eq.${actor.employee_id}&status=not.in.(completed,cancelled)&select=*&order=due_at.asc.nullslast&limit=300`),
  rest(key,`approval_requests?status=in.(submitted,under_review)${admin?"":`&department_id=eq.${department}`}&select=*&order=submitted_at.asc.nullslast&limit=300`),
  rest(key,`internal_requests?or=(assigned_to.eq.${actor.employee_id},target_department_id.eq.${department})&status=not.in.(resolved,closed,archived)&select=*&order=due_at.asc.nullslast&limit=300`),
@@ -17,8 +17,9 @@ export async function GET(){const actor=await corporateActor(),key=process.env.S
  const now=Date.now();return NextResponse.json({items,meta:{departments,platforms},summary:{total:items.length,overdue:items.filter(x=>x.dueAt&&new Date(String(x.dueAt)).getTime()<now).length,approvals:approvals.length,inProgress:items.filter(x=>x.status==="in_progress").length,waiting:items.filter(x=>["waiting","under_review","submitted","waiting_approval"].includes(x.status)).length}},{headers:{"Cache-Control":"private, no-store"}})}
 
 export async function POST(req:NextRequest){
- const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+ const actor=await corporateActor(),key=hqServiceKey();
  if(!actor||!key)return NextResponse.json({error:"Sessão inválida."},{status:401});
+ if(!["SUPER_ADMIN","FINANCE","SUPERVISOR"].includes(actor.role))return NextResponse.json({error:"Apenas Admin, Finanças e Supervisor podem criar tarefas."},{status:403});
  try{
   const body=await req.json() as {title?:string;description?:string;priority?:string;due_at?:string|null};
   const title=String(body.title||"").trim();
@@ -30,7 +31,7 @@ export async function POST(req:NextRequest){
 }
 
 export async function PATCH(req:NextRequest){
- const actor=await corporateActor(),key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+ const actor=await corporateActor(),key=hqServiceKey();
  if(!actor||!key)return NextResponse.json({error:"Sessão inválida."},{status:401});
  try{
   const body=await req.json() as {id?:string;action?:string};
