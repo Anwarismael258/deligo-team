@@ -1,3 +1,4 @@
+import {newsVideoSource} from "@/lib/news-media";
 import {requireEditorialPermission} from "@/lib/editorial-authorization";
 import { NextRequest, NextResponse } from "next/server";
 import { hqServiceKey, supabaseUrl } from "@/lib/hq-server";
@@ -20,7 +21,8 @@ export async function GET(request:NextRequest) {
 
 export async function POST(request:NextRequest) {
  const auth=await requireEditorialPermission("news.create"),key=hqServiceKey();if(!auth||!key)return NextResponse.json({error:"Sem permissão para criar notícias."},{status:403});
- const body=await request.json() as {record?:Record<string,unknown>}; const record=cleanRecord(body.record||{});const title=String(record.title||"").trim(),content=String(record.content||"").trim(),slug=slugify(String(record.slug||title)); if(!title||!content||!slug)return NextResponse.json({error:"Título, conteúdo e slug válido são obrigatórios."},{status:400});
+ const body=await request.json() as {record?:Record<string,unknown>}; const record=cleanRecord(body.record||{});
+ if(record.video_url&&!newsVideoSource(record.video_url))return NextResponse.json({error:"Use um link HTTPS de YouTube, Vimeo, MP4 ou WebM."},{status:400});const title=String(record.title||"").trim(),content=String(record.content||"").trim(),slug=slugify(String(record.slug||title)); if(!title||!content||!slug)return NextResponse.json({error:"Título, conteúdo e slug válido são obrigatórios."},{status:400});
  try { const created=(await rest(key,"news",{method:"POST",body:JSON.stringify({...record,title,content,slug,status:"draft",published:false,author_id:auth.actor.employee_id,author_name:auth.actor.name})}))[0] as News; await audit(key,auth.actor.employee_id,"news.created",created.id,null,created); return NextResponse.json({news:created},{status:201}); } catch { return NextResponse.json({error:"Não foi possível criar. Confirme que o slug é único."},{status:409}); }
 }
 
@@ -30,7 +32,7 @@ export async function PATCH(request:NextRequest) {
  const action=body.action||"edit"; const permission:Record<string,string>={edit:"news.edit",submit:"news.review",approve:"news.approve",publish:"news.publish",schedule:"news.schedule",archive:"news.archive",delete:"news.delete"};const required=permission[action];const auth=required?await requireEditorialPermission(required):null;if(!auth)return NextResponse.json({error:"Sem permissão para esta ação."},{status:403});
  if(["edit","submit","publish","schedule","archive"].includes(action)&&current.author_id!==auth.actor.employee_id&&!auth.isSuperAdmin&&!auth.permissions.includes("news.approve"))return NextResponse.json({error:"Só pode alterar conteúdos próprios."},{status:403});
  let changes:Record<string,unknown>={};let auditAction=`news.${action}`;
- if(action==="edit"){const r=cleanRecord(body.record||{});const title=String(r.title||current.title).trim(),slug=slugify(String(r.slug||title));if(!title||!slug)return NextResponse.json({error:"Título e slug são obrigatórios."},{status:400});changes={...r,title,slug,status:current.status==="archived"?"draft":current.status};}
+ if(action==="edit"){const r=cleanRecord(body.record||{});if(r.video_url&&!newsVideoSource(r.video_url))return NextResponse.json({error:"Use um link HTTPS de YouTube, Vimeo, MP4 ou WebM."},{status:400});const title=String(r.title||current.title).trim(),slug=slugify(String(r.slug||title));if(!title||!slug)return NextResponse.json({error:"Título e slug são obrigatórios."},{status:400});changes={...r,title,slug,status:current.status==="archived"?"draft":current.status};}
  if(action==="submit"){if(current.status!=="draft")return NextResponse.json({error:"Apenas rascunhos podem ser enviados para revisão."},{status:409});changes={status:"in_review",published:false};auditAction="news.submitted_for_review";}
  if(action==="approve"){if(current.status!=="in_review")return NextResponse.json({error:"A notícia não está em revisão."},{status:409});changes={approved_at:new Date().toISOString(),approved_by:auth.actor.employee_id};auditAction="news.approved";}
  if(action==="publish"){if(!auth.directPublisher&&(current.status!=="in_review"||!current.approved_at))return NextResponse.json({error:"A notícia precisa de revisão e aprovação antes da publicação."},{status:409});changes={status:"published",published:true,published_at:new Date().toISOString(),scheduled_at:null};auditAction="news.published";}
