@@ -1,14 +1,17 @@
+import {requireEditorialPermission} from "@/lib/editorial-authorization";
 import { NextRequest, NextResponse } from "next/server";
-import { requireCorporatePermission, supabaseUrl } from "@/lib/hq-server";
+import { hqServiceKey, supabaseUrl } from "@/lib/hq-server";
 
 type Job = Record<string, unknown> & { id: string; title: string; published?: boolean };
-const headers = (key: string) => ({ apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=representation" });
+const fields=new Set(["title","slug","department","location","employment_type","description","requirements","benefits","application_url","application_email","deadline"]);
+const cleanRecord=(record:Record<string,unknown>)=>Object.fromEntries(Object.entries(record).filter(([key])=>fields.has(key)));
+const headers = (key: string) => ({ apikey: key, ...(key.startsWith("sb_secret_")?{}:{Authorization: `Bearer ${key}`}), "Content-Type": "application/json", Prefer: "return=representation" });
 const slugify = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 140);
 async function rest(key: string, path: string, init: RequestInit = {}) { const response = await fetch(`${supabaseUrl()}/rest/v1/${path}`, { ...init, headers: { ...headers(key), ...(init.headers || {}) }, cache: "no-store" }); if (!response.ok) throw new Error(await response.text()); return response.status === 204 ? null : response.json(); }
 
 export async function GET() {
-  const auth = await requireCorporatePermission("news.view");
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const auth = await requireEditorialPermission("news.view");
+  const key = hqServiceKey();
   if (!auth || !key) return NextResponse.json({ error: "Sem permissão para consultar vagas." }, { status: 403 });
   try {
     const jobs = await rest(key, "job_openings?select=*&order=updated_at.desc&limit=250") as Job[];
@@ -17,11 +20,11 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireCorporatePermission("news.create");
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const auth = await requireEditorialPermission("news.create");
+  const key = hqServiceKey();
   if (!auth || !key) return NextResponse.json({ error: "Sem permissão para criar vagas." }, { status: 403 });
   const body = await request.json() as { record?: Record<string, unknown> };
-  const record = body.record || {};
+  const record = cleanRecord(body.record || {});
   const title = String(record.title || "").trim();
   const slug = slugify(String(record.slug || title));
   if (!title || !slug || !String(record.description || "").trim()) return NextResponse.json({ error: "Título, descrição e slug são obrigatórios." }, { status: 400 });
@@ -32,19 +35,20 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = hqServiceKey();
   if (!key) return NextResponse.json({ error: "Serviço indisponível." }, { status: 503 });
   const body = await request.json() as { id?: string; action?: "edit" | "publish" | "archive"; record?: Record<string, unknown> };
   if (!body.id) return NextResponse.json({ error: "Vaga inválida." }, { status: 400 });
+  const action = body.action || "edit";
+  if(!["edit","publish","archive"].includes(action))return NextResponse.json({error:"Acção inválida."},{status:400});
+  const permission = action === "publish" ? "news.publish" : action === "archive" ? "news.archive" : "news.edit";
+  const auth = await requireEditorialPermission(permission);
+  if (!auth) return NextResponse.json({ error: "Sem permissão para esta ação." }, { status: 403 });
   const current = ((await rest(key, `job_openings?id=eq.${encodeURIComponent(body.id)}&select=*`)) as Job[])[0];
   if (!current) return NextResponse.json({ error: "Vaga não encontrada." }, { status: 404 });
-  const action = body.action || "edit";
-  const permission = action === "publish" ? "news.publish" : action === "archive" ? "news.archive" : "news.edit";
-  const auth = await requireCorporatePermission(permission);
-  if (!auth) return NextResponse.json({ error: "Sem permissão para esta ação." }, { status: 403 });
   let changes: Record<string, unknown> = {};
   if (action === "edit") {
-    const record = body.record || {};
+    const record = cleanRecord(body.record || {});
     const title = String(record.title || current.title || "").trim();
     const slug = slugify(String(record.slug || title));
     if (!title || !slug || !String(record.description || current.description || "").trim()) return NextResponse.json({ error: "Título, descrição e slug são obrigatórios." }, { status: 400 });

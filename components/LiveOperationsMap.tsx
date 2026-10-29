@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LatLngTuple, LayerGroup, Map as LeafletMap } from "leaflet";
-import { clusterMapMarkers, escapeMapText, mapColor, markerGlyph, markerName } from "@/lib/map-presentation";
+import { clusterMapMarkers, mapColor, markerIconSvg, markerName } from "@/lib/map-presentation";
 import "leaflet/dist/leaflet.css";
 import styles from "./LiveOperationsMap.module.css";
 
@@ -37,18 +37,23 @@ export default function LiveOperationsMap({ markers, routes = [], onSelect, sele
     void import("leaflet").then(L => {
       if (disposed || !container.current) return;
       instance = L.map(container.current, { zoomControl: false }).setView([-25.965, 32.575], 13);
-      L.control.zoom({ position: "topright" }).addTo(instance);
+      L.control.zoom({ position: "bottomright" }).addTo(instance);
       const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
       const fallback = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+      const darkBase = "https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}";
       const osmAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
-      const addBase = (useMapbox: boolean) => {
+      const addBase = (useMapbox: boolean, useOsm=false) => {
         if (!instance) return;
-        container.current?.classList.toggle(styles.osmTiles, !useMapbox);
-        const tiles = useMapbox ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}?access_token=${encodeURIComponent(mapboxToken!)}` : fallback;
-        const base = L.tileLayer(tiles, { maxZoom: 19, updateWhenIdle: true, keepBuffer: 1, attribution: useMapbox ? `© Mapbox ${osmAttribution}` : osmAttribution }).addTo(instance);
-        if (useMapbox) base.once("tileerror", () => { if (!disposed && instance) { instance.removeLayer(base); addBase(false); } });
+        container.current?.classList.toggle(styles.osmTiles, useOsm);
+        container.current?.classList.toggle(styles.darkTiles,!useMapbox&&!useOsm);
+        const tiles = useMapbox ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}?access_token=${encodeURIComponent(mapboxToken!)}` : useOsm?fallback:darkBase;
+        const base = L.tileLayer(tiles, { maxZoom: 19, maxNativeZoom:useMapbox||useOsm?19:16, updateWhenIdle: true, keepBuffer: 1, attribution: useMapbox ? `© Mapbox ${osmAttribution}` : useOsm?osmAttribution:`Tiles © Esri, HERE, Garmin · ${osmAttribution}` }).addTo(instance);
+        if (!useOsm) base.once("tileerror", () => { if (!disposed && instance) { instance.removeLayer(base); addBase(false,!useMapbox); } });
       };
       addBase(Boolean(mapboxToken?.trim()));
+      for(const [label,position] of [["Maputo",[-25.966,32.583]],["Matola",[-25.963,32.458]]] as const){
+        L.marker([...position] as LatLngTuple,{interactive:false,keyboard:false,zIndexOffset:-1000,icon:L.divIcon({className:styles.cityLabel,html:label,iconSize:[80,22],iconAnchor:[40,11]})}).addTo(instance);
+      }
       instance.on("zoomend", () => { if (instance) setZoom(instance.getZoom()); });
       map.current = instance;
       layer.current = L.layerGroup().addTo(instance);
@@ -76,7 +81,8 @@ export default function LiveOperationsMap({ markers, routes = [], onSelect, sele
           .bindTooltip(tooltip).on("click", () => onSelectRef.current?.({ kind: "route", id: route.id })).addTo(group);
         points.push(...route.coordinates);
       }
-      const clusters = zoom >= 17 ? markers.map(marker => [marker]) : clusterMapMarkers(markers, marker => instance.project([marker.latitude, marker.longitude], zoom));
+      const isSelectedOperation=(marker:OperationsMapMarker)=>marker.id===selected?.id||routes.some(route=>marker.id.startsWith(route.id+":"));
+      const clusters = zoom >= 17 ? markers.map(marker => [marker]) : [...markers.filter(isSelectedOperation).map(marker=>[marker]),...clusterMapMarkers(markers.filter(marker=>!isSelectedOperation(marker)), marker => instance.project([marker.latitude, marker.longitude], zoom))];
       for (const cluster of clusters) {
         if (cluster.length === 1 || cluster.some(marker => selected?.id === marker.id)) continue;
         const bounds = L.latLngBounds(cluster.map(marker => [marker.latitude, marker.longitude] as LatLngTuple));
@@ -87,7 +93,12 @@ export default function LiveOperationsMap({ markers, routes = [], onSelect, sele
       const shownMarkers = clusters.flatMap(cluster => cluster.length === 1 || cluster.some(marker => selected?.id === marker.id) ? cluster : []);
       for (const marker of shownMarkers) {
         const name = markerName(marker);
-        const html = `<span class="${styles.pin} ${selected?.id === marker.id ? styles.selected : ""}" style="--pin-color:${mapColor(marker.platform)}"><span class="${styles.glyph}">${markerGlyph(marker.role, marker.platform)}</span><span class="${styles.name}">${escapeMapText(name)}</span></span>`;
+        const endpoint=marker.locationKind==="endpoint";
+        const destination=/:destination$/.test(marker.id)||/destino/i.test(marker.role);
+        const pinColor=endpoint?(destination?"#b577ff":"#f8fafc"):mapColor(marker.platform);
+        const age=Date.now()-Date.parse(marker.updatedAt);
+        const signal=marker.locationKind&&marker.locationKind!=="gps"?"#f8fafc":!Number.isFinite(age)||age>600000?"#fb7185":age>120000?"#fbbf24":"#23e6b5";
+        const html = `<span class="${styles.pin} ${selected?.id === marker.id ? styles.selected : ""}" style="--pin-color:${pinColor};--signal-color:${signal}"><span class="${styles.glyph}">${markerIconSvg(endpoint?(destination?"destino":"origem"):marker.role,marker.platform)}</span><i class="${styles.signal}"></i></span>`;
         const tooltip = document.createElement("span");
         tooltip.textContent = `${name}\n${marker.role} · ${marker.platform}\n${marker.locationKind === "gps" || !marker.locationKind ? "Última posição" : "Registado"}: ${new Date(marker.updatedAt).toLocaleString("pt-MZ")}`;
         const icon = L.divIcon({ className: "", html, iconSize: [34, 34], iconAnchor: [17, 17] });

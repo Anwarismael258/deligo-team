@@ -32,13 +32,11 @@ test("Central pode publicar explicitamente a vaga canónica no site instituciona
   assert.match(jobsUi, /value="publish"/);
 });
 
-test("Notícias só mostram publicação depois de revisão e aprovação", async () => {
+test("CEO e Marketing publicam directamente sem remover a aprovação dos restantes perfis", async () => {
   const newsApi = await readFile(new URL("../app/api/institutional/news/route.ts", import.meta.url), "utf8");
-  const newsUi = await readFile(new URL("../app/marketing/site-institucional/page.tsx", import.meta.url), "utf8");
-  assert.match(newsApi, /current\.status!=="in_review"\|\|!current\.approved_at/);
-  assert.match(newsApi, /status:"published",published:true/);
-  assert.match(newsUi, /Publicar no site/);
-  assert.match(newsUi, /Boolean\(item\.approved_at\)/);
+  const auth = await readFile(new URL("../lib/editorial-authorization.ts", import.meta.url), "utf8");
+  const newsUi = await readFile(new URL("../components/InstitutionalNewsManager.tsx", import.meta.url), "utf8");
+  assert.match(auth, /SUPER_ADMIN.*MARKETING/);assert.match(newsApi,/!auth.directPublisher/);assert.match(newsUi,/Guardar e publicar no site/);
 });
 
 test("Analytics institucional usa a fonte canónica e agrega todos os estados editoriais", async () => {

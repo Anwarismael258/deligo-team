@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
   ]);
   return NextResponse.json(
     {
-      notifications:dedupeNotifications(notifications.filter(isRelevantNotification)),
+      notifications:dedupeNotifications(notifications.filter(isRelevantNotification)).map((row:Record<string,unknown>)=>{const platform=(platforms||[]).find((item:Record<string,unknown>)=>item.id===row.platform_id);return platform?{...row,platform_name:platform.name,platform_slug:platform.slug}:row;}),
       meta: {
         departments,
         platforms,

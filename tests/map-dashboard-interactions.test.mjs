@@ -35,9 +35,9 @@ function findButton(tree,text){
   for(const child of React.Children.toArray(tree.props?.children)){const found=findButton(child,text);if(found)return found;}return null;
 }
 
-test('active list shows only six operations and exposes the next page and fullscreen',()=>{
-  const ui=harness();assert.equal((ui.html.match(/<strong>Viagem \d+/g)||[]).length,6);assert.match(ui.html,/Seguinte/);assert.match(ui.html,/1 \/ 3/);assert.match(ui.html,/Motorista 0/);assert.match(ui.html,/Tela cheia/);
-  const next=harness({page:1});assert.match(next.html,/Viagem 6/);assert.doesNotMatch(next.html,/<strong>Viagem 0</);
+test('active list shows only three operations and exposes the next page and fullscreen',()=>{
+  const ui=harness();assert.equal((ui.html.match(/<strong>Viagem \d+/g)||[]).length,3);assert.match(ui.html,/Seguinte/);assert.match(ui.html,/1 \/ 5/);assert.doesNotMatch(ui.html,/Motorista 0/);assert.match(ui.html,/Tela cheia/);
+  const next=harness({page:1});assert.match(next.html,/Viagem 3/);assert.doesNotMatch(next.html,/<strong>Viagem 0</);
 });
 
 test('fullscreen controls invoke the native browser entry and exit actions',async()=>{
