@@ -127,12 +127,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const body = await request.json() as { employeeId?: string; action?: "activate"|"suspend"|"reactivate"|"archive"|"set_supervisor"|"set_permission"; supervisorId?: string|null; permissionCode?: string; allowed?: boolean };
-  const { employeeId, action } = body;
-  if (!employeeId || !action) return NextResponse.json({ error: "Operação inválida." }, { status: 400 });
+  const body = await request.json().catch(()=>null) as { employeeId?: string; action?: "activate"|"suspend"|"reactivate"|"archive"|"set_supervisor"|"set_permission"; supervisorId?: string|null; permissionCode?: string; allowed?: boolean };
+  const { employeeId, action } = body||{};
+  if (!employeeId || !/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(employeeId) || !action || !["activate","suspend","reactivate","archive","set_supervisor","set_permission"].includes(action)) return NextResponse.json({ error: "Operação inválida." }, { status: 400 });
   const permission=action==="set_supervisor"||action==="set_permission"?"settings.manage":"users.suspend",authorization=await requireCorporatePermission(permission),actor=authorization?.actor;
   if(!actor)return NextResponse.json({error:"Sem permissão para esta alteração de acesso."},{status:403});
-  if (["suspend", "archive"].includes(action) && actor.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Só o CEO pode suspender ou eliminar contas." }, { status: 403 });
+  if (["suspend", "archive", "reactivate"].includes(action) && actor.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Só o CEO pode suspender ou eliminar contas." }, { status: 403 });
   if (action === "set_supervisor" || action === "set_permission") {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!serviceKey) return NextResponse.json({ error: "Configuração administrativa indisponível." }, { status: 503 });
@@ -151,39 +151,22 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok:true });
   }
   try {
-    const result = await hqRpc("hq_set_employee_status_v1", { p_actor_auth_user_id: actor.authUserId, p_employee_id: employeeId, p_action: action });
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-    if (result.auth_user_id) await fetch(`${supabaseUrl()}/auth/v1/admin/users/${result.auth_user_id}`, { method: "PUT", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ ban_duration: action === "suspend" || action === "archive" ? "876000h" : "none", user_metadata: { hq_role: result.role } }) });
-    return NextResponse.json({ employee: result });
-  } catch (error) {
+    const target=(await hqRest(`employees?id=eq.${encodeURIComponent(employeeId)}&select=id,employee_code,status`))?.[0];
+    if(!target)return NextResponse.json({error:"Trabalhador não encontrado."},{status:404});
+    if(target.employee_code==="DG-0001"||employeeId===actor.employee_id)return NextResponse.json({error:"A conta do CEO e a própria conta estão protegidas."},{status:403});
+    const canonicalActor=(await hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id`))?.[0];
+    if(!canonicalActor?.auth_user_id)return NextResponse.json({error:"Não foi possível validar a identidade administrativa."},{status:503});
+    const result=await hqRpc("hq_set_employee_status_v1",{p_actor_auth_user_id:canonicalActor.auth_user_id,p_employee_id:employeeId,p_action:action});
+    // Central access is scoped by the employee status on every request.
+    // Do not ban a shared Auth identity used by the ecosystem's other apps.
+    return NextResponse.json({employee:result});
+  }catch(error){
     const code=rpcErrorCode(error);
-    if(code.includes("FOUNDER_ACCOUNT_PROTECTED")) return NextResponse.json({error:"A conta do CEO fundador está protegida."},{status:403});
-    if(code.includes("NOT_FOUND")) return NextResponse.json({error:"O trabalhador já não existe. Actualize a lista da equipa."},{status:404});
-    if(code.includes("SUPER_ADMIN_APPROVAL_REQUIRED")) return NextResponse.json({error:"Só o CEO pode suspender ou arquivar contas."},{status:403});
-    // Production can still expose an older RPC that resolves the actor by a
-    // legacy Auth identity. The request is already authenticated and the
-    // CEO-only guard ran above, so keep lifecycle actions usable through a
-    // narrowly scoped service-role compatibility path.
-    if (["suspend", "archive"].includes(action) && actor.role === "SUPER_ADMIN") {
-      try {
-        const target = (await hqRest(`employees?id=eq.${encodeURIComponent(employeeId)}&select=id,auth_user_id,status`))?.[0] as Record<string, unknown> | undefined;
-        if (!target?.id) return NextResponse.json({ error: "O trabalhador já não existe. Actualize a lista da equipa." }, { status: 404 });
-        const nextStatus = action === "archive" ? "offboarded" : "suspended";
-        const updated = await hqRest(`employees?id=eq.${encodeURIComponent(employeeId)}`, { method: "PATCH", body: JSON.stringify({ status: nextStatus, ...(nextStatus === "suspended" ? { suspended_at: new Date().toISOString() } : { offboarded_at: new Date().toISOString() }), updated_at: new Date().toISOString() }) });
-        if (action === "archive") {
-          await hqRest(`employee_roles?employee_id=eq.${encodeURIComponent(employeeId)}&revoked_at=is.null`, { method: "PATCH", body: JSON.stringify({ revoked_at: new Date().toISOString() }) }).catch(() => undefined);
-          await hqRest(`employee_platforms?employee_id=eq.${encodeURIComponent(employeeId)}&revoked_at=is.null`, { method: "PATCH", body: JSON.stringify({ revoked_at: new Date().toISOString() }) }).catch(() => undefined);
-        }
-        const serviceKey = hqServiceKey();
-        if (serviceKey && target.auth_user_id) await fetch(`${supabaseUrl()}/auth/v1/admin/users/${target.auth_user_id}`, { method: "PUT", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" }, body: JSON.stringify({ ban_duration: "876000h" }) }).catch(() => undefined);
-        await hqRest("audit_logs", { method: "POST", body: JSON.stringify({ actor_employee_id: actor.employee_id, action: `EMPLOYEE_${action.toUpperCase()}_COMPATIBILITY`, module: "people", target_type: "employee", target_id: employeeId, result: "success", metadata: { previous_status: target.status, new_status: nextStatus, rpc_error: code } }) }).catch(() => undefined);
-        return NextResponse.json({ employee: Array.isArray(updated) ? updated[0] : updated, compatibilityPath: true });
-      } catch (fallbackError) {
-        console.error("EMPLOYEE_STATUS_COMPATIBILITY_FAILED", fallbackError instanceof Error ? fallbackError.message : "unknown");
-      }
-    }
+    if(code.includes("FOUNDER_ACCOUNT_PROTECTED")||code.includes("SUPER_ADMIN_APPROVAL_REQUIRED"))return NextResponse.json({error:"Só o CEO pode alterar estes acessos; a conta do fundador está protegida."},{status:403});
+    if(code.includes("NOT_FOUND"))return NextResponse.json({error:"Trabalhador não encontrado."},{status:404});
+    if(code.includes("INVALID_STATUS_TRANSITION"))return NextResponse.json({error:"O estado do trabalhador não permite esta acção. Actualize a lista."},{status:409});
     console.error("EMPLOYEE_STATUS_UPDATE_FAILED",code);
-    return NextResponse.json({ error: "A conta não foi alterada. A origem devolveu um erro de autorização; actualize a equipa e tente novamente." }, { status: 400 });
+    return NextResponse.json({error:"Não foi possível alterar o acesso à Central. Tente novamente."},{status:503});
   }
 }
 

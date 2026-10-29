@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';import vm from 'node:vm';
+const source=fs.readFileSync(new URL('../app/page.tsx',import.meta.url),'utf8');const ast=ts.createSourceFile('page.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+function declaration(name){let found;function visit(node){if(ts.isVariableDeclaration(node)&&node.name.getText(ast)===name)found=node;ts.forEachChild(node,visit)}visit(ast);if(!found)throw Error('missing '+name);return 'const '+found.getText(ast)+';'}
+function compile(name,context={}){const sandbox={...context,encodeURIComponent};vm.runInNewContext(ts.transpileModule(declaration(name)+' globalThis.result='+name,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,sandbox);return sandbox.result;}
+test('entering a module preserves unread notifications until their actual destination is opened',()=>{
+ const calls=[];const navigate=compile('navigate',{window:{history:{pushState:(_a,_b,url)=>calls.push(url)}},routeByModule:{'Triunfal Microcrédito':'/microcredito'},moduleDetails:{},setRouteTransition(){},setActive(){},setSubArea(){},unreadNotifications:[{id:'new'}],markNotificationsByIds(){throw Error('must not mark unread rows on module entry')}});
+ navigate('Triunfal Microcrédito');assert.equal(calls[0],'/microcredito');
+});
+test('new and legacy credit notices link to their exact application',()=>{const href=compile('notificationHref',{notificationModuleFor:()=>'',routeByModule:{}});const id='10000000-0000-4000-8000-000000000001';assert.equal(href({target_url:'/microcredito',source_id:id}),'/microcredito?application='+id);assert.equal(href({source_type:'loan_application',source_id:id}),'/microcredito?application='+id);assert.equal(href({target_url:'/microcredito?application='+id,source_id:id}),'/microcredito?application='+id);assert.equal(href({target_url:'/apoio-cliente?ticket=123'}),'/apoio-cliente?ticket=123')});

@@ -68,6 +68,11 @@ export async function GET(request: NextRequest) {
   const query = new URLSearchParams({ select: columns, order: "created_at.desc,id.asc", limit: String(pageSize), offset: String(page * pageSize) });
   if (status && status !== "todos") query.set("status", `eq.${status}`);
   if (search) query.set("or", `(full_name.ilike.*${search}*,reference.ilike.*${search}*,phone.ilike.*${search}*,bi_number.ilike.*${search}*,nuit.ilike.*${search}*)`);
+  const applicationId=request.nextUrl.searchParams.get("application");
+  if(applicationId){
+    if(!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(applicationId))return NextResponse.json({error:"Referência do pedido inválida."},{status:400});
+    query.delete("status");query.delete("or");query.set("id",`eq.${applicationId}`);query.set("offset","0");
+  }
   try {
     const [applications, notes] = await Promise.all([
       stagingRest(`loan_applications?${query.toString()}`),
@@ -86,7 +91,7 @@ export async function GET(request: NextRequest) {
         income: await signedDocument(application.income_path, application.doc_folder),
       },
     })));
-    return NextResponse.json({ applications: enrichedApplications, notes, page, pageSize, hasMore: (applications as unknown[]).length === pageSize });
+    return NextResponse.json({ applications: enrichedApplications, notes, page:applicationId?0:page, pageSize, hasMore: !applicationId&&(applications as unknown[]).length === pageSize });
   } catch {
     return NextResponse.json({ error: "Não foi possível carregar os pedidos. Confirme a migração do microcrédito." }, { status: 500 });
   }

@@ -1,0 +1,1 @@
+update hq.notifications n set read_at=null where n.source_type='microcredit_application' and n.read_at is not null and n.opened_at is null and exists(select 1 from public.loan_applications a where a.id::text=n.source_id and a.status='pendente');
