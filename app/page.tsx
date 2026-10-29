@@ -1372,13 +1372,7 @@ if(active==="Operações de Campo")void refreshField();
         <div className={`content ${routeTransition ? "routeTransitionActive" : ""} ${["Caixa de Entrada","Operações de Campo","Apoio ao Cliente","Mapa operacional","Centro de Notificações"].includes(active) ? "reconstructedModuleShell" : ""}`}>
           <div className="eyebrow"><span>HQ</span> / {displayModuleLabel(active)}</div>
           <div className="frozenBanner"><i /> {dashboard ? `Dados reais ligados a ${dashboard.environment} · actualizados ${new Date(dashboard.checkedAt).toLocaleTimeString("pt-MZ", { hour: "2-digit", minute: "2-digit" })}` : connectionError || "A ligar ao backend Deligo Staging ou produção configurada…"}</div>
-          <div className="titleRow">
-            <div>
-              <h1>{active === "Visão geral" ? "Visão geral do grupo" : displayModuleLabel(active)}</h1>
-              <p>{active === "Visão geral" ? "Indicadores corporativos e estado operacional." : `Área dedicada a ${active}, sem conteúdos de outros departamentos.`}</p>
-            </div>
-            <div className="live"><i /> Central operacional</div>
-          </div>
+          <h1 className="moduleAccessibleTitle">{displayModuleLabel(active)}</h1>
           <ModuleErrorBoundary resetKey={active}>
           {active === "Relatórios" && !restrictedOperationalRole && <ModuleErrorBoundary resetKey="reports"><CorporateOperationsAnalyticsDashboard mode="reports" /></ModuleErrorBoundary>}
           {active === "Site Institucional" && <><ModuleErrorBoundary resetKey="institutional-analytics"><CorporateOperationsAnalyticsDashboard mode="institutional" /></ModuleErrorBoundary><ModuleErrorBoundary resetKey="institutional-news"><InstitutionalNewsManager /></ModuleErrorBoundary></>}

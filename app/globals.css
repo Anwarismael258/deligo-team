@@ -920,3 +920,8 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .shell .supportWorkspace .supportScreenHeader{height:auto!important;min-height:0;top:auto;overflow:visible;z-index:auto}
 
 .shell .procurementList button.microcreditUnread{border-left:4px solid #22d3ee;background:#123048}.microcreditUnreadBadge{display:inline-block;margin-right:10px;padding:3px 8px;border-radius:12px;background:#22d3ee;color:#071b2c;font-size:11px;font-style:normal;font-weight:800}
+
+/* Keep marketing analytics filters available without a permanent toolbar. */
+.analyticsFilterDisclosure{margin-bottom:10px}.analyticsFilterDisclosure>summary{cursor:pointer;font-size:12px;padding:6px 0;color:var(--text)}.analyticsFilterDisclosure[open]>.analyticsFilters{margin-top:6px}
+
+.moduleAccessibleTitle{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
