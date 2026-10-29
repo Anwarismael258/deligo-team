@@ -39,8 +39,16 @@ export default function LiveOperationsMap({ markers, routes = [], onSelect, sele
       instance = L.map(container.current, { zoomControl: false }).setView([-25.965, 32.575], 13);
       L.control.zoom({ position: "topright" }).addTo(instance);
       const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
-      const tiles = mapboxToken ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}?access_token=${encodeURIComponent(mapboxToken)}` : "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-      L.tileLayer(tiles, { maxZoom: 19, attribution: mapboxToken ? "© Mapbox © OpenStreetMap" : "© OpenStreetMap © CARTO" }).addTo(instance);
+      const fallback = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+      const osmAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+      const addBase = (useMapbox: boolean) => {
+        if (!instance) return;
+        container.current?.classList.toggle(styles.osmTiles, !useMapbox);
+        const tiles = useMapbox ? `https://api.mapbox.com/styles/v1/mapbox/dark-v11/tiles/256/{z}/{x}/{y}?access_token=${encodeURIComponent(mapboxToken!)}` : fallback;
+        const base = L.tileLayer(tiles, { maxZoom: 19, updateWhenIdle: true, keepBuffer: 1, attribution: useMapbox ? `© Mapbox ${osmAttribution}` : osmAttribution }).addTo(instance);
+        if (useMapbox) base.once("tileerror", () => { if (!disposed && instance) { instance.removeLayer(base); addBase(false); } });
+      };
+      addBase(Boolean(mapboxToken?.trim()));
       instance.on("zoomend", () => { if (instance) setZoom(instance.getZoom()); });
       map.current = instance;
       layer.current = L.layerGroup().addTo(instance);

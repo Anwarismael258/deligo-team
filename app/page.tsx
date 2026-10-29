@@ -610,11 +610,11 @@ export function HQApp() {
   const personalWalletPending=ownWallets.reduce((sum,wallet)=>sum+Number(wallet.pending_amount||0),0);
   const personalWalletReserved=ownWallets.reduce((sum,wallet)=>sum+Number(wallet.reserved_amount||0),0);
   useEffect(()=>{
-    if(!isAccountScreen||personalWalletReserved<=0)return;
+    if(!isAccountScreen||!sessionUser)return;
     let cancelled=false;let timer:ReturnType<typeof setTimeout>;
     const refresh=async()=>{try{if(document.visibilityState!=="hidden"){const response=await fetch("/api/profile",{cache:"no-store"});const data=await response.json();if(!cancelled&&response.ok){setOwnWallets(Array.isArray(data.wallets)?data.wallets:[]);setPersonalBalanceBreakdown(data.reconciliation||null)}}}catch{}finally{if(!cancelled)timer=setTimeout(refresh,5000)}};
     timer=setTimeout(refresh,5000);return()=>{cancelled=true;clearTimeout(timer)};
-  },[isAccountScreen,personalWalletReserved]);
+  },[isAccountScreen,sessionUser?.id]);
   const corporateSummary=dashboard?.deligoFinance?.summary;
   const financialBreakdown=dashboard?.deligoFinance?.breakdown;
   const breakdownPlatforms=Array.isArray(financialBreakdown?.platforms) ? financialBreakdown.platforms : [];
@@ -753,6 +753,7 @@ export function HQApp() {
     }).catch(error => { setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
   }, [active, sessionUser?.id]);
    const refreshNotifications=async()=>{if(notificationRefreshBusyRef.current)return;notificationRefreshBusyRef.current=true;try{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)}finally{notificationRefreshBusyRef.current=false}};
+  useEffect(()=>{const refresh=()=>void refreshNotifications();window.addEventListener("hq-notifications-updated",refresh);return()=>window.removeEventListener("hq-notifications-updated",refresh)},[sessionUser?.id]);
   useEffect(() => {
     if (active !== "Visão geral" || !sessionUser) return;
     let cancelled = false;
@@ -814,6 +815,19 @@ export function HQApp() {
 
   const refreshFinance = async () => { const response=await fetch("/api/finance",{cache:"no-store"}); if(!response.ok)throw new Error(); const result=await response.json(); setFinanceData(result.data); };
   useEffect(() => { if(active!=="Finanças")return; refreshFinance().catch(()=>setFinanceNotice("Não foi possível carregar os registos financeiros para este perfil.")); },[active]);
+  useEffect(()=>{
+    if(active!=="Finanças"||!sessionUser)return;
+    let cancelled=false,busy=false;let timer:ReturnType<typeof setTimeout>;
+    const refresh=async()=>{if(cancelled||busy)return;clearTimeout(timer);busy=true;try{if(document.visibilityState!=="hidden"){
+      await fetch("/api/profile",{cache:"no-store"}).catch(()=>null);
+      const [dashboardResponse,financeResponse]=await Promise.all([fetch("/api/dashboard",{cache:"no-store"}),fetch("/api/finance",{cache:"no-store"})]);
+      if(dashboardResponse.ok){const data=await dashboardResponse.json();if(!cancelled)setDashboard(normalizeDashboardNames(data))}
+      if(financeResponse.ok){const data=await financeResponse.json();if(!cancelled)setFinanceData(data.data)}
+    }}catch{}finally{busy=false;if(!cancelled)timer=setTimeout(refresh,5000)}};
+    void refresh();const focus=()=>void refresh();window.addEventListener("focus",focus);
+    return()=>{cancelled=true;clearTimeout(timer);window.removeEventListener("focus",focus)};
+  },[active,sessionUser?.id]);
+
   useEffect(() => {
     if (!["Finanças", "Pessoas"].includes(active) || !["SUPER_ADMIN", "FINANCE", "SUPERVISOR"].includes(sessionUser?.hq_role || "")) return;
     fetch("/api/finance/worker-transfer", { cache: "no-store" })
@@ -1703,7 +1717,6 @@ if(active==="Operações de Campo")void refreshField();
               <div className="profileSectionTitle"><span>CARTEIRA DIGITAL</span><h2>Saldo pessoal</h2><p>Saldo real da carteira do trabalhador no backend central.</p></div>
               <>
                 <div className="walletBalanceRow walletUnifiedRow"><div><strong>Saldo pessoal consolidado</strong><span>Todos os saldos pessoais associados ao mesmo utilizador/número · não inclui a carteira corporativa</span></div><b>{money(personalWalletTotal)}</b></div>
-                {personalBalanceBreakdown&&<div className="walletBalanceMeta"><span>Carteiras conciliadas: {money(Number(personalBalanceBreakdown.canonical_available_amount||0))}</span><span>Transferências internas: {money(Number(personalBalanceBreakdown.internal_available_amount||0))}</span>{Number(personalBalanceBreakdown.excluded_legacy_amount)>0&&<span>Saldo antigo pendente de reconciliação, não incluído: {money(Number(personalBalanceBreakdown.excluded_legacy_amount))}</span>}</div>}
                 {["SUPER_ADMIN","FINANCE"].includes(sessionUser?.hq_role||"")&&<form className="financeEntryForm walletDepositForm" onSubmit={depositOwnWallet}><label><span>Montante a depositar (MZN)</span><input aria-label="Montante a depositar" inputMode="decimal" type="number" min="1" max="10000000" step="0.01" required value={profileDepositAmount} onChange={event=>setProfileDepositAmount(event.target.value)} placeholder="Ex.: 100"/></label><button type="submit" className="primaryAction" disabled={profileDepositBusy}>{profileDepositBusy?"A abrir checkout…":"Depositar"}</button><small>Número e operadora identificados automaticamente pela conta. Vai continuar no checkout seguro da PaySuite.</small><small>Taxa PaySuite: 3% · {Number(profileDepositAmount)>0?`Taxa: ${money(Math.round(Number(profileDepositAmount)*3)/100)} · Saldo a receber: ${money((Math.round(Number(profileDepositAmount)*100)-Math.round(Number(profileDepositAmount)*3))/100)}`:"Ex.: 100 MT → taxa de 3 MT → recebe 97 MT."} O saldo entra após confirmação do pagamento.</small></form>}
                 <form className="financeEntryForm walletWithdrawForm" onSubmit={event=>{event.preventDefault();void withdrawOwnWallet()}}><label><span>Montante a levantar (MZN)</span><input inputMode="decimal" type="number" min="1.04" step="0.01" max={personalWithdrawableTotal||undefined} required value={profileWithdrawal.amount} onChange={event=>setProfileWithdrawal(current=>({...current,amount:event.target.value}))} placeholder="Ex.: 10" /></label><button type="submit" className={`primaryAction walletWithdrawButton ${personalWithdrawableTotal>0&&!profileWithdrawal.busy?"isAvailable":""}`} disabled={personalWithdrawableTotal<=0||profileWithdrawal.busy}>{profileWithdrawal.busy?"A processar…":"Levantar saldo"}</button></form>
                 {(personalWalletPending>0||personalWalletReserved>0)&&<div className="walletBalanceMeta"><span>Pendente: {money(personalWalletPending)}</span><span>Reservado: {money(personalWalletReserved)}</span></div>}

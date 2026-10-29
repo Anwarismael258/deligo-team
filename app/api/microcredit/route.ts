@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateActor, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqRest, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 import { dispatchMicrocreditPacket } from "@/lib/microcredit-packets";
 
 const staff = new Set(["SUPER_ADMIN", "FINANCE"]);
@@ -73,9 +73,14 @@ export async function GET(request: NextRequest) {
       stagingRest(`loan_applications?${query.toString()}`),
       stagingRest("loan_application_notes?select=id,application_id,body,created_at,author_id&order=created_at.desc&limit=500"),
     ]);
+    const ids=(applications as Record<string,unknown>[]).map(row=>String(row.id));
+    const notices=ids.length?await hqRest(`notifications?employee_id=eq.${current.employee_id}&source_type=eq.microcredit_application&source_id=in.(${ids.join(",")})&select=source_id,read_at`):[];
+    const noticeById=new Map((notices as Record<string,unknown>[]).map(row=>[String(row.source_id),row]));
+    const summaryOnly=request.nextUrl.searchParams.get("summary")==="1";
     const enrichedApplications = await Promise.all((applications as Record<string, unknown>[]).map(async application => ({
       ...application,
-      documents: {
+      is_unread:noticeById.has(String(application.id))?!noticeById.get(String(application.id))?.read_at:application.status==="pendente",
+      documents:summaryOnly?{}: {
         bi_front: await signedDocument(application.bi_front_path, application.doc_folder),
         bi_back: await signedDocument(application.bi_back_path, application.doc_folder),
         income: await signedDocument(application.income_path, application.doc_folder),
@@ -90,10 +95,16 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   const current = await actor();
   if (!current) return NextResponse.json({ error: "Sem acesso." }, { status: 403 });
-  const body = await request.json() as { id?: string; status?: string; note?: string; resend?: boolean };
+  const body = await request.json() as { id?: string; status?: string; note?: string; resend?: boolean; read?: boolean };
   if (!body.id) return NextResponse.json({ error: "Pedido inválido." }, { status: 400 });
   if (body.note !== undefined && (body.note.trim().length < 1 || body.note.trim().length > 2000)) return NextResponse.json({ error: "A nota deve ter entre 1 e 2000 caracteres." }, { status: 400 });
   try {
+    if(body.read===true){
+      if(!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(body.id))return NextResponse.json({error:"Pedido inválido."},{status:400});
+      const readAt=new Date().toISOString();
+      await hqRest(`notifications?employee_id=eq.${current.employee_id}&source_type=eq.microcredit_application&source_id=eq.${encodeURIComponent(body.id)}`,{method:"PATCH",body:JSON.stringify({read_at:readAt,opened_at:readAt})});
+      return NextResponse.json({read:true,id:body.id});
+    }
     let application: Record<string, unknown> | undefined;
     let delivery: unknown = null;
     let deliveryWarning: string | null = null;

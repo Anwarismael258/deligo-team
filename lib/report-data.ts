@@ -44,7 +44,7 @@ const date = (row: Row, keys: string[]) => text(row, keys);
 const isoDay = (value: string | null) => value ? value.slice(0, 10) : null;
 const dateForType = (type: ReportType) => type === "financial" ? ["occurred_at", "created_at"] : type === "field" ? ["planned_at", "created_at"] : ["created_at", "opened_at", "updated_at"];
 const periodDates = (filters: ReportFilters) => {
-  if (filters.from && filters.to) return { from: filters.from.slice(0, 10), to: filters.to.slice(0, 10) };
+  if (filters.from && filters.to && /^\d{4}-\d{2}-\d{2}$/.test(filters.from) && /^\d{4}-\d{2}-\d{2}$/.test(filters.to)) return { from: filters.from.slice(0, 10), to: filters.to.slice(0, 10) };
   const days = filters.period === "today" ? 1 : filters.period === "last_7_days" ? 7 : filters.period === "last_90_days" ? 90 : 30;
   const end = new Date();
   if(filters.period==="this_year")return {from:`${end.getFullYear()}-01-01`,to:end.toISOString().slice(0,10)};
@@ -85,6 +85,8 @@ async function sourceRows(type: ReportType): Promise<{ rows: Row[]; source: stri
   }
 }
 export async function getReportData(type: ReportType, filters: ReportFilters = {}) {
+  filters={...filters};
+  for(const key of ["platform","department","responsible","status"] as const)if(/^(all|todas?|todos?)$/i.test(String(filters[key]||"")))filters[key]=null;
   const source = await sourceRows(type);
   const range = periodDates(filters);
   const records = source.rows.map(row => normalize(type, row)).filter(record => {
