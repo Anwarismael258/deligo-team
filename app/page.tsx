@@ -29,6 +29,7 @@ import {ExecutiveOverviewDashboard} from "@/components/analytics/ExecutiveOvervi
 import {PlatformExecutiveDashboard} from "@/components/analytics/PlatformExecutiveDashboard";
 import {UserTeamDashboard} from "@/components/analytics/UserTeamDashboard";
 import {OperationsSupportDashboard} from "@/components/analytics/OperationsSupportDashboard";
+import {SafetyCenterWorkspace} from "@/components/SafetyCenterWorkspace";
 import {CommunicationAnalyticsDashboard} from "@/components/analytics/CommunicationAnalyticsDashboard";
 import { CorporateOperationsAnalyticsDashboard } from "@/components/analytics/CorporateOperationsAnalyticsDashboard";
 import { OperationsMapDashboard } from "@/components/analytics/OperationsMapDashboard";
@@ -56,6 +57,7 @@ const nav = [
   ["▦", "Site Institucional"],
   ["▣", "Vagas"],
   ["⌖", "Operações de Campo"],
+  ["!", "Segurança"],
   ["⌁", "Mapa operacional"],
   ["◌", "Apoio ao Cliente"],
   ["▤", "Relatórios"],
@@ -64,7 +66,7 @@ const nav = [
 ];
 const navGroups: Array<[string,string[]]> = [
   ["PRINCIPAL", ["Plataformas","Utilizadores","Pessoas","Finanças","Triunfal Microcrédito","Caixa de Entrada","Inbox interna"]],
-  ["OPERAÇÕES", ["Marketing","Site Institucional","Vagas","Operações de Campo","Mapa operacional","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
+  ["OPERAÇÕES", ["Marketing","Site Institucional","Vagas","Operações de Campo","Segurança","Mapa operacional","Apoio ao Cliente","Relatórios","Projectos e Tarefas","Centro de Notificações"]],
 ];
 
 const displayModuleLabel = (label: string) => label === "Pessoas" ? "Equipa" : label;
@@ -265,6 +267,7 @@ const routeByModule: Record<string, string> = {
   "Site Institucional": "/marketing/conteudos",
   "Vagas": "/marketing/vagas",
   "Operações de Campo": "/field",
+  "Segurança": "/seguranca",
   "Apoio ao Cliente": "/apoio-cliente",
   "Avaliações & Reputação": "/operacoes/avaliacoes-reputacao",
   "Aquisição de Parceiros": "/aquisicao-parceiros",
@@ -314,7 +317,7 @@ const personas = {
     modules: ["Visão geral", "Plataformas", "Tecnologia / IT", "Património", "Projectos e Tarefas", "Apoio Interno", "Relatórios", "Registo de Auditoria"],
   },
   marketing: { name: "Agente de Marketing", role: "Marketing", initials: "AM", modules: ["Visão geral", "Plataformas", "Marketing", "Site Institucional", "Vagas", "Caixa de Entrada", "Projectos e Tarefas", "Centro de Notificações"] },
-  field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Plataformas", "Utilizadores", "Operações de Campo", "Mapa operacional", "Projectos e Tarefas", "Centro de Notificações"] },
+  field: { name: "Agente de Operações", role: "Operações de Campo", initials: "OP", modules: ["Visão geral", "Plataformas", "Utilizadores", "Operações de Campo", "Segurança", "Mapa operacional", "Projectos e Tarefas", "Centro de Notificações"] },
   support: { name: "Agente Suporte", role: "Apoio ao Cliente", initials: "AS", modules: ["Visão geral", "Plataformas", "Utilizadores", "Caixa de Entrada", "Apoio ao Cliente", "Mapa operacional", "Projectos e Tarefas", "Centro de Notificações"] },
   hr: { name: "Recursos Humanos", role: "Recursos Humanos", initials: "RH", modules: ["Visão geral", "Pessoas", "Recursos Humanos", "Projectos e Tarefas", "Relatórios"] },
   legal: { name: "Jurídico", role: "Jurídico", initials: "JL", modules: ["Visão geral", "Jurídico", "Conformidade e Risco", "Relatórios"] },
@@ -327,7 +330,7 @@ const personas = {
 
 const personaByRole = { SUPER_ADMIN: "anwar", FINANCE: "sara", FINANCE_DIRECTOR: "sara", SUPERVISOR: "sansao", ACCOUNTING: "contabilista", HUMAN_RESOURCES: "hr", LEGAL: "legal", OPERATIONS: "operations", TECHNOLOGY: "tecnologia", MARKETING: "marketing", FIELD: "field", CUSTOMER_SUPPORT: "support", PARTNER_ACQUISITION: "acquisition", AMBASSADOR: "ambassador", PROCUREMENT: "procurement", ASSETS_LOGISTICS: "assets" } as const;
 const unpublishedModules = new Set(["Embaixadores"]);
-const universalModules = new Set<string>(["Mapa operacional", "Projectos e Tarefas", "Minhas Tarefas", "Inbox interna", "Centro de Notificações"]);
+const universalModules = new Set<string>(["Mapa operacional", "Projectos e Tarefas", "Segurança", "Minhas Tarefas", "Inbox interna", "Centro de Notificações"]);
 const workflowDepartmentByModule:Record<string,string>={"Aquisição de Parceiros":"ACQUISITION","Conformidade e Risco":"COMPLIANCE","Jurídico":"LEGAL","Finanças":"FINANCE","Contabilidade":"ACCOUNTING","Compras":"PROCUREMENT","Património":"ASSETS","Apoio ao Cliente":"SUPPORT","Direcção Executiva":"EXECUTIVE","Marketing":"MARKETING","Tecnologia / IT":"TECHNOLOGY","Recursos Humanos":"HR","Pessoas":"HR"};
 const modulePermission:Record<string,string>={"Utilizadores":"users.view","Pessoas":"users.view","Recursos Humanos":"hr.viewEmployees","Finanças":"finance.view","Triunfal Microcrédito":"finance.view","Apoio ao Cliente":"support.viewTickets","Operações de Campo":"field.view","Jurídico":"legal.viewContracts","Registo de Auditoria":"audit.view","Plataformas":"platforms.view","Homologação":"homologation.manage"};
 
@@ -1676,6 +1679,7 @@ if(active==="Operações de Campo")void refreshField();
           {active==="Aprovações"&&<ApprovalRules/>}
           {workflowDepartmentByModule[active]&&active!=="Apoio ao Cliente"&&active!=="Marketing"&&active!=="Finanças"&&active!=="Pessoas"&&<WorkflowInbox data={workflowData as Record<string,FinanceRecord[]>} departmentCode={workflowDepartmentByModule[active]} notice={workflowNotice} onAction={(stepId,decision)=>void workflowAction(stepId,decision)} onRefresh={()=>void refreshWorkflows()} realtimeVersion={realtimeVersion}/>}
           {active === "Mapa operacional" && <OperationsMapDashboard/>}
+          {active === "Segurança" && <SafetyCenterWorkspace/>}
           {false && active !== "Visão geral" && active !== "Mapa operacional" && active !== "Plataformas" && active !== "Finanças" && active !== "Contabilidade" && active !== "Jurídico" && active !== "Conformidade e Risco" && active !== "Tecnologia / IT" && active !== "Compras" && active !== "Direcção Executiva" && active !== "Pessoas" && active !== "Recursos Humanos" && active !== "Registo de Auditoria" && active !== "Marketing" && active !== "Operações de Campo" && active !== "Apoio ao Cliente" && active !== "Aprovações" && active !== "BI / Análises" && active !== "Relatórios" && active !== "Património" && active !== "Projectos e Tarefas" && active !== "Apoio Interno" && active !== "Aquisição de Parceiros" && active !== "Centro de Notificações" && active !== "Minhas Tarefas" && !isAccountScreen && (
             <section className="moduleWorkspace">
               <div className="workspaceHead">
