@@ -927,3 +927,67 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .moduleAccessibleTitle{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 .securityEventsWorkspace{display:grid;gap:14px;color:#eaf2ff}.securityEventsHeader{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;padding:20px;border:1px solid #2d597b;border-radius:14px;background:linear-gradient(145deg,#102941,#0b1d31)}.securityEventsHeader span{font-size:10px;letter-spacing:.14em;color:#22d3ee}.securityEventsHeader h2{margin:7px 0 4px;font-size:24px}.securityEventsHeader p{margin:0;color:#9ab5cf}.securityEventsHeader button,.securityPlatformTabs button,.securityEventActions button{border:1px solid #327191;background:#0d2840;color:#bdefff;border-radius:8px;padding:9px 13px;font-weight:700}.securityPlatformTabs{display:flex;gap:8px;flex-wrap:wrap}.securityPlatformTabs button.active{background:linear-gradient(90deg,#22d3ee,#8b5cf6);color:#061321;border-color:#22d3ee}.securityEventsSummary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.securityEventsSummary article{padding:14px;border:1px solid #2d597b;border-radius:12px;background:#10263e}.securityEventsSummary span,.securityEventsSummary strong{display:block}.securityEventsSummary span{color:#8ca8c3;font-size:12px}.securityEventsSummary strong{margin-top:5px;font-size:20px}.securityEventList{display:grid;gap:10px}.securityEventRow{display:flex;justify-content:space-between;gap:18px;padding:16px;border:1px solid #2d597b;border-left:3px solid #f59e0b;border-radius:12px;background:#10263e}.securityEventRow.acknowledged{border-left-color:#22d3ee}.securityEventRow.resolved{border-left-color:#34d399;opacity:.8}.securityEventRow strong,.securityEventRow span,.securityEventRow small{display:block}.securityEventRow span{margin-top:5px;color:#c3dcf3}.securityEventRow small{margin-top:7px;color:#8ca8c3}.securityEventActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.securityEventActions input{min-width:220px;padding:9px;border:1px solid #315b7d;border-radius:8px;background:#091b2d;color:#eaf2ff}.securityEmpty{padding:28px;border:1px dashed #3b6484;border-radius:12px;background:#0d2237;color:#a9c2da}.securityEmpty strong,.securityEmpty span{display:block}.securityEmpty span{margin-top:6px}.securityEventsWorkspace .safeNotice{border-color:#9b6b1b;background:#2c2413;color:#f6e1ad}
 @media(max-width:720px){.securityEventsHeader,.securityEventRow{flex-direction:column}.securityEventsSummary{grid-template-columns:1fr}.securityEventActions{justify-content:flex-start}.securityEventActions input{min-width:0;width:100%}.securityEventsHeader h2{font-size:20px}}
+
+/* Gmail-like inbox rows: sender/subject remain readable without changing the real data flow. */
+.shell .inboxWorkspace .procurementList>button{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important;gap:18px!important;min-height:58px!important;padding:10px 14px!important;border:0!important;border-bottom:1px solid #234863!important;border-radius:0!important}
+.shell .inboxWorkspace .procurementList>button:last-of-type{border-bottom:0!important}
+.shell .inboxWorkspace .procurementList>button>div:first-child{min-width:0!important;overflow:hidden!important}
+.shell .inboxWorkspace .procurementList>button>div:first-child strong{display:block!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;font-size:12px!important;line-height:1.35!important}
+.shell .inboxWorkspace .procurementList>button>div:first-child span{display:block!important;overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;color:#9eb9ce!important;font-size:10px!important;margin-top:3px!important}
+.shell .inboxWorkspace .procurementList>button>b{display:flex!important;align-items:center!important;gap:8px!important;color:#8fb0cb!important;font-size:9px!important;white-space:nowrap!important}
+.shell .inboxWorkspace .procurementList>button>b::before{content:"";width:7px;height:7px;border-radius:50%;background:#29d3e8;box-shadow:0 0 10px #29d3e899}
+.shell .inboxWorkspace .procurementList>button.inboxUnread>div:first-child strong{font-weight:900!important;color:#fff!important}
+.shell .inboxWorkspace .procurementList>button.inboxUnread>div:first-child span{color:#c9e6f7!important}
+.shell .inboxWorkspace .procurementList>button:hover{background:#153d5d!important}
+.shell .inboxWorkspace .procurementList{padding:0!important;overflow:hidden!important}
+@media(max-width:900px){.shell .inboxWorkspace{grid-template-columns:210px minmax(0,1fr)!important}.shell .inboxWorkspace>.employeeDetail{grid-column:1/-1!important}.shell .inboxWorkspace .procurementList>button{padding:10px!important}}
+@media(max-width:620px){.shell .inboxWorkspace{display:block!important}.shell .inboxWorkspace>.inboxFolders{display:flex!important;flex-direction:row!important;overflow-x:auto!important;border-right:0!important;border-bottom:1px solid #294766!important}.shell .inboxWorkspace>.inboxFolders button{min-width:max-content!important}.shell .inboxWorkspace .procurementList>button{grid-template-columns:1fr!important;gap:5px!important;align-items:flex-start!important}.shell .inboxWorkspace .procurementList>button>b{justify-content:flex-start!important}.shell .inboxWorkspace .inboxHeaderActions{width:100%!important}.shell .inboxWorkspace .inboxHeaderActions button{flex:1 1 120px!important}}
+
+/* Customer support workspace: dark three-zone presentation with real queue data. */
+.shell .supportWorkspace{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:14px!important;max-width:1420px!important;margin:0 auto!important;padding:0 0 18px!important}
+.shell .supportWorkspace .supportScreenHeader{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:14px!important;align-items:center!important;padding:18px 20px!important;border:1px solid #2d597b!important;border-radius:14px!important;background:linear-gradient(135deg,#0d2943,#0a1b2e)!important}
+.shell .supportWorkspace .supportScreenHeader>div:first-child span{color:#22d3ee!important;font-size:10px!important;letter-spacing:.12em!important}
+.shell .supportWorkspace .supportScreenHeader h2{font-size:24px!important;margin:6px 0 3px!important;color:#f5fbff!important}
+.shell .supportWorkspace .supportScreenHeader p{margin:0!important;color:#9bb6cf!important;font-size:12px!important}
+.shell .supportWorkspace .supportScreenHeader>.primaryAction{grid-column:2;grid-row:1;align-self:center;background:#19cfe8!important;color:#041722!important;border:0!important;border-radius:9px!important;padding:12px 16px!important;font-weight:900!important}
+.shell .supportWorkspace .supportScreenMetrics{grid-column:1/-1!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:0!important;border:1px solid #2c5879!important;border-radius:10px!important;overflow:hidden!important;background:#0b2035!important}
+.shell .supportWorkspace .supportScreenMetrics article{display:flex!important;flex-direction:column!important;gap:3px!important;padding:11px 16px!important;border-right:1px solid #2c5879!important;background:transparent!important}
+.shell .supportWorkspace .supportScreenMetrics article:last-child{border-right:0!important}
+.shell .supportWorkspace .supportScreenMetrics b{font-size:21px!important;color:#55dfff!important}
+.shell .supportWorkspace .supportScreenMetrics span{font-size:10px!important;color:#9ab6cf!important}
+.shell .supportWorkspace .supportQueueView{margin:0!important;min-width:0!important;padding:0!important;border:1px solid #2d597b!important;border-radius:14px!important;background:#0b2035!important;overflow:hidden!important}
+.shell .supportWorkspace .supportTicketList{margin:0!important;border:0!important;border-radius:0!important;background:#10263e!important}
+.shell .supportWorkspace .supportTicketList .panelTitle{border-bottom:1px solid #2d597b!important}
+.shell .supportWorkspace .supportTicket{padding:0!important;border-top:1px solid #2a4f6d!important;background:#10263e!important;box-shadow:none!important}
+.shell .supportWorkspace .supportTicket:first-of-type{border-top:0!important}
+.shell .supportWorkspace .supportTicketOpen{padding:14px 16px!important;min-height:78px!important}
+.shell .supportWorkspace .supportTicketOpen>div{min-width:0!important}
+.shell .supportWorkspace .supportSenderName{font-size:13px!important;color:#f5fbff!important}
+.shell .supportWorkspace .supportMessagePreview{margin-top:5px!important;color:#c1d9eb!important;font-size:11px!important;line-height:1.35!important}
+.shell .supportWorkspace .supportTicketMeta{margin-top:7px!important;font-size:9px!important}
+.shell .supportWorkspace .supportTicketPlatform{align-self:start!important;margin-top:2px!important}
+.shell .supportWorkspace .supportTicket.hasUnread{background:#123a5b!important;box-shadow:inset 3px 0 #22d3ee!important}
+.shell .supportWorkspace .supportTicket.hasUnread .supportSenderName{font-weight:900!important}
+.shell .supportWorkspace .supportCaseDetail{margin:0!important;border:0!important;border-left:1px solid #2d597b!important;border-radius:0!important;background:#0b2035!important;padding:0!important;color:#eaf2ff!important}
+.shell .supportWorkspace:has(.supportCaseDetail){grid-template-columns:minmax(300px,.8fr) minmax(0,1.5fr)!important;align-items:start!important}
+.shell .supportWorkspace:has(.supportCaseDetail)>.supportScreenHeader{grid-column:1/-1!important}
+.shell .supportWorkspace:has(.supportCaseDetail)>.supportQueueView{grid-column:1!important}
+.shell .supportWorkspace:has(.supportCaseDetail)>.supportCaseDetail{grid-column:2!important;grid-row:2!important;min-height:560px!important}
+.shell .supportWorkspace .supportCaseHead{padding:18px 20px!important;border-bottom:1px solid #2d597b!important;background:#0d2943!important}
+.shell .supportWorkspace .supportCaseHead h3{font-size:17px!important;color:#f5fbff!important}
+.shell .supportWorkspace .supportCaseHead p{margin:5px 0 0!important;color:#91abc2!important;font-size:11px!important}
+.shell .supportWorkspace .supportCaseHead>button{border:1px solid #3c7094!important;background:#0b243b!important;color:#bcefff!important;border-radius:8px!important;padding:8px 11px!important}
+.shell .supportWorkspace .supportCaseColumns{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:0!important;margin:0!important}
+.shell .supportWorkspace .supportCaseColumns article{border:0!important;border-bottom:1px solid #2d597b!important;border-radius:0!important;background:#0b2035!important;padding:16px 20px!important}
+.shell .supportWorkspace .supportCaseColumns article:first-child{max-height:420px!important;overflow:auto!important}
+.shell .supportWorkspace .supportCaseColumns h4{color:#f5fbff!important;font-size:12px!important}
+.shell .supportWorkspace .supportCaseColumns p{padding:10px 12px!important;margin:9px 0!important;border:1px solid #2c5576!important;border-radius:10px!important;background:#132f49!important}
+.shell .supportWorkspace .supportCaseColumns p:nth-of-type(even){background:#0e4165!important}
+.shell .supportWorkspace .supportCaseColumns p strong{font-size:10px!important;color:#d9f5ff!important}
+.shell .supportWorkspace .supportCaseColumns p span{font-size:12px!important;line-height:1.45!important;color:#f1f8ff!important}
+.shell .supportWorkspace .supportCaseColumns p small{font-size:9px!important;color:#91abc2!important}
+.shell .supportWorkspace .supportReplyComposer{padding:16px 20px!important;background:#0b2035!important}
+.shell .supportWorkspace .supportReplyComposer textarea{min-height:92px!important;border:1px solid #3a6d90!important;border-radius:9px!important;background:#081a2b!important;color:#f5fbff!important;padding:12px!important;font-size:12px!important}
+.shell .supportWorkspace .supportReplyActions .primaryAction{background:#19cfe8!important;color:#041722!important;border:0!important;border-radius:8px!important;font-weight:900!important}
+@media(max-width:1049px){.shell .supportWorkspace:has(.supportCaseDetail){display:block!important}.shell .supportWorkspace:has(.supportCaseDetail)>.supportCaseDetail{margin-top:14px!important;border:1px solid #2d597b!important;border-radius:14px!important}.shell .supportWorkspace .supportScreenHeader{grid-template-columns:1fr!important}.shell .supportWorkspace .supportScreenHeader>.primaryAction{grid-column:1;grid-row:auto;justify-self:start}}
+@media(max-width:560px){.shell .supportWorkspace .supportScreenMetrics{grid-template-columns:1fr!important}.shell .supportWorkspace .supportScreenMetrics article{border-right:0!important;border-bottom:1px solid #2c5879!important}.shell .supportWorkspace .supportScreenMetrics article:last-child{border-bottom:0!important}.shell .supportWorkspace .supportTicketOpen{grid-template-columns:1fr!important}.shell .supportWorkspace .supportTicketPlatform{justify-self:start!important}.shell .supportWorkspace .supportCaseHead{align-items:flex-start!important;flex-direction:column!important;gap:12px!important}}
