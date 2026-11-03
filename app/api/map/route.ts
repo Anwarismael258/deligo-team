@@ -8,6 +8,13 @@ export const dynamic = "force-dynamic";
 type MapMarker = Record<string, unknown>;
 type MapRoute = { id: string; platform: string; label: string; coordinates: [number, number][]; updatedAt: string; origin?: string; destination?: string; workerId?: string; workerName?: string; operationStatus?: string };
 
+const LIVE_WINDOW_MS = 5 * 60_000;
+const inServiceStatuses = new Set([
+  "in_progress", "in_service", "on_trip", "started", "active", "ongoing",
+  "on_the_way", "out_for_delivery", "in_delivery", "delivering", "picked_up",
+]);
+const terminalStatuses = new Set(["delivered", "cancelled", "canceled", "failed", "completed", "closed"]);
+
 const coordinate = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
@@ -27,6 +34,15 @@ const safeRows = async <T,>(loader: () => Promise<T>): Promise<T | null> => {
 
 const firstValue = (row: MapMarker, keys: string[]) => keys.map((key) => row[key]).find((value) => value !== null && value !== undefined && value !== "");
 const operationReference = (row: MapMarker, fallback: string) => String(firstValue(row, ["order_number", "order_code", "reference", "tracking_number", "code"]) || fallback);
+const statusValue = (row: MapMarker) => String(firstValue(row, ["status", "state", "trip_status"]) || "").toLowerCase();
+const isRecent = (value: unknown, windowMs = LIVE_WINDOW_MS) => {
+  const time = Date.parse(String(value || ""));
+  return Number.isFinite(time) && Date.now() - time >= 0 && Date.now() - time <= windowMs;
+};
+const isInService = (row: MapMarker) => inServiceStatuses.has(statusValue(row)) && !terminalStatuses.has(statusValue(row));
+const hasLiveSignal = (row: MapMarker, windowMs = LIVE_WINDOW_MS) =>
+  row.online === true || row.is_online === true || row.isOnline === true || isRecent(firstValue(row, ["recorded_at", "location_recorded_at", "last_seen_at", "heartbeat_at", "updated_at", "updatedAt"]), windowMs);
+const livePlace = (row: MapMarker) => row.is_open !== false && row.online !== false && row.is_online !== false && hasLiveSignal(row, 10 * 60_000);
 
 export async function GET() {
   const authorization = await corporateAuthorization();
@@ -68,7 +84,10 @@ export async function GET() {
     const [deligoAccess, marketAccess, sarcaAccess] = await accessPromise;
     const operationDetails = new Map<string, MapMarker>();
     const baseSlug = (value: unknown) => { const name = String(value || "").toLowerCase();return /sarca/.test(name) ? "sarca" : /market|taomoz/.test(name) ? "taomoz" : /comunh/.test(name) ? "comunhao" : /mestre/.test(name) ? "mestre24" : /deligo/.test(name) ? "deligo" : ""; };
-    const markers = (Array.isArray(base.markers) ? [...base.markers] : []).filter(marker => authorization.isSuperAdmin || (authorization.permissions.includes("operations.view") && authorization.platformSlugs.includes(baseSlug(marker.platform))));
+    const markers = (Array.isArray(base.markers) ? [...base.markers] : []).filter(marker =>
+      (authorization.isSuperAdmin || (authorization.permissions.includes("operations.view") && authorization.platformSlugs.includes(baseSlug(marker.platform)))) &&
+      hasLiveSignal(marker) && !terminalStatuses.has(statusValue(marker)) && !["searching_driver", "driver_assigned", "driver_arriving", "pending", "created", "requested"].includes(statusValue(marker))
+    );
     const routes: MapRoute[] = [];
     const markerIds = new Set(markers.map((marker) => String(marker.id || "")));
     const addMarker = (marker: MapMarker) => {
@@ -85,11 +104,12 @@ export async function GET() {
       if (deligo) sourceAvailable = true;
       for (const restaurant of deligo?.restaurants || []) {
         const location = point(restaurant.latitude, restaurant.longitude);
-        if (!location) continue;
+        if (!location || !livePlace(restaurant)) continue;
         addMarker({ id: `deligo:restaurant:${String(restaurant.id)}`, platform: "DeliGo", role: "Restaurante", workerName: restaurant.name, status: restaurant.is_open ? "disponivel" : "offline", service: `${restaurant.active_orders || 0} pedidos ativos`, latitude: location[0], longitude: location[1], updatedAt: checkedAt });
       }
       for (const order of deligo?.orders || []) {
         const orderId = String(order.id || "");
+        if (!isInService(order) || !hasLiveSignal(order)) continue;
         const reference = operationReference(order, orderId);
         operationDetails.set(`deligo:order:${orderId}`, { origin: order.origin_address || order.restaurant_name, destination: order.destination_address || order.delivery_address, operationStatus: order.status, driverId: order.courier_id || order.driver_user_id });
         const origin = point(order.origin_latitude, order.origin_longitude);
@@ -97,7 +117,8 @@ export async function GET() {
         const updatedAt = typeof order.updated_at === "string" ? order.updated_at : checkedAt;
         if (origin) addMarker({ id: `deligo:order:${orderId}:origin`, platform: "DeliGo", role: "Pedido", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
         if (destination) addMarker({ id: `deligo:order:${orderId}:destination`, platform: "DeliGo", role: "Cliente", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
-        if (origin && destination) routes.push({ id: `deligo:order:${orderId}`, platform: "DeliGo", label: `Pedido #${reference}`, coordinates: [origin, destination], updatedAt });
+        // Do not draw a route from a search or from two static addresses.
+        // A route requires actual telemetry from an active delivery.
       }
 
       // Some DeliGo environments expose coordinates in the platform tables,
@@ -114,7 +135,7 @@ export async function GET() {
         if (!location) continue;
         addMarker({ id: `deligo:restaurant:${String(restaurant.id)}`, platform: "DeliGo", role: "Restaurante", workerName: String(firstValue(restaurant, ["name", "restaurant_name"]) || "Restaurante"), status: restaurant.is_open === false ? "offline" : "disponivel", latitude: location[0], longitude: location[1], updatedAt: String(firstValue(restaurant, ["updated_at", "created_at"]) || checkedAt) });
       }
-      const active = (row: MapMarker) => !["delivered", "cancelled", "failed", "completed"].includes(String(row.status || "").toLowerCase());
+      const active = (row: MapMarker) => isInService(row) && hasLiveSignal(row);
       for (const order of orders || []) {
         if (!active(order)) continue;
         const id = String(order.id || order.order_id || "");
@@ -126,7 +147,7 @@ export async function GET() {
         const updatedAt = String(firstValue(order, ["updated_at", "created_at"]) || checkedAt);
         if (origin) addMarker({ id: `deligo:order:${id}:origin`, platform: "DeliGo", role: "Pedido", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
         if (destination) addMarker({ id: `deligo:order:${id}:destination`, platform: "DeliGo", role: "Cliente", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
-        if (origin && destination && !routes.some((route) => route.id === `deligo:order:${id}`)) routes.push({ id: `deligo:order:${id}`, platform: "DeliGo", label: `Pedido #${reference}`, coordinates: [origin, destination], updatedAt });
+        // Static pickup/drop-off points are not a real route.
       }
       for (const delivery of deliveries || []) {
         if (!active(delivery)) continue;
@@ -146,7 +167,7 @@ export async function GET() {
         safeRows(() => platformRest("taomoz", "deliveries?select=*&order=updated_at.desc&limit=500")),
       ]) as [MapMarker[] | null, MapMarker[] | null];
       if (marketOrders !== null || marketDeliveries !== null) sourceAvailable = true;
-      const activeMarket = (row: MapMarker) => !["delivered", "cancelled", "failed", "completed"].includes(String(row.status || "").toLowerCase());
+      const activeMarket = (row: MapMarker) => isInService(row) && hasLiveSignal(row);
       for (const order of marketOrders || []) {
         if (!activeMarket(order)) continue;
         const id = String(order.id || order.order_id || "");
@@ -158,7 +179,8 @@ export async function GET() {
         const updatedAt = String(firstValue(order, ["updated_at", "created_at"]) || checkedAt);
         if (origin) addMarker({ id: `market:order:${id}:origin`, platform: "DeliGo Market", role: "Encomenda", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
         if (destination) addMarker({ id: `market:order:${id}:destination`, platform: "DeliGo Market", role: "Cliente", service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
-        if (origin && destination) routes.push({ id: `market:order:${id}`, platform: "DeliGo Market", label: `Encomenda #${reference}`, coordinates: [origin, destination], updatedAt });
+        // Do not draw a route from two static addresses. A real route needs
+        // telemetry from an active delivery.
       }
       for (const delivery of marketDeliveries || []) {
         if (!activeMarket(delivery)) continue;
@@ -172,7 +194,7 @@ export async function GET() {
     // SARCA exposes verified trip endpoints. Keep this read-only and scoped
     // to workers who have the platform operations permission.
     if (sarcaAccess) {
-      const trips = await safeRows(() => platformRest("sarca", "trips?select=*&status=in.(searching_driver,driver_assigned,driver_arriving,in_progress)&order=updated_at.desc&limit=200")) as MapMarker[] | null;
+      const trips = await safeRows(() => platformRest("sarca", "trips?select=*&status=in.(in_progress,on_trip,started,active)&order=updated_at.desc&limit=200")) as MapMarker[] | null;
       if (trips !== null) sourceAvailable = true;
       const since = encodeURIComponent(new Date(Date.now() - 5 * 60_000).toISOString());
       const [driverRows, riderRows] = await Promise.all([
@@ -205,6 +227,24 @@ export async function GET() {
       const latestRiders = new Map<string, MapMarker>();
       for (const row of driverRows || []) if (!latestDrivers.has(String(row.driver_user_id))) latestDrivers.set(String(row.driver_user_id), row);
       for (const row of riderRows || []) if (!latestRiders.has(String(row.trip_id))) latestRiders.set(String(row.trip_id), row);
+      // Recent GPS events also represent people who are online but not
+      // currently assigned to a trip. Show those positions as availability
+      // markers; they must never create an operation or a route.
+      for (const [driverId, row] of latestDrivers) {
+        const position = point(row.latitude, row.longitude);
+        if (!position || !isRecent(row.recorded_at)) continue;
+        addMarker({ id: `sarca:driver:${driverId}:current`, platform: "SARCA", role: "Driver", workerId: driverId, status: "disponivel", latitude: position[0], longitude: position[1], updatedAt: String(row.recorded_at) });
+      }
+      const latestRidersByUser = new Map<string, MapMarker>();
+      for (const row of riderRows || []) {
+        const riderId = String(row.rider_user_id || "");
+        if (riderId && !latestRidersByUser.has(riderId)) latestRidersByUser.set(riderId, row);
+      }
+      for (const [riderId, row] of latestRidersByUser) {
+        const position = point(row.latitude, row.longitude);
+        if (!position || !isRecent(row.recorded_at)) continue;
+        addMarker({ id: `sarca:rider:${riderId}:current`, platform: "SARCA", role: "Rider", workerId: riderId, status: "disponivel", latitude: position[0], longitude: position[1], updatedAt: String(row.recorded_at) });
+      }
       for (const trip of trips || []) {
         const tripId = String(trip.id || "");
         const centralTrack = centralTrackByTrip.get(tripId) || [];
@@ -235,7 +275,7 @@ export async function GET() {
         if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
         if (origin && destination) {
           const actualCoordinates = centralTrack.length >= 2 ? centralTrack.map(item => item.position) : driverTrack.map(item => item.position);
-          routes.push({ id: `sarca:trip:${tripId}`, platform: "SARCA", label: `Viagem #${reference}`, coordinates: actualCoordinates.length >= 2 ? actualCoordinates : [origin, destination], updatedAt: centralTrack.at(-1)?.recordedAt || driverTrack.at(-1)?.recordedAt || updatedAt, origin: String(trip.pickup_address || "") || undefined, destination: String(trip.dropoff_address || "") || undefined, workerId: driverId || undefined, workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, operationStatus: String(trip.status || "in_progress") });
+          if (actualCoordinates.length >= 2) routes.push({ id: `sarca:trip:${tripId}`, platform: "SARCA", label: `Viagem #${reference}`, coordinates: actualCoordinates, updatedAt: centralTrack.at(-1)?.recordedAt || driverTrack.at(-1)?.recordedAt || updatedAt, origin: String(trip.pickup_address || "") || undefined, destination: String(trip.dropoff_address || "") || undefined, workerId: driverId || undefined, workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, operationStatus: String(trip.status || "in_progress") });
         }
       }
     }
@@ -255,7 +295,9 @@ export async function GET() {
       for (const profile of identities || []) { names.set(profile.id, profile.full_name);if (profile.user_id) names.set(profile.user_id, profile.full_name); }
       for (const marker of enrichedMarkers) if (!marker.workerName && marker.workerId) marker.workerName = names.get(String(marker.workerId)) || undefined;
     }
-    const enrichedRoutes = routes.map(route => ({ ...route, origin: operationDetails.get(route.id)?.origin, destination: operationDetails.get(route.id)?.destination, operationStatus: operationDetails.get(route.id)?.operationStatus, workerId: operationDetails.get(route.id)?.driverId, workerName: names.get(String(operationDetails.get(route.id)?.driverId || "")) }));
+    const enrichedRoutes = routes
+      .filter(route => route.coordinates.length >= 2 && isInService({ status: route.operationStatus }) && isRecent(route.updatedAt))
+      .map(route => ({ ...route, origin: operationDetails.get(route.id)?.origin, destination: operationDetails.get(route.id)?.destination, operationStatus: operationDetails.get(route.id)?.operationStatus || route.operationStatus, workerId: operationDetails.get(route.id)?.driverId || route.workerId, workerName: names.get(String(operationDetails.get(route.id)?.driverId || route.workerId || "")) || route.workerName }));
     return NextResponse.json({ ...base, checkedAt, markers: enrichedMarkers, routes: enrichedRoutes, sourceStatus: sourceAvailable ? "fresh" : "unavailable" }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
     // Do not turn an unavailable GPS adapter into a misleading zero.

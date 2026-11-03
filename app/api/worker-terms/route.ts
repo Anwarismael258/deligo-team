@@ -37,12 +37,39 @@ async function employeeFor(actorId: string) {
   return rows?.[0] || null;
 }
 
+const grandfatheredRoles = new Set(["SUPER_ADMIN", "FINANCE"]);
+
+async function markExistingActiveWorkerAsRead(actor: Awaited<ReturnType<typeof corporateActor>>, version: TermsVersion, employee: Record<string, unknown>) {
+  if (!actor || actor.status !== "active" || !grandfatheredRoles.has(actor.role)) return null;
+  const existing = await hqRest(`worker_terms_acceptances?employee_id=eq.${encodeURIComponent(actor.employee_id)}&terms_version_id=eq.${encodeURIComponent(version.id)}&select=*`) as Array<Record<string, unknown>>;
+  if (existing[0]) return existing[0];
+
+  const acceptedAt = new Date().toISOString();
+  const acceptanceText = "Registo administrativo de leitura para trabalhador activo (CEO/Administrador ou Finanças); não substitui a aceitação expressa exigida para novas admissões.";
+  const acceptancePayload = { employee_id: actor.employee_id, terms_version_id: version.id, acceptance_text: acceptanceText, accepted_at: acceptedAt, basis: "active_worker_grandfathering" };
+  const acceptanceHash = digest(acceptancePayload);
+  const acceptance = await hqRpc("record_worker_terms_acceptance_v1", { p_employee_id: actor.employee_id, p_terms_version_id: version.id, p_acceptance_text: acceptanceText, p_acceptance_hash: acceptanceHash, p_ip_address: null, p_user_agent: "hq-active-worker-terms-read" }, "hq") as Record<string, unknown>;
+  const documents = await hqRest(`worker_official_documents?employee_id=eq.${encodeURIComponent(actor.employee_id)}&terms_version_id=eq.${encodeURIComponent(version.id)}&select=*`) as Array<Record<string, unknown>>;
+  if (!documents[0]) {
+    const acceptedTimestamp = String(acceptance.accepted_at || acceptedAt);
+    const canonicalPayload = { document_kind: "worker_terms", employee_id: actor.employee_id, employee_code: employee.employee_code, employee_name: employee.display_name || employee.name || actor.name, terms_version: version.version, terms_content_hash: version.content_hash, acceptance_id: acceptance.id, accepted_at: acceptedTimestamp, basis: "active_worker_grandfathering" };
+    const integrityHash = digest(canonicalPayload);
+    await hqRest("worker_official_documents", { method: "POST", body: JSON.stringify({ employee_id: actor.employee_id, terms_version_id: version.id, acceptance_id: acceptance.id, document_kind: "worker_terms", verification_code: verificationCode(), integrity_hash: integrityHash, canonical_payload: canonicalPayload }) });
+  }
+  await hqRest("employee_access_history", { method: "POST", body: JSON.stringify({ employee_id: actor.employee_id, actor_employee_id: actor.employee_id, event_type: "terms_read_grandfathered", reason: "Trabalhador activo CEO/Administrador ou Finanças dispensado de nova aceitação", metadata: { terms_version_id: version.id, basis: "active_worker_grandfathering" } }) }).catch(() => undefined);
+  return acceptance;
+}
+
 export async function GET() {
   const actor = await corporateActor();
   if (!actor) return NextResponse.json({ error: "Sessão da Central inválida." }, { status: 401 });
   try {
     const versions = await hqRest("worker_terms_versions?select=id,version,title,body,content_hash,status,legal_reviewed_at,effective_at&order=created_at.desc") as TermsVersion[];
-    const acceptances = await hqRest(`worker_terms_acceptances?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=id,terms_version_id,accepted_at,acceptance_hash`) as Array<Record<string, unknown>>;
+    const employee = await employeeFor(actor.employee_id);
+    const currentVersionId = versions[0]?.id || "";
+    const existingAcceptance = currentVersionId ? await hqRest(`worker_terms_acceptances?employee_id=eq.${encodeURIComponent(actor.employee_id)}&terms_version_id=eq.${encodeURIComponent(currentVersionId)}&select=*`) as Array<Record<string, unknown>> : [];
+    if (versions[0]?.status === "active" && employee && !existingAcceptance[0]) await markExistingActiveWorkerAsRead(actor, versions[0], employee);
+    const acceptances = await hqRest(`worker_terms_acceptances?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=id,terms_version_id,accepted_at,acceptance_hash,acceptance_text`) as Array<Record<string, unknown>>;
     const documents = await hqRest(`worker_official_documents?employee_id=eq.${encodeURIComponent(actor.employee_id)}&select=id,terms_version_id,document_kind,verification_code,integrity_hash,generated_at&order=generated_at.desc`) as Array<Record<string, unknown>>;
     return NextResponse.json({ employee: { id: actor.employee_id, code: actor.employee_code, name: actor.name }, current: versions[0] || null, versions, acceptances, documents }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
