@@ -1,12 +1,12 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { corporateAuthorization, hqRpc, requireCorporatePermission, stagingRest } from "@/lib/hq-server";
+import { corporateAuthorization, hqRest, hqRpc, requireCorporatePermission, stagingRest } from "@/lib/hq-server";
 import { platformRest } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
 
 type MapMarker = Record<string, unknown>;
-type MapRoute = { id: string; platform: string; label: string; coordinates: [number, number][]; updatedAt: string };
+type MapRoute = { id: string; platform: string; label: string; coordinates: [number, number][]; updatedAt: string; origin?: string; destination?: string; workerId?: string; workerName?: string; operationStatus?: string };
 
 const coordinate = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
@@ -179,16 +179,49 @@ export async function GET() {
         safeRows(() => platformRest("sarca", `driver_location_events?select=driver_user_id,latitude,longitude,recorded_at&recorded_at=gte.${since}&order=recorded_at.desc&limit=500`)),
         safeRows(() => platformRest("sarca", `rider_location_events?select=rider_user_id,trip_id,latitude,longitude,recorded_at&recorded_at=gte.${since}&order=recorded_at.desc&limit=500`)),
       ]) as [MapMarker[] | null, MapMarker[] | null];
+      const activeTripIds = (trips || []).map(trip => String(trip.id || "")).filter(id => /^[0-9a-f-]{36}$/i.test(id));
+      const platformRouteRows = activeTripIds.length
+        ? await safeRows(() => platformRest("sarca", `trip_route_points?trip_id=in.(${activeTripIds.join(",")})&recorded_at=gte.${since}&select=trip_id,source,latitude,longitude,recorded_at,accuracy_meters&order=recorded_at.asc&limit=5000`)) as MapMarker[] | null
+        : [];
+      const hqRouteRows = activeTripIds.length
+        ? await safeRows(() => hqRest(`sarca_trip_route_points?trip_id=in.(${activeTripIds.join(",")})&recorded_at=gte.${since}&select=trip_id,source,latitude,longitude,recorded_at,accuracy_meters&order=recorded_at.asc&limit=5000`)) as MapMarker[] | null
+        : [];
+      const routeRows = [...(platformRouteRows || []), ...(hqRouteRows || [])];
+      const centralTrackByTrip = new Map<string, Array<{ position: [number, number]; recordedAt: string; source: string }>>();
+      const routePointKeys = new Set<string>();
+      for (const row of routeRows) {
+        const position = point(row.latitude, row.longitude);
+        const tripId = String(row.trip_id || "");
+        const recordedAt = String(row.recorded_at || "");
+        if (!position || !tripId || !Number.isFinite(Date.parse(recordedAt))) continue;
+        const pointKey = `${tripId}:${String(row.source || "system")}:${recordedAt}:${position[0]}:${position[1]}`;
+        if (routePointKeys.has(pointKey)) continue;
+        routePointKeys.add(pointKey);
+        const track = centralTrackByTrip.get(tripId) || [];
+        track.push({ position, recordedAt, source: String(row.source || "system") });
+        centralTrackByTrip.set(tripId, track);
+      }
       const latestDrivers = new Map<string, MapMarker>();
       const latestRiders = new Map<string, MapMarker>();
       for (const row of driverRows || []) if (!latestDrivers.has(String(row.driver_user_id))) latestDrivers.set(String(row.driver_user_id), row);
       for (const row of riderRows || []) if (!latestRiders.has(String(row.trip_id))) latestRiders.set(String(row.trip_id), row);
       for (const trip of trips || []) {
+        const tripId = String(trip.id || "");
+        const centralTrack = centralTrackByTrip.get(tripId) || [];
+        const centralLatestDriver = [...centralTrack].reverse().find(item => item.source === "driver");
+        const centralLatestRider = [...centralTrack].reverse().find(item => item.source === "rider");
+        const driverId = String(firstValue(trip, ["driver_id", "driver_user_id"]) || "");
+        const driverTrack = (driverRows || [])
+          .filter(row => String(row.driver_user_id || "") === driverId)
+          .map(row => point(row.latitude, row.longitude) ? { position: point(row.latitude, row.longitude) as [number, number], recordedAt: String(row.recorded_at || "") } : null)
+          .filter((row): row is { position: [number, number]; recordedAt: string } => Boolean(row && Number.isFinite(Date.parse(row.recordedAt))))
+          .sort((a, b) => Date.parse(a.recordedAt) - Date.parse(b.recordedAt));
         const driverPosition = latestDrivers.get(String(trip.driver_user_id));
         const riderPosition = latestRiders.get(String(trip.id));
         if (driverPosition) Object.assign(trip, { driver_latitude: driverPosition.latitude, driver_longitude: driverPosition.longitude, driver_recorded_at: driverPosition.recorded_at });
+        else if (centralLatestDriver) Object.assign(trip, { driver_latitude: centralLatestDriver.position[0], driver_longitude: centralLatestDriver.position[1], driver_recorded_at: centralLatestDriver.recordedAt });
         if (riderPosition) Object.assign(trip, { rider_latitude: riderPosition.latitude, rider_longitude: riderPosition.longitude, rider_recorded_at: riderPosition.recorded_at });
-        const tripId = String(trip.id || "");
+        else if (centralLatestRider) Object.assign(trip, { rider_latitude: centralLatestRider.position[0], rider_longitude: centralLatestRider.position[1], rider_recorded_at: centralLatestRider.recordedAt });
         const reference = operationReference(trip, tripId);
         operationDetails.set(`sarca:trip:${tripId}`, { origin: trip.pickup_address, destination: trip.dropoff_address, operationStatus: trip.status, driverId: trip.driver_user_id, passengerId: trip.passenger_user_id });
         const origin = point(trip.pickup_lat, trip.pickup_lng);
@@ -200,7 +233,10 @@ export async function GET() {
         const rider = point(firstValue(trip, ["rider_latitude", "rider_current_latitude", "rider_lat", "current_rider_latitude"]), firstValue(trip, ["rider_longitude", "rider_current_longitude", "rider_lng", "current_rider_longitude"]));
         if (driver) addMarker({ id: `sarca:trip:${tripId}:driver`, platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt: trip.driver_recorded_at || updatedAt });
         if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
-        if (origin && destination) routes.push({ id: `sarca:trip:${tripId}`, platform: "SARCA", label: `Viagem #${reference}`, coordinates: [origin, destination], updatedAt });
+        if (origin && destination) {
+          const actualCoordinates = centralTrack.length >= 2 ? centralTrack.map(item => item.position) : driverTrack.map(item => item.position);
+          routes.push({ id: `sarca:trip:${tripId}`, platform: "SARCA", label: `Viagem #${reference}`, coordinates: actualCoordinates.length >= 2 ? actualCoordinates : [origin, destination], updatedAt: centralTrack.at(-1)?.recordedAt || driverTrack.at(-1)?.recordedAt || updatedAt, origin: String(trip.pickup_address || "") || undefined, destination: String(trip.dropoff_address || "") || undefined, workerId: driverId || undefined, workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, operationStatus: String(trip.status || "in_progress") });
+        }
       }
     }
 

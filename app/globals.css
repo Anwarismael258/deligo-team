@@ -899,6 +899,21 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .shell .accountDetailGrid .profileHero h2,.shell .accountDetailGrid .profileHero p{overflow-wrap:anywhere}
 @media(max-width:720px){.shell .accountDetailGrid .profileAvatar{width:88px;height:88px;flex-basis:88px;border-radius:18px}.shell .accountDetailGrid .profileHero{gap:12px}.shell .accountDetailGrid .profileHero h2{font-size:16px}}
 
+/* Official worker terms: explicit acceptance, verifiable documents and no implied consent. */
+.shell .profileTermsCard{grid-column:1/-1;padding:20px;border:1px solid #294766;border-radius:14px;background:linear-gradient(145deg,#102941,#0b1d31);color:#eaf2ff}
+.shell .profileTermsCard .profileSectionTitle span{color:#22d3ee;font-size:10px;letter-spacing:.14em;font-weight:800}
+.shell .profileTermsCard .profileSectionTitle h2{margin:6px 0 4px;color:#f5fbff;font-size:20px}
+.shell .profileTermsCard .profileSectionTitle p{margin:0;color:#9db6d4;font-size:12px}
+.workerTermsSummary{display:flex;justify-content:space-between;gap:14px;align-items:center;margin-top:16px;padding:12px 14px;border:1px solid #315b7d;border-radius:10px;background:#0b2035}
+.workerTermsSummary strong{color:#f5fbff}.workerTermsSummary span{color:#9db6d4;font-size:11px}
+ .workerTermsReader{margin-top:10px;max-height:310px;overflow-y:auto;overscroll-behavior:contain;border:1px solid #294766;border-radius:10px;background:#0b2035}.workerTermsReader summary{position:sticky;top:0;z-index:1;cursor:pointer;padding:11px 13px;color:#7be9ff;font-size:12px;font-weight:800;background:#0b2035}.workerTermsReader>p,.workerTermsReader section{margin:0;padding:0 13px 10px;color:#c9e4f4;font-size:11px;line-height:1.55}.workerTermsReader section+section{border-top:1px solid #203d58;padding-top:9px}.workerTermsReader h3{margin:0 0 3px;color:#f5fbff;font-size:12px}.workerTermsReader.readComplete{border-color:#22d3ee}
+.workerTermsAcceptance{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:12px;padding:12px 14px;border:1px solid #2d597b;border-radius:10px;background:#10263e}
+.workerTermsAcceptance label{display:flex;align-items:flex-start;gap:8px;color:#c9e4f4;font-size:12px;line-height:1.5}.workerTermsAcceptance input{accent-color:#22d3ee;margin-top:2px}
+.workerTermsAcceptance .primaryAction{white-space:nowrap}.workerTermsPending{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:11px 13px;border:1px solid #8a641e;border-radius:9px;background:#2c2413;color:#f6e1ad;font-size:11px}.workerTermsPending .secondaryAction{white-space:nowrap}
+.workerTermsDocuments{margin-top:16px}.workerTermsDocuments h3{margin:0 0 8px;font-size:13px;color:#dff7ff}
+.workerTermDocument{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-top:1px solid #294766}.workerTermDocument>div{display:grid;gap:3px;min-width:0}.workerTermDocument strong{font-size:12px}.workerTermDocument span{color:#9db6d4;font-size:10px;overflow-wrap:anywhere}.workerTermDocument a{color:#7be9ff;font-size:11px;white-space:nowrap;text-decoration:none}.workerTermDocument a:hover{text-decoration:underline}
+@media(max-width:720px){.workerTermsSummary,.workerTermsAcceptance,.workerTermDocument,.workerTermsPending{align-items:flex-start;flex-direction:column}.workerTermsAcceptance .primaryAction,.workerTermsPending .secondaryAction{width:100%}.workerTermDocument{gap:7px}.workerTermDocument a{white-space:normal}}
+
 
 /* Keep app menus above module headers, including the internal messenger. */
 .shell .workspace > header{z-index:100;isolation:isolate;overflow:visible}
@@ -991,3 +1006,22 @@ html[data-central-motion="reduced"] .shell .centralNowPanel.isEventPulse,html[da
 .shell .supportWorkspace .supportReplyActions .primaryAction{background:#19cfe8!important;color:#041722!important;border:0!important;border-radius:8px!important;font-weight:900!important}
 @media(max-width:1049px){.shell .supportWorkspace:has(.supportCaseDetail){display:block!important}.shell .supportWorkspace:has(.supportCaseDetail)>.supportCaseDetail{margin-top:14px!important;border:1px solid #2d597b!important;border-radius:14px!important}.shell .supportWorkspace .supportScreenHeader{grid-template-columns:1fr!important}.shell .supportWorkspace .supportScreenHeader>.primaryAction{grid-column:1;grid-row:auto;justify-self:start}}
 @media(max-width:560px){.shell .supportWorkspace .supportScreenMetrics{grid-template-columns:1fr!important}.shell .supportWorkspace .supportScreenMetrics article{border-right:0!important;border-bottom:1px solid #2c5879!important}.shell .supportWorkspace .supportScreenMetrics article:last-child{border-bottom:0!important}.shell .supportWorkspace .supportTicketOpen{grid-template-columns:1fr!important}.shell .supportWorkspace .supportTicketPlatform{justify-self:start!important}.shell .supportWorkspace .supportCaseHead{align-items:flex-start!important;flex-direction:column!important;gap:12px!important}}
+
+/* Discreet live weather indicator for the Central header. */
+.weatherWidget{position:relative;display:flex;align-items:center;gap:7px;min-width:132px;height:34px;padding:5px 9px;border:1px solid #294766;border-radius:9px;background:#0c1c2c;color:#c7d8e9;overflow:visible;font-size:9px}
+.weatherWidgetMuted{color:#8096ab;opacity:.8;white-space:nowrap}
+.weatherPlace{color:#8aa5bd;font-size:8px}
+.weatherCurrent{color:#f5fbff;font-size:15px;line-height:1}
+.weatherRange{display:grid;gap:1px;font-size:8px;line-height:1}
+.weatherRange b:first-child{color:#ff9c38}
+.weatherRange b:last-child{color:#22d3ee}
+.weatherMeta{color:#8da9bf;font-size:8px;white-space:nowrap}
+.weatherWidgetRain{border-color:#2b6e91}
+.weatherRain{position:absolute;inset:-5px 7px auto auto;width:30px;height:30px;pointer-events:none;overflow:hidden;opacity:.7}
+.weatherRain i{position:absolute;top:-8px;width:1px;height:8px;background:#55d9f5;transform:rotate(18deg);animation:weatherRainFall .8s linear infinite}
+.weatherRain i:nth-child(1){left:3px;animation-delay:-.5s}.weatherRain i:nth-child(2){left:10px;animation-delay:-.15s}.weatherRain i:nth-child(3){left:17px;animation-delay:-.7s}.weatherRain i:nth-child(4){left:24px;animation-delay:-.3s}.weatherRain i:nth-child(5){left:29px;animation-delay:-.6s}
+.hydrationNotice{position:absolute;top:39px;right:0;z-index:15;display:flex;align-items:center;gap:6px;white-space:nowrap;padding:6px 8px;border:1px solid #f59e0b;border-radius:7px;background:#33250f;color:#ffd27a;font-size:8px;box-shadow:0 7px 18px #0005}
+.hydrationNotice button{border:0;background:transparent;color:#ffd27a;padding:0;font-size:14px;line-height:1}
+@keyframes weatherRainFall{from{transform:translateY(-10px) rotate(18deg);opacity:0}20%{opacity:1}to{transform:translateY(28px) rotate(18deg);opacity:0}}
+@media(prefers-reduced-motion:reduce){.weatherRain i{animation:none;opacity:.7}.weatherWidgetRain{background:#0e2438}}
+@media(max-width:720px){.weatherWidget{min-width:0;width:90px;gap:4px;padding:5px;font-size:8px}.weatherPlace{display:none}.weatherCurrent{font-size:13px}.weatherMeta{font-size:7px}.weatherRange{font-size:7px}.hydrationNotice{right:-8px}}

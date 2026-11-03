@@ -15,11 +15,13 @@ export type OperationsMapMarker = {
 export type OperationsMapRoute = {
   id: string; platform: string; label: string; coordinates: LatLngTuple[]; updatedAt: string;
   origin?: string; destination?: string; workerId?: string; workerName?: string; operationStatus?: string;
+  kind?: "planned" | "actual"; selectionId?: string;
 };
 export type MapSelection = { kind: "marker" | "route"; id: string };
 
-type Props = { markers: OperationsMapMarker[]; routes?: OperationsMapRoute[]; onSelect?: (selection: MapSelection) => void; selected?: MapSelection | null; following?: boolean; followId?: string; recenterKey?: number };
-export default function LiveOperationsMap({ markers, routes = [], onSelect, selected, following = false, followId, recenterKey = 0 }: Props) {
+type Replay = { coordinates: LatLngTuple[]; progress: number };
+type Props = { markers: OperationsMapMarker[]; routes?: OperationsMapRoute[]; onSelect?: (selection: MapSelection) => void; selected?: MapSelection | null; following?: boolean; followId?: string; recenterKey?: number; replay?: Replay | null };
+export default function LiveOperationsMap({ markers, routes = [], onSelect, selected, following = false, followId, recenterKey = 0, replay = null }: Props) {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<LeafletMap | null>(null);
   const layer = useRef<LayerGroup | null>(null);
@@ -76,12 +78,19 @@ export default function LiveOperationsMap({ markers, routes = [], onSelect, sele
       for (const route of routes) {
         if (route.coordinates.length < 2) continue;
         const tooltip = document.createElement("span");
-        tooltip.textContent = `${route.label} · ${route.coordinates.length === 2 ? "Origem e destino" : "Pontos registados"}`;
-        L.polyline(route.coordinates, { color: mapColor(route.platform), weight: selected?.id === route.id ? 6 : 3, opacity: .8, dashArray: route.coordinates.length === 2 ? "6 8" : undefined })
-          .bindTooltip(tooltip).on("click", () => onSelectRef.current?.({ kind: "route", id: route.id })).addTo(group);
+        const selectionId = route.selectionId || route.id;
+        tooltip.textContent = `${route.label} · ${route.kind === "planned" ? "Rota prevista" : route.coordinates.length === 2 ? "Origem e destino" : "Rota GPS real"}`;
+        L.polyline(route.coordinates, { color: route.kind === "planned" ? "#fbbf24" : mapColor(route.platform), weight: selected?.id === selectionId ? 6 : 3, opacity: route.kind === "planned" ? .55 : .9, dashArray: route.kind === "planned" ? "8 8" : route.coordinates.length === 2 ? "6 8" : undefined })
+          .bindTooltip(tooltip).on("click", () => onSelectRef.current?.({ kind: "route", id: selectionId })).addTo(group);
         points.push(...route.coordinates);
       }
-      const isSelectedOperation=(marker:OperationsMapMarker)=>marker.id===selected?.id||routes.some(route=>marker.id.startsWith(route.id+":"));
+      if (replay && replay.coordinates.length >= 2) {
+        const index = Math.min(replay.coordinates.length - 1, Math.max(0, Math.floor(replay.progress * (replay.coordinates.length - 1))));
+        const position = replay.coordinates[index];
+        const icon = L.divIcon({ className: "", html: `<span class="${styles.replayMarker}" aria-label="Posição reproduzida"></span>`, iconSize: [22, 22], iconAnchor: [11, 11] });
+        L.marker(position, { icon, zIndexOffset: 2000, interactive: false }).addTo(group);
+      }
+      const isSelectedOperation=(marker:OperationsMapMarker)=>marker.id===selected?.id||routes.some(route=>marker.id.startsWith((route.selectionId || route.id)+":"));
       const clusters = zoom >= 17 ? markers.map(marker => [marker]) : [...markers.filter(isSelectedOperation).map(marker=>[marker]),...clusterMapMarkers(markers.filter(marker=>!isSelectedOperation(marker)), marker => instance.project([marker.latitude, marker.longitude], zoom))];
       for (const cluster of clusters) {
         if (cluster.length === 1 || cluster.some(marker => selected?.id === marker.id)) continue;
@@ -110,13 +119,13 @@ export default function LiveOperationsMap({ markers, routes = [], onSelect, sele
       if (!fitted.current && points.length) { instance.fitBounds(L.latLngBounds(points), { padding: [45, 45], maxZoom: 15 }); fitted.current = true; }
       const selectionKey = selected ? `${selected.kind}:${selected.id}` : "";
       const marker = following && followId ? markers.find(item => item.id === followId) : selected?.kind === "marker" ? markers.find(item => item.id === selected.id) : undefined;
-      const route = selected?.kind === "route" ? routes.find(item => item.id === selected.id) : undefined;
+      const route = selected?.kind === "route" ? routes.find(item => item.id === selected.id || item.selectionId === selected.id) : undefined;
       if (marker && (following || selectionKey !== lastSelection.current)) instance.panTo([marker.latitude, marker.longitude], { animate: true, duration: .5 });
       if (route && selectionKey !== lastSelection.current) instance.fitBounds(L.latLngBounds(route.coordinates), { padding: [50, 50], maxZoom: 16 });
       lastSelection.current = selectionKey;
     });
     return () => { disposed = true; };
-  }, [markers, routes, ready, selected, following, followId, zoom]);
+  }, [markers, routes, ready, selected, following, followId, zoom, replay]);
 
   useEffect(() => {
     if (!recenterKey || !map.current || !markers.length) return;

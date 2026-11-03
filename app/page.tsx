@@ -26,6 +26,7 @@ import {DeligoFinance} from "./components/DeligoFinance";
 import {MicrocreditWorkspace} from "./components/MicrocreditWorkspace";
 import {InboxWorkspace} from "./components/InboxWorkspace";
 import {ExecutiveOverviewDashboard} from "@/components/analytics/ExecutiveOverviewDashboard";
+import { WeatherWidget } from "@/components/WeatherWidget";
 import {PlatformExecutiveDashboard} from "@/components/analytics/PlatformExecutiveDashboard";
 import {UserTeamDashboard} from "@/components/analytics/UserTeamDashboard";
 import {OperationsSupportDashboard} from "@/components/analytics/OperationsSupportDashboard";
@@ -383,7 +384,7 @@ type DashboardData = {
 };
 type LiveMapMarker = OperationsMapMarker;
 type LiveMapData = { checkedAt: string; markers: LiveMapMarker[] };
-type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; updated_at:string; last_login_at:string|null; avatar_url?:string|null; biography?:string|null };
+ type ManagedEmployee = { id:string; employee_code:string; name:string; phone:string; job_title:string; department:string; department_code:string; role:string|null; requested_role:string|null; status:string; created_at:string; updated_at:string; last_login_at:string|null; avatar_url?:string|null; biography?:string|null; closureReports?:Array<{id:string;verification_code:string;generated_at:string;reason:string}> };
 type EmployeeHistory = { id:string; employee_id:string; action:string; created_at:string };
 type EmployeeAccess = { id:string; employee_id:string|null; event_type:string; occurred_at:string };
 type EmployeePermission = { id:string; employee_id:string; permission_code:string; allowed:boolean };
@@ -453,6 +454,11 @@ export function HQApp() {
   const [profileDepositBusy,setProfileDepositBusy]=useState(false);
   const depositInFlight=useRef(false);
   const [profileWithdrawal,setProfileWithdrawal]=useState<{walletId:string;amount:string;method:string;phone:string;busy:boolean}>({walletId:"",amount:"",method:"mpesa",phone:"",busy:false});
+  const [workerTermsData,setWorkerTermsData]=useState<Record<string,unknown>|null>(null);
+  const [workerTermsNotice,setWorkerTermsNotice]=useState("");
+  const [workerTermsBusy,setWorkerTermsBusy]=useState(false);
+  const [workerTermsExplicit,setWorkerTermsExplicit]=useState(false);
+  const [workerTermsReadEnd,setWorkerTermsReadEnd]=useState(false);
   const [notifications,setNotifications]=useState<FinanceRecord[]>([]);
   const [inboxUnreadCount,setInboxUnreadCount]=useState(0);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
@@ -762,6 +768,46 @@ export function HQApp() {
       setPersonalBalanceBreakdown(data.reconciliation||null);
     }).catch(error => { setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
   }, [active, sessionUser?.id]);
+  useEffect(() => {
+    if (active !== "Meu Perfil" || !sessionUser) return;
+    let cancelled = false;
+    setWorkerTermsNotice("");
+    fetch("/api/worker-terms", { cache: "no-store" }).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(data.error || "Não foi possível carregar os termos."));
+       if (!cancelled) { setWorkerTermsData(data); setWorkerTermsReadEnd(false); setWorkerTermsExplicit(false); }
+    }).catch(error => { if (!cancelled) setWorkerTermsNotice(error instanceof Error ? error.message : "Termos indisponíveis."); });
+    return () => { cancelled = true; };
+  }, [active, sessionUser?.id]);
+  const acceptWorkerTerms = async () => {
+    const current = workerTermsData?.current as Record<string,unknown>|null;
+    if (!current?.id || !workerTermsReadEnd || !workerTermsExplicit) { setWorkerTermsNotice("Leia os termos até ao último parágrafo e confirme expressamente a aceitação."); return; }
+    setWorkerTermsBusy(true); setWorkerTermsNotice("");
+    try {
+      const response = await fetch("/api/worker-terms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ termsVersionId: current.id, accepted: true, acceptanceText: "Confirmo expressamente que li, compreendi e aceito esta versão dos Termos de trabalho e utilização da Central HQ." }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(data.error || "Não foi possível registar a aceitação."));
+      setWorkerTermsNotice("Aceitação registada. O documento oficial já pode ser descarregado.");
+      const refreshed = await fetch("/api/worker-terms", { cache: "no-store" });
+      if (refreshed.ok) setWorkerTermsData(await refreshed.json());
+      setWorkerTermsExplicit(false);
+    } catch (error) { setWorkerTermsNotice(error instanceof Error ? error.message : "Não foi possível registar a aceitação."); }
+    finally { setWorkerTermsBusy(false); }
+  };
+  const publishWorkerTerms = async () => {
+    const current = workerTermsData?.current as Record<string,unknown>|null;
+    if (!current?.id || !window.confirm("Confirma que a versão foi revista juridicamente e pode ser publicada para aceitação?")) return;
+    setWorkerTermsBusy(true); setWorkerTermsNotice("");
+    try {
+      const response = await fetch("/api/worker-terms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "publish", termsVersionId: current.id }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(String(data.error || "Não foi possível publicar a versão."));
+      const refreshed = await fetch("/api/worker-terms", { cache: "no-store" });
+      if (refreshed.ok) setWorkerTermsData(await refreshed.json());
+      setWorkerTermsNotice("Versão publicada. Cada trabalhador deverá aceitá-la expressamente.");
+    } catch (error) { setWorkerTermsNotice(error instanceof Error ? error.message : "Não foi possível publicar a versão."); }
+    finally { setWorkerTermsBusy(false); }
+  };
    const refreshNotifications=async()=>{if(notificationRefreshBusyRef.current)return;notificationRefreshBusyRef.current=true;try{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)}finally{notificationRefreshBusyRef.current=false}};
   useEffect(()=>{const refresh=()=>void refreshNotifications();window.addEventListener("hq-notifications-updated",refresh);return()=>window.removeEventListener("hq-notifications-updated",refresh)},[sessionUser?.id]);
   useEffect(() => {
@@ -815,7 +861,7 @@ export function HQApp() {
 
   useEffect(() => {
     if (!["Pessoas","Recursos Humanos"].includes(active)) return;
-    fetch("/api/employees", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => { setManagedEmployees(data.employees || []); setEmployeeHistory(data.history || []); setEmployeeAccess(data.access || []); setEmployeePermissions(data.permissions || []); }).catch(() => setManagedEmployees([]));
+     fetch("/api/employees", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => { const reports=Array.isArray(data.closureReports)?data.closureReports:[]; setManagedEmployees((data.employees || []).map((employee:ManagedEmployee)=>({...employee,closureReports:reports.filter((report:Record<string,unknown>)=>String(report.employee_id)===String(employee.id))}))); setEmployeeHistory(data.history || []); setEmployeeAccess(data.access || []); setEmployeePermissions(data.permissions || []); }).catch(() => setManagedEmployees([]));
   }, [active]);
 
   useEffect(() => { if(active!=="Recursos Humanos")return; fetch("/api/hr",{cache:"no-store"}).then(async response=>{if(!response.ok)throw new Error();return response.json()}).then(result=>setHrData(result.data||{})).catch(()=>setHrData({})); },[active]);
@@ -925,7 +971,7 @@ export function HQApp() {
     fetch("/api/audit", { cache:"no-store" }).then(async response => { if (!response.ok) throw new Error(); return response.json(); }).then(data => setAuditRecords(data.events || [])).catch(() => setAuditRecords([]));
   }, [active]);
 
-  const refreshEmployees = async () => { const response=await fetch("/api/employees",{cache:"no-store"}); if(response.ok){const data=await response.json();const employees=Array.isArray(data.employees)?data.employees:[];setManagedEmployees(employees);setEmployeeHistory(data.history||[]);setEmployeeAccess(data.access||[]);setEmployeePermissions(data.permissions||[]);setSelectedEmployee(current=>current?employees.find((employee:ManagedEmployee)=>employee.id===current.id)||current:current);return employees;} return []; };
+  const refreshEmployees = async () => { const response=await fetch("/api/employees",{cache:"no-store"}); if(response.ok){const data=await response.json();const reports=Array.isArray(data.closureReports)?data.closureReports:[];const employees=Array.isArray(data.employees)?data.employees.map((employee:ManagedEmployee)=>({...employee,closureReports:reports.filter((report:Record<string,unknown>)=>String(report.employee_id)===String(employee.id))})):[];setManagedEmployees(employees);setEmployeeHistory(data.history||[]);setEmployeeAccess(data.access||[]);setEmployeePermissions(data.permissions||[]);setSelectedEmployee(current=>current?employees.find((employee:ManagedEmployee)=>employee.id===current.id)||current:current);return employees;} return []; };
   useEffect(() => {
     if (!selectedEmployee?.phone) {
       setEmployeeLinkedAccounts([]);
@@ -1346,6 +1392,7 @@ if(active==="Operações de Campo")void refreshField();
             <span>⌕</span><span>Pesquisar em toda a Central…</span><kbd>⌘ K</kbd>
           </button>
           <div className="headerActions">
+            <WeatherWidget />
             <select aria-label="Plataforma actual" value={platform} onChange={(e) => setPlatform(e.target.value)}>
               {platforms.map((item) => <option key={item}>{item}</option>)}
             </select>
@@ -1709,6 +1756,17 @@ if(active==="Operações de Campo")void refreshField();
                 <div><span>Email corporativo</span><strong>{sessionUser?.email||"—"}</strong></div>
                 <div><span>Último acesso</span><strong>{sessionUser?.last_login_at?new Date(sessionUser.last_login_at).toLocaleString("pt-MZ"):"—"}</strong></div>
               </div>
+            </article>
+            <article className="profileTermsCard">
+              <div className="profileSectionTitle"><span>DOCUMENTOS E TERMOS</span><h2>Termos aceites</h2><p>Leia a versão oficial e confirme expressamente; chegar ao fim não aceita o documento automaticamente.</p></div>
+              {workerTermsNotice&&<div className="profileNotice">{workerTermsNotice}</div>}
+              {workerTermsData?.current ? <>
+                <div className="workerTermsSummary"><strong>{String((workerTermsData.current as Record<string,unknown>).title||"Termos de trabalho")}</strong><span>Versão {String((workerTermsData.current as Record<string,unknown>).version||"—")} · Estado: {String((workerTermsData.current as Record<string,unknown>).status||"—")}</span></div>
+                <details open className={`workerTermsReader${workerTermsReadEnd?" readComplete":""}`} onScroll={event=>{const target=event.currentTarget;if(target.scrollTop+target.clientHeight>=target.scrollHeight-8)setWorkerTermsReadEnd(true)}}><summary>Ler termos completos · {workerTermsReadEnd?"leitura concluída":"deslize até ao último parágrafo"}</summary><p>{String(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>|undefined)?.intro||"")}</p>{Array.isArray(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>|undefined)?.sections)&&(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>).sections as Array<Record<string,unknown>>).map(section=><section key={String(section.title)}><h3>{String(section.title||"")}</h3><p>{String(section.text||"")}</p></section>)}</details>
+                {String((workerTermsData.current as Record<string,unknown>).status||"") === "active" && <div className="workerTermsAcceptance"><label><input type="checkbox" checked={workerTermsExplicit} onChange={event=>setWorkerTermsExplicit(event.target.checked)} /> <span>Confirmo expressamente que li, compreendi e aceito esta versão.</span></label><button className="primaryAction" type="button" disabled={workerTermsBusy||!workerTermsExplicit} onClick={()=>void acceptWorkerTerms()}>{workerTermsBusy?"A registar…":"Aceitar termos"}</button></div>}
+                {String((workerTermsData.current as Record<string,unknown>).status||"") !== "active" && <div className="workerTermsPending">A versão está a aguardar validação jurídica e publicação pelo CEO. Não há aceitação automática.{isFullAdmin&&<button type="button" className="secondaryAction" disabled={workerTermsBusy} onClick={()=>void publishWorkerTerms()}>{workerTermsBusy?"A publicar…":"Publicar após validação jurídica"}</button>}</div>}
+              </> : <div className="peopleEmpty">Nenhuma versão de termos disponível.</div>}
+              {Array.isArray(workerTermsData?.documents) && workerTermsData.documents.length>0 && <div className="workerTermsDocuments"><h3>Documentos aceites</h3>{(workerTermsData.documents as Array<Record<string,unknown>>).map(document=><div className="workerTermDocument" key={String(document.id)}><div><strong>Termos · versão {String((workerTermsData.versions as Array<Record<string,unknown>>||[]).find(version=>String(version.id)===String(document.terms_version_id))?.version||"—")}</strong><span>Aceite/gerado em {String(document.generated_at||"—")} · Código {String(document.verification_code||"—")}</span></div><a href={`/api/worker-terms/${encodeURIComponent(String(document.id))}`} target="_blank" rel="noreferrer">Descarregar PDF</a><a href={`/api/worker-terms/verify?code=${encodeURIComponent(String(document.verification_code || ""))}`} target="_blank" rel="noreferrer">Verificar</a></div>)}</div>}
             </article>
             <article className="profileBiographyCard">
               <div className="profileSectionTitle"><span>BIOGRAFIA</span><h2>Sobre mim</h2><p>Apresentação profissional visível no perfil.</p></div>

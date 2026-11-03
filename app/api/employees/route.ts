@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corporateActor, requireCorporatePermission, hqRpc, hqRest, hqServiceKey, supabaseUrl } from "@/lib/hq-server";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
+import { reportPdf } from "@/lib/report-export";
 
 const EMPLOYEE_CARGOS: Record<string, { role: string; department: string; title: string }> = {
   CEO: { role: "SUPER_ADMIN", department: "EXECUTIVE", title: "CEO e Fundador" },
@@ -38,6 +39,44 @@ function rpcErrorCode(error: unknown) {
   return (match?.[1] || message).toUpperCase();
 }
 
+function documentSigningSecret() {
+  return process.env.DELIGO_DOCUMENT_SIGNING_SECRET?.trim() || hqServiceKey();
+}
+
+function signedPayload(payload: Record<string, unknown>) {
+  const secret = documentSigningSecret();
+  if (!secret) throw new Error("DOCUMENT_SIGNING_SECRET_NOT_CONFIGURED");
+  return createHmac("sha256", secret).update(JSON.stringify(payload)).digest("hex");
+}
+
+function closureCode() {
+  return `DLG-CLOSURE-${randomBytes(6).toString("hex").toUpperCase()}`;
+}
+
+async function safeHqRows(path: string) {
+  try { return await hqRest(path) as Array<Record<string, unknown>>; } catch { return []; }
+}
+
+async function createClosureReport(employeeId: string, actorEmployeeId: string, reason: string) {
+  const [employeeRows, accessRows, changeRows, workflowRows] = await Promise.all([
+    safeHqRows(`employees?id=eq.${encodeURIComponent(employeeId)}&select=id,employee_code,display_name,name,phone_e164,job_title,department,status,offboarded_at,created_at`),
+    safeHqRows(`employee_access_history?employee_id=eq.${encodeURIComponent(employeeId)}&select=*&order=occurred_at.asc`),
+    safeHqRows(`employee_change_history?employee_id=eq.${encodeURIComponent(employeeId)}&select=*&order=created_at.asc`),
+    safeHqRows(`workforce_requests?employee_id=eq.${encodeURIComponent(employeeId)}&select=*&order=created_at.asc`),
+  ]);
+  const generatedAt = new Date().toISOString();
+  const payload: Record<string, unknown> = {
+    document_kind: "employment_closure",
+    generated_at: generatedAt,
+    employee: employeeRows[0] || { id: employeeId },
+    actor_employee_id: actorEmployeeId,
+    reason,
+    reports: { access_history: accessRows, change_history: changeRows, workforce_requests: workflowRows },
+  };
+  const inserted = await hqRest("employee_closure_reports", { method: "POST", body: JSON.stringify({ employee_id: employeeId, actor_employee_id: actorEmployeeId, reason, verification_code: closureCode(), integrity_hash: signedPayload(payload), canonical_payload: payload }) }) as Array<Record<string, unknown>>;
+  return inserted[0] || inserted;
+}
+
 async function findAuthUserByPhone(serviceKey: string, phone: string) {
   const response = await fetch(`${supabaseUrl()}/auth/v1/admin/users?page=1&per_page=1000`, {
     headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
@@ -58,16 +97,17 @@ export async function GET() {
   if (!actor) return NextResponse.json({ error: "Sem permissão para consultar colaboradores." }, { status: 403 });
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const headers = serviceKey ? { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Accept-Profile": "hq" } : null;
-  const [employees, historyResponse, accessResponse, permissionResponse, profilesResponse] = await Promise.all([
+  const [employees, historyResponse, accessResponse, permissionResponse, profilesResponse, closureResponse] = await Promise.all([
     hqRpc("hq_employee_directory_v1"),
     headers ? fetch(`${supabaseUrl()}/rest/v1/employee_change_history?select=*&order=created_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
     headers ? fetch(`${supabaseUrl()}/rest/v1/employee_access_log?select=*&order=occurred_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
     headers ? fetch(`${supabaseUrl()}/rest/v1/employee_permission_overrides?select=*&order=created_at.desc&limit=250`, { headers, cache: "no-store" }) : null,
     headers ? fetch(`${supabaseUrl()}/rest/v1/employee_display_profiles?select=employee_id,avatar_url,biography&limit=500`, { headers, cache: "no-store" }) : null,
+    headers ? fetch(`${supabaseUrl()}/rest/v1/employee_closure_reports?select=id,employee_id,reason,verification_code,integrity_hash,generated_at&order=generated_at.desc&limit=500`, { headers, cache: "no-store" }) : null,
   ]);
   const profiles=profilesResponse?.ok?await profilesResponse.json() as Array<{employee_id:string;avatar_url?:string|null;biography?:string|null}>:[];
   const profileByEmployee=new Map(profiles.map(profile=>[profile.employee_id,profile]));
-  return NextResponse.json({ actor, employees:(employees||[]).map((employee:Record<string,unknown>)=>({...employee,name:employee.name||employee.display_name||"Trabalhador",job_title:employee.job_title||employee.title||null,department_name:employee.department_name||employee.department||null,avatar_url:profileByEmployee.get(String(employee.id))?.avatar_url||null,biography:profileByEmployee.get(String(employee.id))?.biography||null})), history: historyResponse?.ok ? await historyResponse.json() : [], access: accessResponse?.ok ? await accessResponse.json() : [], permissions: permissionResponse?.ok ? await permissionResponse.json() : [] }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json({ actor, employees:(employees||[]).map((employee:Record<string,unknown>)=>({...employee,name:employee.name||employee.display_name||"Trabalhador",job_title:employee.job_title||employee.title||null,department_name:employee.department_name||employee.department||null,avatar_url:profileByEmployee.get(String(employee.id))?.avatar_url||null,biography:profileByEmployee.get(String(employee.id))?.biography||null})), history: historyResponse?.ok ? await historyResponse.json() : [], access: accessResponse?.ok ? await accessResponse.json() : [], permissions: permissionResponse?.ok ? await permissionResponse.json() : [], closureReports: closureResponse?.ok ? await closureResponse.json() : [] }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(request: NextRequest) {
@@ -151,15 +191,29 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok:true });
   }
   try {
-    const target=(await hqRest(`employees?id=eq.${encodeURIComponent(employeeId)}&select=id,employee_code,status`))?.[0];
+    const target=(await hqRest(`employees?id=eq.${encodeURIComponent(employeeId)}&select=id,employee_code,status,auth_user_id,display_name`))?.[0];
     if(!target)return NextResponse.json({error:"Trabalhador não encontrado."},{status:404});
     if(target.employee_code==="DG-0001"||employeeId===actor.employee_id)return NextResponse.json({error:"A conta do CEO e a própria conta estão protegidas."},{status:403});
     const canonicalActor=(await hqRest(`employees?id=eq.${encodeURIComponent(actor.employee_id)}&select=auth_user_id`))?.[0];
     if(!canonicalActor?.auth_user_id)return NextResponse.json({error:"Não foi possível validar a identidade administrativa."},{status:503});
     const result=await hqRpc("hq_set_employee_status_v1",{p_actor_auth_user_id:canonicalActor.auth_user_id,p_employee_id:employeeId,p_action:action});
-    // Central access is scoped by the employee status on every request.
-    // Do not ban a shared Auth identity used by the ecosystem's other apps.
-    return NextResponse.json({employee:result});
+    let sessionsRevoked = false;
+    if (action === "suspend" || action === "archive") {
+      const serviceKey = hqServiceKey();
+      if (serviceKey && target.auth_user_id) {
+        const logoutResponse = await fetch(`${supabaseUrl()}/auth/v1/admin/users/${encodeURIComponent(String(target.auth_user_id))}/logout`, { method: "POST", headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` }, signal: AbortSignal.timeout(8_000) }).catch(() => null);
+        sessionsRevoked = Boolean(logoutResponse?.ok);
+      }
+    }
+    await hqRest("employee_access_history", { method: "POST", body: JSON.stringify({ employee_id: employeeId, actor_employee_id: actor.employee_id, event_type: action === "archive" ? "access_archived" : action === "suspend" ? "access_suspended" : "access_reactivated", previous_status: target.status, new_status: action === "archive" ? "archived" : action === "suspend" ? "suspended" : "active", reason: "Alteração administrativa de acesso", metadata: { sessions_revoked: sessionsRevoked, auth_user_id_present: Boolean(target.auth_user_id) } }) }).catch(error => console.error("EMPLOYEE_ACCESS_HISTORY_FAILED", error instanceof Error ? error.message : "unknown"));
+    let closureReport: Record<string, unknown> | null = null;
+    if (action === "archive") {
+      try { closureReport = await createClosureReport(employeeId, actor.employee_id, "Encerramento do vínculo e revogação do acesso à Central."); }
+      catch (error) { console.error("EMPLOYEE_CLOSURE_REPORT_FAILED", error instanceof Error ? error.message : "unknown"); }
+    }
+    // The employee status remains the authoritative Central gate. We do not
+    // delete or ban a shared Auth identity used by the ecosystem's apps.
+    return NextResponse.json({employee:result, closureReport, accessRevocation:{central:true,sessionsRevoked,warning:sessionsRevoked?null:"A sessão Auth não confirmou revogação; os módulos devem continuar a validar o estado do trabalhador."}});
   }catch(error){
     const code=rpcErrorCode(error);
     if(code.includes("FOUNDER_ACCOUNT_PROTECTED")||code.includes("SUPER_ADMIN_APPROVAL_REQUIRED"))return NextResponse.json({error:"Só o CEO pode alterar estes acessos; a conta do fundador está protegida."},{status:403});

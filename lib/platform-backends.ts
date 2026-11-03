@@ -71,7 +71,9 @@ export async function platformFunction(platform: PlatformBackend, name: string, 
 }
 
 export async function platformRpc(platform: PlatformBackend, name: string, body: Record<string, unknown> = {}) {
-  const response = await fetch(`${backendUrl(platform)}/rest/v1/rpc/${name}`, { method: "POST", headers: headers(platform, true), body: JSON.stringify(body), cache: "no-store" });
+  const schema = platform === "mestre24" ? "mestre24" : platform === "sarca" ? "sarca" : null;
+  const schemaHeaders: Record<string, string> = schema ? { "Accept-Profile": schema, "Content-Profile": schema } : {};
+  const response = await fetch(`${backendUrl(platform)}/rest/v1/rpc/${name}`, { method: "POST", headers: { ...Object.fromEntries(headers(platform, true).entries()), ...schemaHeaders }, body: JSON.stringify(body), cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_RPC_${name}_FAILED`);
   return response.json();
 }
