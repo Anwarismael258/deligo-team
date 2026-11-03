@@ -35,7 +35,7 @@ function normalizeMozPhone(value: string | null | undefined) {
   return /^\+258\d{9}$/.test(normalized) ? normalized : null;
 }
 
-export async function corporateActor() {
+export async function corporateActor(options: { allowInvited?: boolean } = {}) {
   const anonKey = process.env.SUPABASE_ANON_KEY;
   const serviceKey = hqServiceKey();
   const token = (await cookies()).get("hq_access_token")?.value;
@@ -67,14 +67,14 @@ export async function corporateActor() {
     }
   }
   console.info("HQ_SESSION_ACTOR", { identityStatus: "ok", phonePresent: Boolean(user.phone), primaryStatus: context?.status || null, actorRole: context?.role || null });
-  if (!context || context.status !== "active") return null;
+  if (!context || (context.status !== "active" && !(options.allowInvited && context.status === "invited"))) return null;
   return { authUserId: user.id, ...context, role: canonicalCorporateRole(context.role) } as { authUserId: string; employee_id: string; employee_code: string; name: string; role: string; status: string };
 }
 
 export type CorporateAuthorization = {actor:NonNullable<Awaited<ReturnType<typeof corporateActor>>>;permissions:string[];platformIds:string[];platformSlugs:string[];isSuperAdmin:boolean};
 
-export async function corporateAuthorization():Promise<CorporateAuthorization|null>{
-  const actor=await corporateActor();
+export async function corporateAuthorization(options: { allowInvited?: boolean } = {}):Promise<CorporateAuthorization|null>{
+  const actor=await corporateActor(options);
   if(!actor)return null;
   try {
     const result=await hqRpc("hq_actor_authorization_v1",{p_employee_id:actor.employee_id}) as {permissions?:string[];platform_ids?:string[];platform_slugs?:string[];is_super_admin?:boolean}|null;

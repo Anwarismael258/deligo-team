@@ -793,9 +793,14 @@ export function HQApp() {
       const response = await fetch("/api/worker-terms", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ termsVersionId: current.id, accepted: true, acceptanceText: "Confirmo expressamente que li, compreendi e aceito esta versão dos Termos de trabalho e utilização da Central HQ." }) });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(data.error || "Não foi possível registar a aceitação."));
-      setWorkerTermsNotice("Aceitação registada. O documento oficial já pode ser descarregado.");
+      setWorkerTermsNotice(data.accountStatus === "active" ? "Termos aceites. A conta foi activada e o acesso está disponível." : "Aceitação registada. O documento oficial já pode ser descarregado.");
       const refreshed = await fetch("/api/worker-terms", { cache: "no-store" });
       if (refreshed.ok) setWorkerTermsData(await refreshed.json());
+      const session = await fetch("/api/auth/session", { cache: "no-store", credentials: "include" });
+      if (session.ok) {
+        const sessionData = await session.json();
+        if (sessionData.user) { setSessionUser(sessionData.user as SessionUser); setSessionRole(String(sessionData.user.hq_role || "")); }
+      }
       setWorkerTermsExplicit(false);
       setWorkerTermsGate(false);
     } catch (error) { setWorkerTermsNotice(error instanceof Error ? error.message : "Não foi possível registar a aceitação."); }

@@ -52,11 +52,6 @@ export async function POST(request:NextRequest){
       if(actor) {
         // The security-definer RPC is the canonical HQ lookup. It also handles
         // an existing Auth identity without relying on REST schema exposure.
-        // Completing OTP is the first-access activation point.
-        if(String(actor.status||"").toLowerCase()==="invited"){
-          const activationResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?id=eq.${encodeURIComponent(String(actor.employee_id))}&status=eq.invited`,{method:"PATCH",headers:{...employeeHeaders,"Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({status:"active",last_login_at:new Date().toISOString()}),cache:"no-store",signal:AbortSignal.timeout(5000)});
-          if(activationResponse.ok){ const activated=await activationResponse.json() as Array<Record<string,unknown>>; actor=activated[0]||{...actor,status:"active"}; }
-        }
       } else {
       // The phone used for OTP is the canonical identity. Query it first so a
       // stale or missing Auth link cannot block an otherwise valid HQ worker.
@@ -68,10 +63,7 @@ export async function POST(request:NextRequest){
       }
       if(contextResponse.ok){
         const candidate=rows[0];
-        if(String(candidate?.status||"").toLowerCase() === "invited"){
-          const activationResponse=await fetch(`${supabaseUrl()}/rest/v1/employees?id=eq.${encodeURIComponent(String(candidate.id))}&status=eq.invited`,{method:"PATCH",headers:{apikey:serviceKey,"Accept-Profile":"hq","Content-Profile":"hq","Content-Type":"application/json",Prefer:"return=representation"},body:JSON.stringify({status:"active",last_login_at:new Date().toISOString()}),cache:"no-store",signal:AbortSignal.timeout(5000)});
-          if(activationResponse.ok){ const activated=await activationResponse.json() as Array<Record<string,unknown>>; actor=activated[0]||null; }
-        } else actor=candidate||null;
+        actor=candidate||null;
       }
       }
     }

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { corporateAuthorization, hqRest } from "@/lib/hq-server";
 
 export async function GET() {
-  const authorization=await corporateAuthorization(),actor=authorization?.actor;
+  const authorization=await corporateAuthorization({ allowInvited: true }),actor=authorization?.actor;
   if(!actor||!authorization)return NextResponse.json({authenticated:false},{status:401});
   let employee: Record<string, unknown>|null=null;
   try {
