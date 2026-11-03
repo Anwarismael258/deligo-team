@@ -459,6 +459,7 @@ export function HQApp() {
   const [workerTermsBusy,setWorkerTermsBusy]=useState(false);
   const [workerTermsExplicit,setWorkerTermsExplicit]=useState(false);
   const [workerTermsReadEnd,setWorkerTermsReadEnd]=useState(false);
+  const [workerTermsGate,setWorkerTermsGate]=useState(false);
   const [notifications,setNotifications]=useState<FinanceRecord[]>([]);
   const [inboxUnreadCount,setInboxUnreadCount]=useState(0);
   const [notificationsOpen,setNotificationsOpen]=useState(false);
@@ -769,16 +770,21 @@ export function HQApp() {
     }).catch(error => { setProfileWalletNotice(error instanceof Error ? error.message : "Carteira indisponível."); });
   }, [active, sessionUser?.id]);
   useEffect(() => {
-    if (active !== "Meu Perfil" || !sessionUser) return;
+    if (!sessionUser) return;
     let cancelled = false;
     setWorkerTermsNotice("");
     fetch("/api/worker-terms", { cache: "no-store" }).then(async response => {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(String(data.error || "Não foi possível carregar os termos."));
-       if (!cancelled) { setWorkerTermsData(data); setWorkerTermsReadEnd(false); setWorkerTermsExplicit(false); }
+       if (!cancelled) {
+         setWorkerTermsData(data); setWorkerTermsReadEnd(false); setWorkerTermsExplicit(false);
+         const current = data.current as Record<string,unknown>|null;
+         const accepted = Array.isArray(data.acceptances) && data.acceptances.some((item:Record<string,unknown>)=>String(item.terms_version_id)===String(current?.id));
+         setWorkerTermsGate(String(current?.status||"")==="active" && !accepted);
+       }
     }).catch(error => { if (!cancelled) setWorkerTermsNotice(error instanceof Error ? error.message : "Termos indisponíveis."); });
     return () => { cancelled = true; };
-  }, [active, sessionUser?.id]);
+  }, [sessionUser?.id]);
   const acceptWorkerTerms = async () => {
     const current = workerTermsData?.current as Record<string,unknown>|null;
     if (!current?.id || !workerTermsReadEnd || !workerTermsExplicit) { setWorkerTermsNotice("Leia os termos até ao último parágrafo e confirme expressamente a aceitação."); return; }
@@ -791,6 +797,7 @@ export function HQApp() {
       const refreshed = await fetch("/api/worker-terms", { cache: "no-store" });
       if (refreshed.ok) setWorkerTermsData(await refreshed.json());
       setWorkerTermsExplicit(false);
+      setWorkerTermsGate(false);
     } catch (error) { setWorkerTermsNotice(error instanceof Error ? error.message : "Não foi possível registar a aceitação."); }
     finally { setWorkerTermsBusy(false); }
   };
@@ -1418,6 +1425,7 @@ if(active==="Operações de Campo")void refreshField();
           </div>
         </header>
         {notificationToast&&<div className="notificationToast" role="alert"><button className="notificationToastMain" onClick={()=>{if(!notificationToast.read_at)void markNotifications(String(notificationToast.id));window.location.assign(notificationHref(notificationToast))}}><span className="notificationToastKicker">{notificationPlatformFor(notificationToast)} · novo aviso</span><strong>{notificationSummary(notificationToast)}</strong><small>{notificationActionLabel(notificationToast)}</small></button><button className="notificationToastClose" aria-label="Fechar aviso" onClick={()=>setNotificationToast(null)}>×</button></div>}
+        {workerTermsGate && workerTermsData?.current && <div className="workerTermsGate" role="dialog" aria-modal="true" aria-labelledby="worker-terms-gate-title"><div className="workerTermsGateCard"><span className="eyebrow">INTEGRAÇÃO OBRIGATÓRIA</span><h2 id="worker-terms-gate-title">Leia e aceite os termos da Central</h2><p>Para continuar, leia esta versão até ao último parágrafo e confirme expressamente a aceitação. Chegar ao fim não aceita automaticamente.</p><details open className={`workerTermsReader${workerTermsReadEnd?" readComplete":""}`} onScroll={(event)=>{const target=event.currentTarget;if(target.scrollTop+target.clientHeight>=target.scrollHeight-8)setWorkerTermsReadEnd(true)}}><summary>{workerTermsReadEnd?"Leitura concluída":"Deslize até ao último parágrafo"}</summary><p>{String(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>|undefined)?.intro||"")}</p>{Array.isArray(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>|undefined)?.sections)&&(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>).sections as Array<Record<string,unknown>>).map(section=><section key={String(section.title)}><h3>{String(section.title||"")}</h3><p>{String(section.text||"")}</p></section>)}</details><label className="workerTermsGateCheck"><input type="checkbox" checked={workerTermsExplicit} disabled={!workerTermsReadEnd} onChange={event=>setWorkerTermsExplicit(event.target.checked)} /><span>Confirmo expressamente que li, compreendi e aceito esta versão.</span></label><button className="primaryAction" type="button" disabled={workerTermsBusy||!workerTermsReadEnd||!workerTermsExplicit} onClick={()=>void acceptWorkerTerms()}>{workerTermsBusy?"A registar…":"Aceitar e continuar"}</button>{workerTermsNotice&&<div className="profileNotice">{workerTermsNotice}</div>}</div></div>}
 
         <div className={`content ${routeTransition ? "routeTransitionActive" : ""} ${["Caixa de Entrada","Operações de Campo","Apoio ao Cliente","Mapa operacional","Centro de Notificações"].includes(active) ? "reconstructedModuleShell" : ""}`}>
           <div className="eyebrow"><span>HQ</span> / {displayModuleLabel(active)}</div>
@@ -1762,7 +1770,7 @@ if(active==="Operações de Campo")void refreshField();
               {workerTermsNotice&&<div className="profileNotice">{workerTermsNotice}</div>}
               {workerTermsData?.current ? <>
                 <div className="workerTermsSummary"><strong>{String((workerTermsData.current as Record<string,unknown>).title||"Termos de trabalho")}</strong><span>Versão {String((workerTermsData.current as Record<string,unknown>).version||"—")} · Estado: {String((workerTermsData.current as Record<string,unknown>).status||"—")}</span></div>
-                <details open className={`workerTermsReader${workerTermsReadEnd?" readComplete":""}`} onScroll={event=>{const target=event.currentTarget;if(target.scrollTop+target.clientHeight>=target.scrollHeight-8)setWorkerTermsReadEnd(true)}}><summary>Ler termos completos · {workerTermsReadEnd?"leitura concluída":"deslize até ao último parágrafo"}</summary><p>{String(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>|undefined)?.intro||"")}</p>{Array.isArray(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>|undefined)?.sections)&&(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>).sections as Array<Record<string,unknown>>).map(section=><section key={String(section.title)}><h3>{String(section.title||"")}</h3><p>{String(section.text||"")}</p></section>)}</details>
+                <details open className={`workerTermsReader${workerTermsReadEnd?" readComplete":""}`} onScroll={(event)=>{const target=event.currentTarget;if(target.scrollTop+target.clientHeight>=target.scrollHeight-8)setWorkerTermsReadEnd(true)}}><summary>Ler termos completos · {workerTermsReadEnd?"leitura concluída":"deslize até ao último parágrafo"}</summary><p>{String(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>|undefined)?.intro||"")}</p>{Array.isArray(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>|undefined)?.sections)&&(((workerTermsData.current as Record<string,unknown>).body as Record<string,unknown>).sections as Array<Record<string,unknown>>).map(section=><section key={String(section.title)}><h3>{String(section.title||"")}</h3><p>{String(section.text||"")}</p></section>)}</details>
                 {String((workerTermsData.current as Record<string,unknown>).status||"") === "active" && <div className="workerTermsAcceptance"><label><input type="checkbox" checked={workerTermsExplicit} onChange={event=>setWorkerTermsExplicit(event.target.checked)} /> <span>Confirmo expressamente que li, compreendi e aceito esta versão.</span></label><button className="primaryAction" type="button" disabled={workerTermsBusy||!workerTermsExplicit} onClick={()=>void acceptWorkerTerms()}>{workerTermsBusy?"A registar…":"Aceitar termos"}</button></div>}
                 {String((workerTermsData.current as Record<string,unknown>).status||"") !== "active" && <div className="workerTermsPending">A versão está a aguardar validação jurídica e publicação pelo CEO. Não há aceitação automática.{isFullAdmin&&<button type="button" className="secondaryAction" disabled={workerTermsBusy} onClick={()=>void publishWorkerTerms()}>{workerTermsBusy?"A publicar…":"Publicar após validação jurídica"}</button>}</div>}
               </> : <div className="peopleEmpty">Nenhuma versão de termos disponível.</div>}
