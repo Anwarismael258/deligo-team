@@ -32,11 +32,11 @@ async function sarcaRest(key: string, path: string, init: RequestInit = {}) {
 }
 
 async function canManage() {
-  for (const permission of ["platform.manage", "finance.manage", "operations.manage"]) {
-    const authorization = await requireCorporatePermission(permission, "sarca");
-    if (authorization) return authorization;
-  }
-  return null;
+  const authorization = await requireCorporatePermission("finance.manage", "sarca");
+  if (!authorization) return null;
+  return ["SUPER_ADMIN", "FINANCE"].includes(authorization.actor.role)
+    ? authorization
+    : null;
 }
 
 export async function GET() {
