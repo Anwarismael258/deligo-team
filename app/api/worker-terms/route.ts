@@ -33,7 +33,7 @@ function clientIp(request: NextRequest) {
 }
 
 async function employeeFor(actorId: string) {
-  const rows = await hqRest(`employees?id=eq.${encodeURIComponent(actorId)}&select=id,employee_code,display_name,name,phone_e164,status` ) as Array<Record<string, unknown>>;
+  const rows = await hqRest(`employees?id=eq.${encodeURIComponent(actorId)}&select=id,employee_code,display_name,phone_e164,status` ) as Array<Record<string, unknown>>;
   return rows?.[0] || null;
 }
 
