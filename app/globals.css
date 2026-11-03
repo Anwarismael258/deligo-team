@@ -341,7 +341,7 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell .employeeAdminRow{border-bottom-color:#294766;color:#eaf2ff}
 .shell .employeeAdminHeader{color:#9db6ce}
 .shell .employeeActions button,.shell .peopleAccessControls button{background:#12263d;border-color:#315174;color:#dbeaff}
-.shell .employeeProfileActions{display:none!important}
+.shell .employeeProfileActions{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 2px}
 .shell .employeeDetailPhone{display:block;margin-top:7px;color:#7feeff;font-size:11px;letter-spacing:.02em}
 .shell .employeeContactButton,.shell .employeeDangerButton{display:inline-flex;align-items:center;justify-content:center;border:1px solid #3c789c;border-radius:8px;background:#122d47;color:#eaf8ff;padding:8px 12px;font-size:9px;font-weight:800;text-decoration:none;cursor:pointer}
 .shell .employeeContactButton:hover,.shell .employeeContactButton:focus-visible{border-color:#38e8ff;background:#16415e}
