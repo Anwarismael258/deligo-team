@@ -639,6 +639,28 @@ export function HQApp() {
   const corporateLedgerNet=typeof corporateSummary?.corporate_ledger_net === "number" ? corporateSummary.corporate_ledger_net : null;
   const corporateLedgerOutflows=typeof corporateSummary?.corporate_ledger_outflows === "number" ? corporateSummary.corporate_ledger_outflows : null;
   const visibleNav = nav.filter(([, label]) => (currentPersona.modules.includes(label as never)||universalModules.has(label))&&!unpublishedModules.has(label)&&(!sessionUser||!modulePermission[label]||hasPermission(modulePermission[label])));
+  const commandModuleResults = useMemo(() => {
+    const query = commandQuery.trim().toLocaleLowerCase("pt-MZ");
+    if (query.length < 2) return [] as string[];
+    const aliases: Record<string, string> = {
+      "visão geral": "dashboard indicadores motor central eventos",
+      "plataformas": "operações pedidos viagens",
+      "utilizadores": "pessoas clientes restaurantes estafetas",
+      "equipa": "trabalhadores cargos acessos",
+      "finanças": "receitas despesas carteiras",
+      "caixa de entrada": "email correio mensagens inbox nominalia",
+      "apoio ao cliente": "apoio suporte tickets conversas atendimento",
+      "operações de campo": "campo kyc visitas missões parceiros",
+      "mapa operacional": "mapa localizações rotas entregas viagens",
+      "relatórios": "pdf csv métricas exportar",
+      "projectos e tarefas": "projectos tarefas trabalho atribuído",
+      "centro de notificações": "notificações avisos alertas",
+      "marketing": "campanhas conteúdos notícias",
+      "site institucional": "publicação institucional",
+      "vagas": "recrutamento candidaturas",
+    };
+    return visibleNav.map(([, label]) => label).filter(label => `${label} ${aliases[label.toLocaleLowerCase("pt-MZ")] || ""}`.toLocaleLowerCase("pt-MZ").includes(query)).slice(0, 8);
+  }, [commandQuery, visibleNav]);
   const unreadNotifications = notifications.filter(notification => !notification.read_at);
   const unreadCountFor = (label: string) => label === "Caixa de Entrada"
     ? inboxUnreadCount
@@ -1813,10 +1835,11 @@ if(active==="Operações de Campo")void refreshField();
 
       {commandOpen && <div className="modal" onClick={() => setCommandOpen(false)}>
         <div className="command" onClick={(e) => e.stopPropagation()}>
-          <input autoFocus placeholder="Pesquisar trabalhadores, plataformas, tickets…" />
-          <p>ACÇÕES RÁPIDAS</p>
-          {["Abrir Finanças", "Ver trabalhadores", "Abrir relatórios", "Estado do sistema"].map((item) => <button key={item} onClick={() => setCommandOpen(false)}>{item}<span>↵</span></button>)}
-          <div className="commandSearch"><input value={commandQuery} onChange={event => void searchGlobal(event.target.value)} placeholder="Pessoa, telefone ou email no ecossistema…" />{commandLoading && <small>A pesquisar…</small>}{commandResults.map(person => <button key={person.user_id} onClick={() => { setCommandOpen(false); setCommandQuery(""); setCommandResults([]); }}><strong>{person.full_name || person.display_name || "Conta Triunfal"}</strong><span>{person.primary_phone || person.primary_email || person.apps.map(app => app.name || app.slug).filter(Boolean).join(" · ")}</span></button>)}{commandQuery.trim().length >= 2 && !commandLoading && commandResults.length === 0 && <small>Nenhum vínculo autorizado encontrado.</small>}</div>
+          <input autoFocus value={commandQuery} onChange={event => void searchGlobal(event.target.value)} placeholder="Pesquisar módulos, pessoas, plataformas ou tickets…" />
+          {commandQuery.trim().length < 2 ? <><p>ACÇÕES RÁPIDAS</p>{["Finanças", "Equipa", "Relatórios", "Centro de Notificações"].filter(item => visibleNav.some(([, label]) => label === item)).map(item => <button key={item} onClick={() => { navigate(item); setCommandOpen(false); }}>{item}<span>↵</span></button>)}</> : <>
+            {commandModuleResults.length > 0 && <div className="commandSection"><p>MÓDULOS AUTORIZADOS · {sessionRole || "perfil activo"}</p>{commandModuleResults.map(item => <button key={item} onClick={() => { navigate(item); setCommandOpen(false); setCommandQuery(""); setCommandResults([]); }}><strong>{displayModuleLabel(item)}</strong><span>Abrir módulo →</span></button>)}</div>}
+            <div className="commandSearch"><p>PESSOAS E PLATAFORMAS AUTORIZADAS</p>{commandLoading && <small>A pesquisar…</small>}{commandResults.map(person => <button key={person.user_id} onClick={() => { setCommandOpen(false); setCommandQuery(""); setCommandResults([]); }}><strong>{person.full_name || person.display_name || "Conta Triunfal"}</strong><span>{person.primary_phone || person.primary_email || person.apps.map(app => app.name || app.slug).filter(Boolean).join(" · ")}</span></button>)}{!commandLoading && commandResults.length === 0 && <small>Nenhum resultado autorizado para este perfil.</small>}</div>
+          </>}
           <small>A pesquisa mostra apenas os resultados permitidos pelo seu role.</small>
         </div>
       </div>}
