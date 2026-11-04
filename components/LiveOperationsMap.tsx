@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { LatLngTuple, LayerGroup, Map as LeafletMap } from "leaflet";
-import { clusterMapMarkers, mapColor, markerIconSvg, markerName } from "@/lib/map-presentation";
+import { clusterMapMarkers, escapeMapText, mapColor, markerIconSvg, markerName } from "@/lib/map-presentation";
 import "leaflet/dist/leaflet.css";
 import styles from "./LiveOperationsMap.module.css";
 
 export type OperationsMapMarker = {
   id: string; platform: string; role: string; workerId?: string; workerName?: string;
+  profileId?: string; profilePlatform?: string; profilePhotoUrl?: string;
   status?: "disponivel" | "ocupado" | "offline" | "em_servico";
   service?: string; latitude: number; longitude: number; updatedAt: string;
   origin?: string; destination?: string; operationStatus?: string; operationId?: string; locationKind?: "gps" | "endpoint" | "place";
@@ -107,9 +108,15 @@ export default function LiveOperationsMap({ markers, routes = [], onSelect, sele
         const pinColor=endpoint?(destination?"#b577ff":"#f8fafc"):mapColor(marker.platform);
         const age=Date.now()-Date.parse(marker.updatedAt);
         const signal=marker.locationKind&&marker.locationKind!=="gps"?"#f8fafc":!Number.isFinite(age)||age>600000?"#fb7185":age>120000?"#fbbf24":"#23e6b5";
-        const html = `<span class="${styles.pin} ${selected?.id === marker.id ? styles.selected : ""}" style="--pin-color:${pinColor};--signal-color:${signal}"><span class="${styles.glyph}">${markerIconSvg(endpoint?(destination?"destino":"origem"):marker.role,marker.platform)}</span><i class="${styles.signal}"></i></span>`;
+        const photo = marker.profilePhotoUrl && /^https?:\/\//i.test(marker.profilePhotoUrl) ? `<img class="${styles.profilePhoto}" src="${escapeMapText(marker.profilePhotoUrl)}" alt="" />` : `<span class="${styles.glyph}">${markerIconSvg(endpoint?(destination?"destino":"origem"):marker.role,marker.platform)}</span>`;
+        const html = `<span class="${styles.pin} ${selected?.id === marker.id ? styles.selected : ""}" style="--pin-color:${pinColor};--signal-color:${signal}">${photo}<i class="${styles.signal}"></i></span>`;
         const tooltip = document.createElement("span");
-        tooltip.textContent = `${name}\n${marker.role} · ${marker.platform}\n${marker.locationKind === "gps" || !marker.locationKind ? "Última posição" : "Registado"}: ${new Date(marker.updatedAt).toLocaleString("pt-MZ")}`;
+        tooltip.className = styles.profileTooltip;
+        if (marker.profilePhotoUrl && /^https?:\/\//i.test(marker.profilePhotoUrl)) {
+          const image = document.createElement("img"); image.src = marker.profilePhotoUrl; image.alt = ""; image.className = styles.tooltipPhoto;
+          tooltip.append(image);
+        }
+        const label = document.createElement("strong"); label.textContent = name; tooltip.append(label);
         const icon = L.divIcon({ className: "", html, iconSize: [34, 34], iconAnchor: [17, 17] });
         L.marker([marker.latitude, marker.longitude], { icon, title: `${name} · ${marker.role}`, keyboard: true, zIndexOffset: selected?.id === marker.id ? 1000 : 0 })
           .bindTooltip(tooltip, { direction: "top", offset: [0, -20] }).on("click", () => onSelectRef.current?.({ kind: "marker", id: marker.id })).addTo(group);

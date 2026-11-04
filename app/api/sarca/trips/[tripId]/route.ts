@@ -5,7 +5,7 @@ import { platformRest } from "@/lib/platform-backends";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, unknown>;
-type Point = { latitude: number; longitude: number; recordedAt: string; accuracyMeters: number | null; speedKmh: number | null; phase: string | null; source: "driver" | "rider"; isOfflineSync: boolean };
+type Point = { latitude: number; longitude: number; recordedAt: string; accuracyMeters: number | null; speedKmh: number | null; phase: string | null; segment: "to_pickup" | "trip" | "unknown"; source: "driver" | "rider"; isOfflineSync: boolean };
 
 const num = (value: unknown) => {
   const parsed = Number(value);
@@ -16,7 +16,12 @@ const validPoint = (row: Row, source: Point["source"]): Point | null => {
   const longitude = num(row.longitude);
   const recordedAt = String(row.recorded_at || row.recordedAt || "");
   if (latitude === null || longitude === null || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180 || !recordedAt || !Number.isFinite(Date.parse(recordedAt))) return null;
-  return { latitude, longitude, recordedAt, accuracyMeters: num(row.accuracy_meters), speedKmh: num(row.speed_kmh), phase: typeof row.phase === "string" ? row.phase : null, source, isOfflineSync: row.source === "offline_sync" || Boolean(row.is_offline_sync) };
+  const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata as Row : {};
+  const phase = typeof row.phase === "string" ? row.phase : typeof metadata.phase === "string" ? metadata.phase : null;
+  const segment = metadata.segment === "to_pickup" || phase === "driver_assigned" || phase === "driver_arriving"
+    ? "to_pickup"
+    : phase === "in_progress" || phase === "payment_pending" ? "trip" : "unknown";
+  return { latitude, longitude, recordedAt, accuracyMeters: num(row.accuracy_meters), speedKmh: num(row.speed_kmh), phase, segment, source, isOfflineSync: row.source === "offline_sync" || Boolean(row.is_offline_sync) };
 };
 const planned = (trip: Row) => {
   const aLat = num(trip.pickup_lat), aLng = num(trip.pickup_lng), bLat = num(trip.dropoff_lat), bLng = num(trip.dropoff_lng);
@@ -102,7 +107,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       identification: { tripId, passenger: { id: trip.passenger_user_id, name: passenger?.full_name || null, phone: passenger?.phone || null }, driver: { id: trip.driver_user_id, name: driver?.full_name || null, phone: driver?.phone || null }, vehicle: { id: trip.vehicle_id || vehicle?.id || null, make: vehicle?.make || null, model: vehicle?.model || null, color: vehicle?.color || null, plateNumber: vehicle?.plate_number || null } },
       locations: { pickup: { address: trip.pickup_address, latitude: trip.pickup_lat, longitude: trip.pickup_lng }, dropoff: { address: trip.dropoff_address, latitude: trip.dropoff_lat, longitude: trip.dropoff_lng }, stops: trip.intermediate_stops || [] },
       schedule: { requestedAt: trip.requested_at || trip.created_at, acceptedAt: trip.accepted_at || null, arrivedAt: timeline.find(item => item.type === "driver_arriving")?.at || null, startedAt: trip.started_at || null, completedAt: trip.completed_at || null, cancelledAt: trip.cancelled_at || null },
-      route: { plannedCoordinates, actualCoordinates: actualDriver.map(point => [point.latitude, point.longitude]), riderCoordinates: actualRider.map(point => [point.latitude, point.longitude]), points: actual, distanceMeters: Math.round(actualDistance), durationSeconds: actualDriver.length > 1 ? Math.max(0, Math.round((Date.parse(actualDriver.at(-1)!.recordedAt) - Date.parse(actualDriver[0].recordedAt)) / 1000)) : 0, gaps: actualDriver.slice(1).filter((point, index) => Date.parse(point.recordedAt) - Date.parse(actualDriver[index].recordedAt) > 120000).map((point, index) => ({ from: actualDriver[index].recordedAt, to: point.recordedAt, seconds: Math.round((Date.parse(point.recordedAt) - Date.parse(actualDriver[index].recordedAt)) / 1000) })) },
+      route: { plannedCoordinates, actualCoordinates: actualDriver.map(point => [point.latitude, point.longitude]), riderCoordinates: actualRider.map(point => [point.latitude, point.longitude]), points: actual, segments: { toPickup: actualDriver.filter(point => point.segment === "to_pickup"), trip: actualDriver.filter(point => point.segment === "trip") }, distanceMeters: Math.round(actualDistance), durationSeconds: actualDriver.length > 1 ? Math.max(0, Math.round((Date.parse(actualDriver.at(-1)!.recordedAt) - Date.parse(actualDriver[0].recordedAt)) / 1000)) : 0, gaps: actualDriver.slice(1).filter((point, index) => Date.parse(point.recordedAt) - Date.parse(actualDriver[index].recordedAt) > 120000).map((point, index) => ({ from: actualDriver[index].recordedAt, to: point.recordedAt, seconds: Math.round((Date.parse(point.recordedAt) - Date.parse(actualDriver[index].recordedAt)) / 1000) })) },
       values: { currency: trip.currency_code || "MZN", estimatedFareMinor: trip.estimated_fare_minor || null, finalFareMinor: trip.final_fare_minor || null, commissionMinor: trip.commission_minor || null, driverNetMinor: trip.driver_net_minor || null, tollAmountMinor: trip.toll_amount_minor || 0, commissionableFareMinor: trip.commissionable_fare_minor || null, tollDetails: trip.toll_details || [], paymentMethod: trip.payment_method || null, paymentStatus: trip.payment_status || null, fundsStatus: trip.funds_status || null },
       financial: { reservations: financialReservations || [], operations: financialOperations || [], tollReconciliations: tollReconciliations || [] },
       occurrences: { timeline, incidents: incidents || [], dispatchOffers: offers || [] },

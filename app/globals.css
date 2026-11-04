@@ -348,6 +348,7 @@ body{background-image:radial-gradient(circle at 82% -8%,#26355c55,transparent 34
 .shell .employeeDetailPhone{display:block;margin-top:7px;color:#7feeff;font-size:11px;letter-spacing:.02em}
 .shell .employeeContactButton,.shell .employeeDangerButton{display:inline-flex;align-items:center;justify-content:center;border:1px solid #3c789c;border-radius:8px;background:#122d47;color:#eaf8ff;padding:8px 12px;font-size:9px;font-weight:800;text-decoration:none;cursor:pointer}
 .shell .employeeContactButton:hover,.shell .employeeContactButton:focus-visible{border-color:#38e8ff;background:#16415e}
+.shell .employeeClosureReports{margin-top:14px;padding:12px;border:1px solid #315174;border-radius:10px;background:#0d263e;color:#eaf2ff}.shell .employeeClosureReports h3{margin:0 0 5px;color:#f4faff;font-size:12px}.shell .employeeClosureReports p{margin:0 0 9px;color:#9db6ce;font-size:9px}.shell .employeeClosureReports a{margin:4px 6px 0 0;font-size:9px}
 .shell .employeeDangerButton{border-color:#d45b6c;background:#451e32;color:#ffd8df}
 .shell .employeeDangerButton:hover,.shell .employeeDangerButton:focus-visible{border-color:#ff6b81;background:#63233b}
 .shell .employeeLinkedAccounts{margin-top:14px;padding:12px;border:1px solid #294766;border-radius:10px;background:#0d263e}

@@ -16,13 +16,14 @@ type TripAudit = {
   identification?: { tripId?: string; passenger?: Record<string, unknown>; driver?: Record<string, unknown>; vehicle?: Record<string, unknown> };
   locations?: { pickup?: Record<string, unknown>; dropoff?: Record<string, unknown>; stops?: unknown[] };
   schedule?: Record<string, unknown>;
-  route?: { plannedCoordinates?: [number, number][]; actualCoordinates?: [number, number][]; points?: Array<Record<string, unknown>>; distanceMeters?: number; durationSeconds?: number; gaps?: Array<Record<string, unknown>> };
+  route?: { plannedCoordinates?: [number, number][]; actualCoordinates?: [number, number][]; riderCoordinates?: [number, number][]; points?: Array<Record<string, unknown>>; segments?: { toPickup?: Array<Record<string, unknown>>; trip?: Array<Record<string, unknown>> }; distanceMeters?: number; durationSeconds?: number; gaps?: Array<Record<string, unknown>> };
   values?: Record<string, unknown>;
   financial?: { reservations?: Array<Record<string, unknown>>; operations?: Array<Record<string, unknown>>; tollReconciliations?: Array<Record<string, unknown>> };
   occurrences?: { timeline?: Array<Record<string, unknown>>; incidents?: Array<Record<string, unknown>>; dispatchOffers?: Array<Record<string, unknown>> };
-  telemetry?: { available?: boolean; pointCount?: number; driverPointCount?: number; gaps?: number };
+  telemetry?: { available?: boolean; pointCount?: number; driverPointCount?: number; riderPointCount?: number; gaps?: number };
 };
-type Replay = { coordinates: [number, number][]; progress: number };
+type Replay = { coordinates: [number, number][]; progress: number; playing: boolean; speed: 1 | 2 | 4 };
+type MapProfile = { platform: string; id: string; name: string };
 const platforms = ["Todas as plataformas", "DeliGo", "SARCA", "DeliGo Market"];
 const entities = ["Todas as entidades", "Pedidos", "Viagens", "Rotas", "Estafetas", "Drivers", "Riders", "Clientes", "Restaurantes"];
 const statuses = ["Todos os estados", "Disponível", "Ocupado", "Em serviço", "Offline"];
@@ -36,7 +37,7 @@ const entityMatches = (marker: OperationsMapMarker, entity: string) => { if (ent
 const auditTime = (value: unknown) => value ? new Date(String(value)).toLocaleString("pt-MZ", { dateStyle: "short", timeStyle: "short" }) : "—";
 const auditMoney = (value: unknown, currency = "MZN") => value == null ? "—" : `${(Number(value) / 100).toFixed(2)} ${currency}`;
 
-export function OperationsMapDashboard() {
+export function OperationsMapDashboard({ onOpenProfile }: { onOpenProfile?: (profile: MapProfile) => void }) {
   const room = useRef<HTMLDivElement | null>(null);
   const loading = useRef(false);
   const activeRequest = useRef<AbortController | null>(null);
@@ -107,7 +108,19 @@ export function OperationsMapDashboard() {
   const initialSelection=useRef(false);
   useEffect(()=>{if(!initialSelection.current&&listItems.length){initialSelection.current=true;setSelected({kind:listItems[0].kind,id:listItems[0].id})}},[listItems]);
   const pagination = pageOperations(listItems, page);
-  const selectOnMap = useCallback((value: Selection) => { setSelected(value);setFollowing(false);const index = listItems.findIndex(item => item.id === value.id || value.id.startsWith(item.id + ":"));if (index >= 0) setPage(Math.floor(index / mapPageSize)); }, [listItems]);
+  const selectOnMap = useCallback((value: Selection) => {
+    setSelected(value);setFollowing(false);
+    const index = listItems.findIndex(item => item.id === value.id || value.id.startsWith(item.id + ":"));if (index >= 0) setPage(Math.floor(index / mapPageSize));
+    if (value.kind === "marker" && onOpenProfile) {
+      const marker = markers.find(item => item.id === value.id);
+      const id = marker?.profileId || marker?.workerId;
+      if (id) {
+        const raw = String(marker?.profilePlatform || marker?.platform || "").toLowerCase();
+        const platform = raw.includes("market") || raw.includes("taomoz") ? "taomoz" : raw.includes("sarca") ? "sarca" : raw.includes("comun") ? "comunhao" : raw.includes("mestre") ? "mestre24" : "deligo";
+        onOpenProfile({ platform, id: String(id), name: markerName(marker) });
+      }
+    }
+  }, [listItems, markers, onOpenProfile]);
   const routeDriver = selectedRoute ? markers.find(marker => marker.id.startsWith(selectedRoute.id + ":") && /driver|motorista|estafeta|entregador/i.test(marker.role)) : undefined;
   const followedMarker = selectedMarker || routeDriver;
   const canFollow = Boolean(followedMarker && (!followedMarker.locationKind || followedMarker.locationKind === "gps"));
@@ -139,17 +152,32 @@ export function OperationsMapDashboard() {
     if (!next.length && base.coordinates.length >= 2) next.push(base);
     return [...filteredRoutes.filter(route => route.id !== base.id), ...next];
   }, [auditActual, auditPlanned, filteredRoutes, selectedRoute, selectedTripId, tripAudit]);
-  const startReplay = useCallback(() => {
+  const startReplay = useCallback((speed: 1 | 2 | 4 = 1, initialProgress = 0) => {
     if (auditActual.length < 2) return;
     stopReplay();
-    let progress = 0;
-    setReplay({ coordinates: auditActual, progress });
+    let progress = Math.min(1, Math.max(0, initialProgress));
+    setReplay({ coordinates: auditActual, progress, playing: true, speed });
     replayTimer.current = window.setInterval(() => {
-      progress = Math.min(1, progress + 0.02);
-      setReplay({ coordinates: auditActual, progress });
+      progress = Math.min(1, progress + (0.02 * speed));
+      setReplay({ coordinates: auditActual, progress, playing: progress < 1, speed });
       if (progress >= 1 && replayTimer.current) { window.clearInterval(replayTimer.current); replayTimer.current = null; }
-    }, 350);
+    }, Math.max(90, Math.round(350 / speed)));
   }, [auditActual, stopReplay]);
+  const pauseReplay = useCallback(() => {
+    if (replayTimer.current) { window.clearInterval(replayTimer.current); replayTimer.current = null; }
+    setReplay(value => value ? { ...value, playing: false } : value);
+  }, []);
+  const resumeReplay = useCallback(() => {
+    if (!replay) return;
+    if (replay.progress >= 1) return startReplay(replay.speed, 0);
+    startReplay(replay.speed, replay.progress);
+  }, [replay, startReplay]);
+  const stepReplay = useCallback((direction: 1 | -1) => {
+    if (!replay || replay.coordinates.length < 2) return;
+    pauseReplay();
+    const step = 1 / (replay.coordinates.length - 1);
+    setReplay({ ...replay, progress: Math.min(1, Math.max(0, replay.progress + direction * step)), playing: false });
+  }, [pauseReplay, replay]);
   const kpis = [["Entregas activas",filteredRoutes.filter(route=>["DeliGo","DeliGo Market"].includes(platformName(route.platform))).length,"cyan"],["Viagens em curso",filteredRoutes.filter(route=>platformName(route.platform)==="SARCA").length,"violet"],["Disponíveis",mapMarkers.filter(marker=>marker.status==="disponivel").length,"green"],["Sem sinal recente",mapMarkers.filter(marker=>(!marker.locationKind||marker.locationKind==="gps")&&(!Number.isFinite(Date.parse(marker.updatedAt))||Date.now()-Date.parse(marker.updatedAt)>600000)).length,"orange"]];
   const detail = (selectedMarker || selectedRoute) ? <div className="operationDetail"><div className="operationDetailHead"><div><span>SELECIONADO</span><strong>{selectedMarker ? markerName(selectedMarker) : selectedRoute?.label}</strong></div><button aria-label="Fechar detalhes" onClick={() => { setSelected(null);setFollowing(false);stopReplay(); }}>×</button></div><p>{selectedRoute ? platformName(selectedRoute.platform) : selectedMarker?.role + " · " + platformName(selectedMarker?.platform || "")}</p><dl>
     <dt>Responsável</dt><dd>{followedMarker?.workerName || selectedRoute?.workerName || "Sem responsável identificado"}</dd>
@@ -159,11 +187,12 @@ export function OperationsMapDashboard() {
     {followedMarker && <><dt>{followedMarker.locationKind === "endpoint" ? "Ponto registado" : "Última posição"}</dt><dd>{new Date(followedMarker.updatedAt).toLocaleTimeString("pt-MZ")}{(!followedMarker.locationKind || followedMarker.locationKind === "gps") && Date.now() - Date.parse(followedMarker.updatedAt) > 60000 ? " · " + gpsStatusLabel : ""}</dd></>}
     {selectedRoute && <><dt>Pontos</dt><dd>{selectedRoute.coordinates.length === 2 ? "Origem e destino" : `${selectedRoute.coordinates.length} posições registadas`}</dd></>}
     </dl><button className="operationFollow" disabled={!canFollow} onClick={() => setFollowing(value => !value)}>{following ? "Parar acompanhamento" : "Acompanhar no mapa"}</button>
-    {selectedTripId && tripAudit && <section className="tripAuditPanel" aria-label="Auditoria da viagem SARCA"><div className="tripAuditHead"><div><span>AUDITORIA SARCA</span><strong>Viagem {selectedTripId.slice(0, 8)}</strong></div><div className="tripAuditActions"><button className="operationFollow" disabled={auditActual.length < 2} onClick={() => replay ? stopReplay() : startReplay()}>{replay ? "Parar reprodução" : "Reproduzir percurso"}</button><a className="operationFollow" href={`/api/sarca/trips/${selectedTripId}?export=1`} download={`sarca-trip-${selectedTripId}.json`}>Exportar auditoria</a></div></div>
+    {selectedTripId && tripAudit && <section className="tripAuditPanel" aria-label="Auditoria da viagem SARCA"><div className="tripAuditHead"><div><span>AUDITORIA SARCA</span><strong>Viagem {selectedTripId.slice(0, 8)}</strong></div><div className="tripAuditActions"><button className="operationFollow" disabled={auditActual.length < 2} onClick={() => replay?.playing ? pauseReplay() : resumeReplay()}>{replay?.playing ? "Pausar" : replay ? "Continuar" : "Reproduzir percurso"}</button>{replay && <><button className="operationFollow" onClick={() => stepReplay(-1)} aria-label="Retroceder um ponto">◀</button><button className="operationFollow" onClick={() => stepReplay(1)} aria-label="Avançar um ponto">▶</button><select aria-label="Velocidade de reprodução" value={replay.speed} onChange={event => startReplay(Number(event.target.value) as 1 | 2 | 4, replay.progress)}><option value={1}>1×</option><option value={2}>2×</option><option value={4}>4×</option></select><button className="operationFollow" onClick={stopReplay}>Fechar reprodução</button></>}<a className="operationFollow" href={`/api/sarca/trips/${selectedTripId}?export=1`} download={`sarca-trip-${selectedTripId}.json`}>Exportar auditoria</a></div></div>
       <div className="tripAuditGrid"><div><b>Passageiro</b><span>{String(tripAudit.identification?.passenger?.name || "Não identificado")}</span></div><div><b>Motorista</b><span>{String(tripAudit.identification?.driver?.name || "Não identificado")}</span></div><div><b>Veículo / matrícula</b><span>{[tripAudit.identification?.vehicle?.make, tripAudit.identification?.vehicle?.model, tripAudit.identification?.vehicle?.plateNumber].filter(Boolean).join(" · ") || "Não registado"}</span></div><div><b>Pagamento</b><span>{String(tripAudit.values?.paymentStatus || "Não indicado")} · {String(tripAudit.values?.paymentMethod || "—")}</span></div></div>
       <div className="tripAuditSection"><b>Locais confirmados</b><span>Recolha: {String(tripAudit.locations?.pickup?.address || "—")}</span><span>Destino: {String(tripAudit.locations?.dropoff?.address || "—")}</span><small>{String(tripAudit.locations?.pickup?.latitude ?? "—")}, {String(tripAudit.locations?.pickup?.longitude ?? "—")} → {String(tripAudit.locations?.dropoff?.latitude ?? "—")}, {String(tripAudit.locations?.dropoff?.longitude ?? "—")}</small></div>
       <div className="tripAuditSection"><b>Linha do tempo</b>{Object.entries(tripAudit.schedule || {}).map(([key, value]) => <span key={key}><em>{key.replace(/([A-Z])/g, " $1")}</em>{auditTime(value)}</span>)}</div>
       <div className="tripAuditSection"><b>Rota e valores</b><span>Rota prevista: {auditPlanned.length ? `${auditPlanned.length} pontos` : "não registada"} · rota GPS real: {tripAudit.telemetry?.driverPointCount || 0} pontos</span><span>Distância real: {tripAudit.route?.distanceMeters ? `${Math.round(tripAudit.route.distanceMeters)} m` : "—"} · falhas: {tripAudit.route?.gaps?.length || tripAudit.telemetry?.gaps || 0}</span><span>Estimado: {auditMoney(tripAudit.values?.estimatedFareMinor, String(tripAudit.values?.currency || "MZN"))} · final: {auditMoney(tripAudit.values?.finalFareMinor, String(tripAudit.values?.currency || "MZN"))} · comissão: {auditMoney(tripAudit.values?.commissionMinor, String(tripAudit.values?.currency || "MZN"))}</span><span>Corrida sem portagem: {auditMoney(tripAudit.values?.commissionableFareMinor, String(tripAudit.values?.currency || "MZN"))} · portagens: {auditMoney(tripAudit.values?.tollAmountMinor, String(tripAudit.values?.currency || "MZN"))}</span><span>Pagamento: {String(tripAudit.values?.paymentMethod || "—")} · fundos: {String(tripAudit.values?.fundsStatus || "—")} · reservas: {tripAudit.financial?.reservations?.length || 0} · operações idempotentes: {tripAudit.financial?.operations?.length || 0}</span>{tripAudit.financial?.tollReconciliations?.map((item, index) => <span key={String(item.id || index)}>Reconciliação de portagem: {auditMoney(item.toll_amount_minor, String(tripAudit.values?.currency || "MZN"))} · {String(item.payment_channel || "unknown")} · {auditTime(item.created_at)}</span>)}</div>
+      <div className="tripAuditSection"><b>Telemetria por fase</b><span>Deslocação para recolha: {tripAudit.route?.segments?.toPickup?.length || 0} pontos</span><span>Viagem com passageiro: {tripAudit.route?.segments?.trip?.length || 0} pontos</span><span>Localização do passageiro partilhada: {tripAudit.telemetry?.riderPointCount || 0} posições</span><span>{(tripAudit.route?.gaps?.length || tripAudit.telemetry?.gaps) ? "Sem sinal indicado nos intervalos sem GPS." : "Sem intervalos de sinal assinalados."}</span></div>
       {tripAudit.occurrences?.incidents?.length ? <div className="tripAuditSection"><b>Ocorrências</b>{tripAudit.occurrences.incidents.map((incident, index) => <span key={String(incident.id || index)}>{String(incident.incident_type || incident.type || "Ocorrência")} · {String(incident.status || "aberta")} · {auditTime(incident.created_at)}</span>)}</div> : <div className="tripAuditSection"><b>Ocorrências</b><span>Nenhuma ocorrência registada.</span></div>}
     </section>}
     {selectedTripId && tripAuditError && <p className="operationsRoomNotice error">{tripAuditError}</p>}
