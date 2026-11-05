@@ -341,8 +341,8 @@ export async function GET() {
         if (origin && destination && tripHasAssignedRoute) {
           addMarker({ id: `sarca:trip:${tripId}:origin`, platform: "SARCA", role: "Viagem", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
           addMarker({ id: `sarca:trip:${tripId}:destination`, platform: "SARCA", role: "Destino", workerId: String(trip.passenger_user_id || ""), service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
-          if (driver) addMarker({ id: `sarca:trip:${tripId}:driver`, profileId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || "") || undefined, profilePlatform: "sarca", platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt: trip.driver_recorded_at || updatedAt });
-          if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, profileId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || "") || undefined, profilePlatform: "sarca", profilePhotoUrl: String(firstValue(trip, ["rider_avatar_url", "passenger_avatar_url", "rider_photo_url", "passenger_photo_url"]) || "") || undefined, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
+          if (driver) addMarker({ id: `sarca:trip:${tripId}:driver`, profileId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || "") || undefined, profilePlatform: "sarca", profilePhotoUrl: String(firstValue(trip, ["driver_avatar_url", "driver_photo_url"]) || "") || undefined, platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name", "driver_display_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt: trip.driver_recorded_at || updatedAt });
+          if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, profileId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || "") || undefined, profilePlatform: "sarca", profilePhotoUrl: String(firstValue(trip, ["rider_avatar_url", "passenger_avatar_url", "rider_photo_url", "passenger_photo_url"]) || "") || undefined, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name", "passenger_name", "passenger_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
           const actualCoordinates = centralTrack.length >= 2 ? centralTrack.map(item => item.position) : driverTrack.map(item => item.position);
           const coordinates = actualCoordinates.length >= 2 ? actualCoordinates : [origin, destination];
           routes.push({ id: `sarca:trip:${tripId}`, platform: "SARCA", label: actualCoordinates.length >= 2 ? `Percurso #${reference}` : `Rota prevista #${reference}`, coordinates, updatedAt: centralTrack.at(-1)?.recordedAt || driverTrack.at(-1)?.recordedAt || updatedAt, origin: String(trip.pickup_address || "") || undefined, destination: String(trip.dropoff_address || "") || undefined, workerId: driverId || undefined, workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, operationStatus: tripStatus });
@@ -360,14 +360,17 @@ export async function GET() {
     const names = new Map<string, string | undefined>();
     if (workerIds.length) {
       const batches = Array.from({ length: Math.ceil(workerIds.length / 75) }, (_, index) => workerIds.slice(index * 75, (index + 1) * 75));
-      const results = await Promise.all(batches.map(ids => safeRows(() => stagingRest(`profiles?select=id,user_id,full_name,avatar_url,profile_photo_url,photo_url&or=(id.in.(${ids.join(",")}),user_id.in.(${ids.join(",")}))`))));
-      const identities = results.flatMap(rows => Array.isArray(rows) ? rows : []) as Array<{id:string;user_id?:string;full_name?:string;avatar_url?:string|null;profile_photo_url?:string|null;photo_url?:string|null}>;
+      // Keep this projection limited to columns present in the shared
+      // profiles contract. Asking for optional columns here made the whole
+      // identity lookup fail and left trip markers without names/photos.
+      const results = await Promise.all(batches.map(ids => safeRows(() => stagingRest(`profiles?select=id,user_id,full_name,avatar_url&or=(id.in.(${ids.join(",")}),user_id.in.(${ids.join(",")}))`))));
+      const identities = results.flatMap(rows => Array.isArray(rows) ? rows : []) as Array<{id:string;user_id?:string;full_name?:string;avatar_url?:string|null}>;
       for (const profile of identities || []) { names.set(profile.id, profile.full_name);if (profile.user_id) names.set(profile.user_id, profile.full_name); }
       for (const marker of enrichedMarkers) {
         if (!marker.workerName && marker.workerId) marker.workerName = names.get(String(marker.workerId)) || undefined;
         if (!marker.profilePhotoUrl && marker.workerId) {
           const profile = identities.find(item => item.id === marker.workerId || item.user_id === marker.workerId);
-          if (profile) marker.profilePhotoUrl = profile.avatar_url || profile.profile_photo_url || profile.photo_url || undefined;
+          if (profile?.avatar_url) marker.profilePhotoUrl = profile.avatar_url;
         }
       }
     }
