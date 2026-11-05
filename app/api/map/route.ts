@@ -6,12 +6,13 @@ import { platformRest, signPlatformPath } from "@/lib/platform-backends";
 export const dynamic = "force-dynamic";
 
 type MapMarker = Record<string, unknown>;
-type MapRoute = { id: string; platform: string; label: string; coordinates: [number, number][]; updatedAt: string; origin?: string; destination?: string; workerId?: string; workerName?: string; operationStatus?: string };
+type MapRoute = { id: string; platform: string; label: string; coordinates: [number, number][]; updatedAt: string; origin?: string; destination?: string; workerId?: string; workerName?: string; operationStatus?: string; kind?: "planned" | "actual" };
 
 const LIVE_WINDOW_MS = 5 * 60_000;
 const inServiceStatuses = new Set([
   "in_progress", "in_service", "on_trip", "started", "active", "ongoing",
   "on_the_way", "out_for_delivery", "in_delivery", "delivering", "picked_up",
+  "accepted", "assigned", "courier_assigned", "driver_assigned", "ready_for_pickup", "arrived", "in_transit",
 ]);
 const terminalStatuses = new Set(["delivered", "cancelled", "canceled", "failed", "completed", "closed", "removed", "deleted", "suspended", "inactive", "archived"]);
 
@@ -44,6 +45,8 @@ const isRecent = (value: unknown, windowMs = LIVE_WINDOW_MS) => {
 const isInService = (row: MapMarker) => inServiceStatuses.has(statusValue(row)) && !terminalStatuses.has(statusValue(row));
 const hasLiveSignal = (row: MapMarker, windowMs = LIVE_WINDOW_MS) =>
   row.online === true || row.is_online === true || row.isOnline === true || isRecent(firstValue(row, ["recorded_at", "location_recorded_at", "last_seen_at", "heartbeat_at", "updated_at", "updatedAt"]), windowMs);
+const hasFreshLiveSignal = (row: MapMarker, windowMs = LIVE_WINDOW_MS) =>
+  isRecent(firstValue(row, ["recorded_at", "location_recorded_at", "last_seen_at", "heartbeat_at", "updated_at", "updatedAt"]), windowMs);
 const isActiveEntity = (row: MapMarker) => {
   const explicit = firstValue(row, ["status", "account_status", "profile_status", "membership_status", "state"]);
   const normalized = String(explicit || "").toLowerCase();
@@ -54,6 +57,26 @@ const isActiveEntity = (row: MapMarker) => {
 // live entity even when it does not emit GPS heartbeats like a driver does.
 // Removed, blocked and archived profiles are still excluded above.
 const livePlace = (row: MapMarker) => isActiveEntity(row) && row.is_open !== false && row.online !== false && row.is_online !== false && (row.is_open === true || row.online === true || row.is_online === true || hasLiveSignal(row, 10 * 60_000));
+const routeStatuses = new Set([...inServiceStatuses, "driver_arriving", "on_the_way", "out_for_delivery", "in_transit"]);
+const asCoordinateList = (value: unknown): [number, number][] => {
+  if (!Array.isArray(value)) return [];
+  return value.map(item => {
+    if (Array.isArray(item)) return point(item[0], item[1]);
+    if (item && typeof item === "object") {
+      const row = item as Record<string, unknown>;
+      return point(firstValue(row, ["latitude", "lat"]), firstValue(row, ["longitude", "lng", "lon"]));
+    }
+    return null;
+  }).filter((item): item is [number, number] => Boolean(item));
+};
+const actualTrack = (row: MapMarker): [number, number][] => {
+  for (const key of ["route_points", "tracking_points", "location_history", "gps_points", "positions", "path", "coordinates"]) {
+    const value = row[key];
+    const points = asCoordinateList(value);
+    if (points.length >= 2) return points;
+  }
+  return [];
+};
 
 export async function GET() {
   const authorization = await corporateAuthorization();
@@ -95,10 +118,12 @@ export async function GET() {
     const [deligoAccess, marketAccess, sarcaAccess] = await accessPromise;
     const operationDetails = new Map<string, MapMarker>();
     const baseSlug = (value: unknown) => { const name = String(value || "").toLowerCase();return /sarca/.test(name) ? "sarca" : /market|taomoz/.test(name) ? "taomoz" : /comunh/.test(name) ? "comunhao" : /mestre/.test(name) ? "mestre24" : /deligo/.test(name) ? "deligo" : ""; };
-    const markers = (Array.isArray(base.markers) ? [...base.markers] : []).filter(marker =>
-      (authorization.isSuperAdmin || (authorization.permissions.includes("operations.view") && authorization.platformSlugs.includes(baseSlug(marker.platform)))) &&
-      isActiveEntity(marker) && hasLiveSignal(marker) && !terminalStatuses.has(statusValue(marker)) && !["searching_driver", "driver_assigned", "driver_arriving", "pending", "created", "requested"].includes(statusValue(marker))
-    );
+    const markers = (Array.isArray(base.markers) ? [...base.markers] : []).filter(marker => {
+      const isDriver = /driver|motorista/i.test(String(marker.role || ""));
+      return (authorization.isSuperAdmin || (authorization.permissions.includes("operations.view") && authorization.platformSlugs.includes(baseSlug(marker.platform)))) &&
+        isActiveEntity(marker) && (isDriver ? hasFreshLiveSignal(marker) && (marker.online === true || marker.is_online === true || marker.isOnline === true) : hasLiveSignal(marker)) &&
+        !terminalStatuses.has(statusValue(marker)) && !["searching_driver", "driver_assigned", "driver_arriving", "pending", "created", "requested"].includes(statusValue(marker));
+    });
     const routes: MapRoute[] = [];
     const markerIds = new Set(markers.map((marker) => String(marker.id || "")));
     const addMarker = (marker: MapMarker) => {
@@ -166,7 +191,12 @@ export async function GET() {
         const id = String(delivery.id || delivery.delivery_id || delivery.order_id || "");
         const current = point(firstValue(delivery, ["current_latitude", "latitude", "current_lat"]), firstValue(delivery, ["current_longitude", "longitude", "current_lng"]));
         if (!id || !current) continue;
+        const reference = operationReference(delivery, String(delivery.order_id || id));
+        const updatedAt = String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt);
+        const track = actualTrack(delivery);
+        operationDetails.set(`deligo:delivery:${id}`, { origin: delivery.pickup_address || delivery.restaurant_name || delivery.origin_address, destination: delivery.delivery_address || delivery.destination_address, operationStatus: delivery.status, driverId: delivery.courier_id || delivery.driver_user_id });
         addMarker({ id: `deligo:delivery:${id}:current`, profileId: String(delivery.courier_id || delivery.driver_user_id || "") || undefined, profilePlatform: "deligo", profilePhotoUrl: profileImage(delivery) || undefined, platform: "DeliGo", role: "Estafeta", workerId: String(delivery.courier_id || delivery.driver_user_id || ""), workerName: String(delivery.courier_name || delivery.driver_name || "") || undefined, service: `#${operationReference(delivery, String(delivery.order_id || id))}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
+        if (track.length >= 2) routes.push({ id: `deligo:delivery:${id}`, platform: "DeliGo", label: `Percurso #${reference}`, coordinates: track, updatedAt, origin: String(delivery.pickup_address || delivery.origin_address || "") || undefined, destination: String(delivery.delivery_address || delivery.destination_address || "") || undefined, workerId: String(delivery.courier_id || delivery.driver_user_id || "") || undefined, workerName: String(delivery.courier_name || delivery.driver_name || "") || undefined, operationStatus: statusValue(delivery), kind: "actual" });
       }
     }
 
@@ -199,7 +229,12 @@ export async function GET() {
         const id = String(delivery.id || delivery.delivery_id || delivery.order_id || "");
         const current = point(firstValue(delivery, ["current_latitude", "latitude", "current_lat"]), firstValue(delivery, ["current_longitude", "longitude", "current_lng"]));
         if (!id || !current) continue;
-        addMarker({ id: `market:delivery:${id}:current`, profileId: String(delivery.courier_id || delivery.driver_user_id || "") || undefined, profilePlatform: "taomoz", profilePhotoUrl: profileImage(delivery) || undefined, platform: "DeliGo Market", role: "Entregador", workerId: String(delivery.courier_id || delivery.driver_user_id || ""), workerName: String(delivery.courier_name || delivery.driver_name || "") || undefined, service: `#${operationReference(delivery, String(delivery.order_id || id))}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt: String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt) });
+        const reference = operationReference(delivery, String(delivery.order_id || id));
+        const updatedAt = String(firstValue(delivery, ["location_recorded_at", "updated_at", "created_at"]) || checkedAt);
+        const track = actualTrack(delivery);
+        operationDetails.set(`market:delivery:${id}`, { origin: delivery.pickup_address || delivery.seller_name || delivery.origin_address, destination: delivery.delivery_address || delivery.destination_address, operationStatus: delivery.status, driverId: delivery.courier_id || delivery.driver_user_id });
+        addMarker({ id: `market:delivery:${id}:current`, profileId: String(delivery.courier_id || delivery.driver_user_id || "") || undefined, profilePlatform: "taomoz", profilePhotoUrl: profileImage(delivery) || undefined, platform: "DeliGo Market", role: "Entregador", workerId: String(delivery.courier_id || delivery.driver_user_id || ""), workerName: String(delivery.courier_name || delivery.driver_name || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: current[0], longitude: current[1], updatedAt });
+        if (track.length >= 2) routes.push({ id: `market:delivery:${id}`, platform: "DeliGo Market", label: `Percurso #${reference}`, coordinates: track, updatedAt, origin: String(delivery.pickup_address || delivery.origin_address || "") || undefined, destination: String(delivery.delivery_address || delivery.destination_address || "") || undefined, workerId: String(delivery.courier_id || delivery.driver_user_id || "") || undefined, workerName: String(delivery.courier_name || delivery.driver_name || "") || undefined, operationStatus: statusValue(delivery), kind: "actual" });
       }
     }
 
@@ -243,20 +278,27 @@ export async function GET() {
       const latestRiders = new Map<string, MapMarker>();
       for (const row of driverRows || []) if (!latestDrivers.has(String(row.driver_user_id))) latestDrivers.set(String(row.driver_user_id), row);
       for (const row of riderRows || []) if (!latestRiders.has(String(row.trip_id))) latestRiders.set(String(row.trip_id), row);
+      const verifiedDriverIds = new Set<string>();
+      for (const row of onlineDrivers || []) {
+        if (!isActiveEntity(row) || row.is_suspended === true || row.is_online !== true || !hasFreshLiveSignal(row)) continue;
+        const driverId = String(row.user_id || "");
+        const position = point(row.current_lat, row.current_lng);
+        if (!driverId || !position) continue;
+        verifiedDriverIds.add(driverId);
+        addMarker({ id: `sarca:driver:${driverId}:current`, profileId: driverId, profilePlatform: "sarca", profilePhotoUrl: profileImage(row) || undefined, platform: "SARCA", role: "Driver", workerId: driverId, workerName: String(firstValue(row, ["full_name", "display_name"]) || "Motorista SARCA"), status: "disponivel", latitude: position[0], longitude: position[1], updatedAt: String(firstValue(row, ["last_location_at", "updated_at"]) || checkedAt) });
+      }
+      for (const trip of trips || []) {
+        const tripStatus = statusValue(trip);
+        const tripDriverId = String(firstValue(trip, ["driver_id", "driver_user_id"]) || "");
+        if (tripDriverId && ["driver_assigned", "driver_arriving", "in_progress", "on_trip", "started", "active"].includes(tripStatus)) verifiedDriverIds.add(tripDriverId);
+      }
       // Recent GPS events also represent people who are online but not
       // currently assigned to a trip. Show those positions as availability
       // markers; they must never create an operation or a route.
       for (const [driverId, row] of latestDrivers) {
         const position = point(row.latitude, row.longitude);
-        if (!position || !isRecent(row.recorded_at)) continue;
+        if (!verifiedDriverIds.has(driverId) || !position || !isRecent(row.recorded_at)) continue;
         addMarker({ id: `sarca:driver:${driverId}:current`, platform: "SARCA", role: "Driver", workerId: driverId, status: "disponivel", latitude: position[0], longitude: position[1], updatedAt: String(row.recorded_at) });
-      }
-      for (const row of onlineDrivers || []) {
-        if (!isActiveEntity(row) || row.is_online !== true) continue;
-        const driverId = String(row.user_id || "");
-        const position = point(row.current_lat, row.current_lng);
-        if (!driverId || !position) continue;
-        addMarker({ id: `sarca:driver:${driverId}:current`, profileId: driverId, profilePlatform: "sarca", profilePhotoUrl: profileImage(row) || undefined, platform: "SARCA", role: "Driver", workerId: driverId, workerName: String(firstValue(row, ["full_name", "display_name"]) || "Motorista SARCA"), status: "disponivel", latitude: position[0], longitude: position[1], updatedAt: String(row.updated_at) });
       }
       const latestRidersByUser = new Map<string, MapMarker>();
       for (const row of riderRows || []) {
@@ -290,15 +332,17 @@ export async function GET() {
         const origin = point(trip.pickup_lat, trip.pickup_lng);
         const destination = point(trip.dropoff_lat, trip.dropoff_lng);
         const updatedAt = typeof trip.updated_at === "string" ? trip.updated_at : checkedAt;
-        if (origin) addMarker({ id: `sarca:trip:${tripId}:origin`, platform: "SARCA", role: "Viagem", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
-        if (destination) addMarker({ id: `sarca:trip:${tripId}:destination`, platform: "SARCA", role: "Destino", workerId: String(trip.passenger_user_id || ""), service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
         const driver = point(firstValue(trip, ["driver_latitude", "driver_current_latitude", "driver_lat", "current_driver_latitude"]), firstValue(trip, ["driver_longitude", "driver_current_longitude", "driver_lng", "current_driver_longitude"]));
         const rider = point(firstValue(trip, ["rider_latitude", "rider_current_latitude", "rider_lat", "current_rider_latitude"]), firstValue(trip, ["rider_longitude", "rider_current_longitude", "rider_lng", "current_rider_longitude"]));
-        if (driver) addMarker({ id: `sarca:trip:${tripId}:driver`, profileId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || "") || undefined, profilePlatform: "sarca", platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt: trip.driver_recorded_at || updatedAt });
-        if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, profileId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || "") || undefined, profilePlatform: "sarca", platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
         const tripStatus = String(trip.status || "");
         const tripHasAssignedRoute = ["driver_assigned", "driver_arriving", "in_progress", "on_trip", "started", "active"].includes(tripStatus);
+        // A request that is still searching for a driver is not an active
+        // operation. Keep it out of the map until a driver is assigned.
         if (origin && destination && tripHasAssignedRoute) {
+          addMarker({ id: `sarca:trip:${tripId}:origin`, platform: "SARCA", role: "Viagem", service: `#${reference}`, status: "em_servico", latitude: origin[0], longitude: origin[1], updatedAt });
+          addMarker({ id: `sarca:trip:${tripId}:destination`, platform: "SARCA", role: "Destino", workerId: String(trip.passenger_user_id || ""), service: `#${reference}`, status: "ocupado", latitude: destination[0], longitude: destination[1], updatedAt });
+          if (driver) addMarker({ id: `sarca:trip:${tripId}:driver`, profileId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || "") || undefined, profilePlatform: "sarca", platform: "SARCA", role: "Driver", workerId: String(firstValue(trip, ["driver_id", "driver_user_id"]) || ""), workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, service: `#${reference}`, status: "em_servico", latitude: driver[0], longitude: driver[1], updatedAt: trip.driver_recorded_at || updatedAt });
+          if (rider) addMarker({ id: `sarca:trip:${tripId}:rider`, profileId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || "") || undefined, profilePlatform: "sarca", profilePhotoUrl: String(firstValue(trip, ["rider_avatar_url", "passenger_avatar_url", "rider_photo_url", "passenger_photo_url"]) || "") || undefined, platform: "SARCA", role: "Rider", workerId: String(firstValue(trip, ["rider_id", "rider_user_id", "passenger_user_id"]) || ""), workerName: String(firstValue(trip, ["rider_name", "rider_full_name"]) || "") || undefined, service: `#${reference}`, status: "ocupado", latitude: rider[0], longitude: rider[1], updatedAt: trip.rider_recorded_at || updatedAt });
           const actualCoordinates = centralTrack.length >= 2 ? centralTrack.map(item => item.position) : driverTrack.map(item => item.position);
           const coordinates = actualCoordinates.length >= 2 ? actualCoordinates : [origin, destination];
           routes.push({ id: `sarca:trip:${tripId}`, platform: "SARCA", label: actualCoordinates.length >= 2 ? `Percurso #${reference}` : `Rota prevista #${reference}`, coordinates, updatedAt: centralTrack.at(-1)?.recordedAt || driverTrack.at(-1)?.recordedAt || updatedAt, origin: String(trip.pickup_address || "") || undefined, destination: String(trip.dropoff_address || "") || undefined, workerId: driverId || undefined, workerName: String(firstValue(trip, ["driver_name", "driver_full_name"]) || "") || undefined, operationStatus: tripStatus });
@@ -316,14 +360,14 @@ export async function GET() {
     const names = new Map<string, string | undefined>();
     if (workerIds.length) {
       const batches = Array.from({ length: Math.ceil(workerIds.length / 75) }, (_, index) => workerIds.slice(index * 75, (index + 1) * 75));
-      const results = await Promise.all(batches.map(ids => safeRows(() => stagingRest(`profiles?select=id,user_id,full_name&or=(id.in.(${ids.join(",")}),user_id.in.(${ids.join(",")}))`))));
-      const identities = results.flatMap(rows => Array.isArray(rows) ? rows : []) as Array<{id:string;user_id?:string;full_name?:string;avatar_url?:string|null}>;
+      const results = await Promise.all(batches.map(ids => safeRows(() => stagingRest(`profiles?select=id,user_id,full_name,avatar_url,profile_photo_url,photo_url&or=(id.in.(${ids.join(",")}),user_id.in.(${ids.join(",")}))`))));
+      const identities = results.flatMap(rows => Array.isArray(rows) ? rows : []) as Array<{id:string;user_id?:string;full_name?:string;avatar_url?:string|null;profile_photo_url?:string|null;photo_url?:string|null}>;
       for (const profile of identities || []) { names.set(profile.id, profile.full_name);if (profile.user_id) names.set(profile.user_id, profile.full_name); }
       for (const marker of enrichedMarkers) {
         if (!marker.workerName && marker.workerId) marker.workerName = names.get(String(marker.workerId)) || undefined;
         if (!marker.profilePhotoUrl && marker.workerId) {
           const profile = identities.find(item => item.id === marker.workerId || item.user_id === marker.workerId);
-          if (profile?.avatar_url) marker.profilePhotoUrl = profile.avatar_url;
+          if (profile) marker.profilePhotoUrl = profile.avatar_url || profile.profile_photo_url || profile.photo_url || undefined;
         }
       }
     }
@@ -333,7 +377,7 @@ export async function GET() {
       return marker.profilePhotoUrl && supported ? { ...marker, profilePhotoUrl: await signPlatformPath(supported, String(marker.profilePhotoUrl)) } : marker;
     }));
     const enrichedRoutes = routes
-      .filter(route => route.coordinates.length >= 2 && ["driver_assigned", "driver_arriving", "in_progress", "on_trip", "started", "active"].includes(String(route.operationStatus || "")) && isRecent(route.updatedAt))
+      .filter(route => route.coordinates.length >= 2 && routeStatuses.has(String(route.operationStatus || "").toLowerCase()) && isRecent(route.updatedAt))
       .map(route => ({ ...route, origin: operationDetails.get(route.id)?.origin, destination: operationDetails.get(route.id)?.destination, operationStatus: operationDetails.get(route.id)?.operationStatus || route.operationStatus, workerId: operationDetails.get(route.id)?.driverId || route.workerId, workerName: names.get(String(operationDetails.get(route.id)?.driverId || route.workerId || "")) || route.workerName }));
     return NextResponse.json({ ...base, checkedAt, markers: signedMarkers, routes: enrichedRoutes, sourceStatus: sourceAvailable ? "fresh" : "unavailable" }, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
