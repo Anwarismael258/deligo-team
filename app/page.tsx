@@ -7,7 +7,7 @@ import { downloadDocument } from "@/lib/download-document";
 /* eslint-disable react-hooks/set-state-in-effect -- route and selection resets intentionally synchronize client navigation state */
 
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { MessageSquare, Activity, BarChart3, Bell, Car, CheckCircle2, ChartNoAxesCombined, ChevronRight, Church, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Hammer, Handshake, Headphones, HeartHandshake, Landmark, LayoutDashboard, ListTodo, Mail, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, Star, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { MessageSquare, Activity, BarChart3, Bell, Car, CheckCircle2, ChartNoAxesCombined, ChevronRight, Church, CircleHelp, ClipboardCheck, Coins, Database, FileChartColumn, Fingerprint, Hammer, Handshake, Headphones, HeartHandshake, House, Landmark, LayoutDashboard, ListTodo, Mail, MapPinned, Megaphone, PackageCheck, PanelsTopLeft, Route, Scale, Settings, ShieldCheck, ShoppingBag, Smartphone, Sparkles, Star, UserRound, Users, WalletCards, type LucideIcon } from "lucide-react";
 import LiveOperationsMap, { type OperationsMapMarker } from "@/components/LiveOperationsMap";
 import {TechnologyRegistry} from "./components/TechnologyRegistry";
 import {AcquisitionWorkspace} from "./components/AcquisitionWorkspace";
@@ -44,7 +44,7 @@ import { ModuleErrorBoundary } from "@/components/ModuleErrorBoundary";
 const kycStateLabel:Record<string,string>={draft:"Rascunho",pending:"Submetido",submitted:"Submetido",documents_pending:"Documentos pendentes",in_review:"Em análise",under_review:"Em análise",field_verification_required:"Visita Field necessária",field_verification_in_progress:"Verificação no terreno",field_verification_completed:"Relatório Field concluído",legal_review:"Em análise jurídica",approval_pending:"Aguardando aprovação",approved:"Aprovado",rejected:"Rejeitado",suspended:"Suspenso",expired:"Expirado",correction_requested:"Correção solicitada"};
 const kycDocumentLinks=(caseId:string,docs:unknown[])=>docs.map((doc,index)=>{const item=doc&&typeof doc==="object"?doc as Record<string,unknown>:null,value=typeof doc==="string"?doc:String(item?.signed_url||item?.url||"");if(!/^https?:\/\//i.test(value))return <span className="kycDocumentUnavailable" key={`${caseId}-doc-${index}`}>Documento {index+1}: indisponível</span>;return <span className="kycDocumentLink" key={`${caseId}-doc-${index}`}><strong>Documento {index+1}</strong><a href={value} target="_blank" rel="noreferrer">Abrir</a><a href={value} onClick={event=>{event.preventDefault();const link=event.currentTarget;if(link.dataset.downloading)return;link.dataset.downloading="true";link.textContent="A descarregar…";void downloadDocument(value,`documento-${index+1}`).catch(error=>window.alert(error.message)).finally(()=>{delete link.dataset.downloading;link.textContent="Guardar"})}}>Guardar</a></span>});
 
-const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"];
+const platforms = ["Todas as plataformas", "DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24", "CasaDireta"];
 const nav = [
   ["⌂", "Visão geral"],
   ["◇", "Plataformas"],
@@ -160,7 +160,7 @@ const moduleIcons: Record<string, LucideIcon> = {
   "BI / Análises": BarChart3, "Relatórios": FileChartColumn, "Registo de Auditoria": Fingerprint,
 };
 
-const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Church, "DeliGo Market": ShoppingBag, SARCA: Car, Mestre24: Hammer };
+const platformIcons: Record<string, LucideIcon> = { DeliGo: Route, Comunhão: Church, "DeliGo Market": ShoppingBag, SARCA: Car, Mestre24: Hammer, CasaDireta: House };
 const platformArtwork: Record<string, string> = { DeliGo: "/platforms/deligo.png", Comunhão: "/platforms/comunhao.png", "DeliGo Market": "/platforms/deligo-market.png", SARCA: "/platforms/sarca.png", Mestre24: "/platforms/mestre24.png" };
 const platformDisplayName = (name:string) => /tao\s*moz/i.test(name) ? "DeliGo Market" : name;
 const imageFields = ["avatar_url", "profile_photo_url", "profile_photo_path", "profile_image_url", "profile_picture", "profile_image", "photo_url", "photo", "picture", "image_url", "logo_url", "cover_url", "menu_image_url", "menu_images", "gallery", "media", "selfie_url", "selfie", "document_url", "file_url", "document_front_path", "document_back_path", "document_front_url", "document_back_url", "id_front_url", "id_back_url", "identity_document", "selfie_path", "proof_url", "bi_url", "nuit_url", "photos", "documents", "kyc_docs", "kyc_documents", "kyc_media", "files", "attachments"];
@@ -179,7 +179,7 @@ const moduleDetails: Record<string, string[]> = {
   "Meu Perfil": ["Dados pessoais", "Perfil profissional", "Organização", "Permissões"],
   "Definições": ["Geral", "Aparência", "Dashboard", "Notificações"],
   "Segurança": ["Autenticação", "2FA", "Dispositivos e sessões", "Alertas de segurança"],
-  "Plataformas": ["DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24"],
+  "Plataformas": ["DeliGo", "Comunhão", "DeliGo Market", "SARCA", "Mestre24", "CasaDireta"],
   "Utilizadores": ["Todos os utilizadores", "Pesquisa por nome, telefone, email ou plataforma", "Identidade e estado", "Plataformas associadas"],
   "Mapa operacional": ["Mapa ao vivo", "DeliGo", "SARCA", "DeliGo Market"],
   "Direcção Executiva": ["Perfil da empresa", "Sócios", "Deliberações", "Gestão corporativa"],
@@ -341,11 +341,12 @@ const platformCards = [
   { name: "DeliGo Market", color: "#129a72", metrics: ["Utilizadores", "Empresas", "Transacções", "Receita"] },
   { name: "SARCA", color: "#e69b22", metrics: ["Utilizadores", "Operações", "Transacções", "Receita"] },
   { name: "Mestre24", color: "#f8bf18", metrics: ["Profissionais", "Pedidos", "Subscrições", "Receita"] },
+  { name: "CasaDireta", color: "#14b8a6", metrics: ["Proprietários", "Inquilinos", "Subscrições", "Receita"] },
 ];
 
 type DashboardMetric = { key: string; label: string; value: number };
 type DashboardPlatform = {
-  slug: "deligo" | "comunhao" | "taomoz" | "sarca" | "mestre24";
+  slug: "deligo" | "comunhao" | "taomoz" | "sarca" | "mestre24" | "casadireta";
   name: string;
   connected: boolean;
   metrics: DashboardMetric[];
@@ -407,9 +408,9 @@ const recordsFor = (snapshot: PlatformSnapshot | null, source: string) => {
   const value = snapshot?.data[source];
   return Array.isArray(value) ? value.length : 0;
 };
-const operationalLabel = (name: string) => ({ DeliGo: "Pedidos", "Comunhão": "Eventos", "DeliGo Market": "Pedidos", SARCA: "Viagens" }[name] || "Operações");
-const teamLabel = (name: string) => ({ DeliGo: "Estafetas e parceiros", "Comunhão": "Igrejas", "DeliGo Market": "Vendedores", SARCA: "Motoristas" }[name] || "Equipa");
-const teamValue = (platform: DashboardPlatform | undefined, name: string) => metricFor(platform, name === "DeliGo" ? ["estafeta", "parceiro"] : name === "Comunhão" ? ["igreja"] : name === "DeliGo Market" ? ["vendedor", "empresa"] : ["motorista", "viatura"]);
+const operationalLabel = (name: string) => ({ DeliGo: "Pedidos", "Comunhão": "Eventos", "DeliGo Market": "Pedidos", SARCA: "Viagens", CasaDireta: "Subscrições" }[name] || "Operações");
+const teamLabel = (name: string) => ({ DeliGo: "Estafetas e parceiros", "Comunhão": "Igrejas", "DeliGo Market": "Vendedores", SARCA: "Motoristas", CasaDireta: "Proprietários e inquilinos" }[name] || "Equipa");
+const teamValue = (platform: DashboardPlatform | undefined, name: string) => metricFor(platform, name === "DeliGo" ? ["estafeta", "parceiro"] : name === "Comunhão" ? ["igreja"] : name === "DeliGo Market" ? ["vendedor", "empresa"] : name === "CasaDireta" ? ["proprietário", "inquilino"] : ["motorista", "viatura"]);
 
 export function HQApp() {
   const [platform, setPlatform] = useState("Todas as plataformas");
@@ -1291,6 +1292,7 @@ if(active==="Operações de Campo")void refreshField();
     "SARCA": ["Drivers", "Riders"],
     "Comunhão": ["Igrejas", "Membros"],
     "DeliGo Market": ["Clientes", "Vendedores", "Entregadores"],
+    "CasaDireta": ["Proprietários", "Inquilinos"],
   };
   const walletTotalFor = (item: Record<string, unknown>) => {
     const value = item.wallet_total ?? item.total_wallet_balance ?? item.total_balance;
@@ -1852,7 +1854,7 @@ if(active==="Operações de Campo")void refreshField();
   );
 }
 
-function platformSlug(platform: string) { return platform.includes("Comun") ? "comunhao" : platform === "DeliGo" ? "deligo" : platform === "SARCA" ? "sarca" : platform === "Mestre24" ? "mestre24" : "taomoz"; }
+function platformSlug(platform: string) { return platform.includes("Comun") ? "comunhao" : platform === "DeliGo" ? "deligo" : platform === "SARCA" ? "sarca" : platform === "Mestre24" ? "mestre24" : platform === "CasaDireta" ? "casadireta" : "taomoz"; }
 
 function PlatformAdminPanelLegacy({ snapshot, platform, selectedCollection, onSelectCollection, onAction, onOpenProfile, onOpenRecord }: { snapshot: PlatformAdminSnapshot; platform: string; selectedCollection:string; onSelectCollection:(collection:string)=>void; onAction: (action: string, decision: "approve" | "reject" | "correction", id: string, reason?: string) => Promise<void>; onOpenProfile: (id:string, name:string) => void; onOpenRecord:(collection:string,row:Record<string,unknown>)=>void }) {
   const entries = Object.entries(snapshot.data);

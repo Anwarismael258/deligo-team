@@ -4,7 +4,7 @@ import { platformFunction, type PlatformBackend } from "@/lib/platform-backends"
 
 export const dynamic = "force-dynamic";
 
-type SafetyPlatform = PlatformBackend;
+type SafetyPlatform = Exclude<PlatformBackend, "casadireta">;
 const platforms: SafetyPlatform[] = ["deligo", "comunhao", "taomoz", "sarca", "mestre24"];
 const labels: Record<SafetyPlatform, string> = { deligo: "DeliGo", comunhao: "Comunhão", taomoz: "DeliGo Market", sarca: "SARCA", mestre24: "Mestre24" };
 const configured = new Set<SafetyPlatform>(["sarca"]);

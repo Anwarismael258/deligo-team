@@ -3,7 +3,7 @@ import { requireCorporatePermission, stagingRest } from "@/lib/hq-server";
 import { platformRest, signPlatformPath } from "@/lib/platform-backends";
 
 export const dynamic = "force-dynamic";
-const allowed = ["deligo", "comunhao", "sarca", "taomoz", "mestre24"] as const;
+const allowed = ["deligo", "comunhao", "sarca", "taomoz", "mestre24", "casadireta"] as const;
 type SupportedPlatform = (typeof allowed)[number];
 const isPlatform = (value: string): value is SupportedPlatform => allowed.includes(value as SupportedPlatform);
 const read = async (platform: SupportedPlatform, path: string) => {

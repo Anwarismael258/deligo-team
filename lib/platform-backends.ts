@@ -1,9 +1,9 @@
 import { supabaseUrl } from "./hq-server";
 
-export type PlatformBackend = "deligo" | "comunhao" | "sarca" | "taomoz" | "mestre24";
+export type PlatformBackend = "deligo" | "comunhao" | "sarca" | "taomoz" | "mestre24" | "casadireta";
 
 const backendUrl = (platform: PlatformBackend) => {
-  const envName = { deligo: "DELIGO_SUPABASE_URL", comunhao: "COMUNHAO_SUPABASE_URL", sarca: "SARCA_SUPABASE_URL", taomoz: "TAOMOZ_SUPABASE_URL", mestre24: "MESTRE24_SUPABASE_URL" }[platform];
+  const envName = { deligo: "DELIGO_SUPABASE_URL", comunhao: "COMUNHAO_SUPABASE_URL", sarca: "SARCA_SUPABASE_URL", taomoz: "TAOMOZ_SUPABASE_URL", mestre24: "MESTRE24_SUPABASE_URL", casadireta: "CASADIRETA_SUPABASE_URL" }[platform];
   // Mestre24 is currently hosted in the same Supabase project as the HQ.
   // Keep platform-specific URLs supported, but do not hide the schema when
   // its optional dedicated URL is not configured.
@@ -23,7 +23,7 @@ const headers = (platform: PlatformBackend, authenticatedWrite = false) => {
   return result;
 };
 
-const storageBuckets: Record<PlatformBackend, string[]> = { deligo: ["kyc"], comunhao: ["church-application-branding", "profile-media"], sarca: ["driver-kyc", "profile-media"], taomoz: ["kyc-documents"], mestre24: ["mestre24-kyc", "mestre24-portfolio"] };
+const storageBuckets: Record<PlatformBackend, string[]> = { deligo: ["kyc"], comunhao: ["church-application-branding", "profile-media"], sarca: ["driver-kyc", "profile-media"], taomoz: ["kyc-documents"], mestre24: ["mestre24-kyc", "mestre24-portfolio"], casadireta: ["casadireta-properties"] };
 
 export type PlatformStorageObject = { name: string; id?: string; created_at?: string; updated_at?: string; metadata?: Record<string, unknown> | null };
 
@@ -57,7 +57,7 @@ export async function signPlatformPath(platform: PlatformBackend, path: string) 
 }
 
 export async function platformRest(platform: PlatformBackend, path: string, init: RequestInit = {}) {
-  const schema = platform === "mestre24" ? "mestre24" : platform === "sarca" ? "sarca" : null;
+  const schema = platform === "mestre24" ? "mestre24" : platform === "sarca" ? "sarca" : platform === "casadireta" ? "casadireta" : null;
   const schemaHeaders: Record<string, string> = schema ? { "Accept-Profile": schema, "Content-Profile": schema } : {};
   const response = await fetch(`${backendUrl(platform)}/rest/v1/${path}`, { ...init, headers: { ...Object.fromEntries(headers(platform).entries()), ...schemaHeaders, ...Object.fromEntries(new Headers(init.headers).entries()) }, cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_${platform.toUpperCase()}_FAILED`);
@@ -71,7 +71,7 @@ export async function platformFunction(platform: PlatformBackend, name: string, 
 }
 
 export async function platformRpc(platform: PlatformBackend, name: string, body: Record<string, unknown> = {}) {
-  const schema = platform === "mestre24" ? "mestre24" : platform === "sarca" ? "sarca" : null;
+  const schema = platform === "mestre24" ? "mestre24" : platform === "sarca" ? "sarca" : platform === "casadireta" ? "casadireta" : null;
   const schemaHeaders: Record<string, string> = schema ? { "Accept-Profile": schema, "Content-Profile": schema } : {};
   const response = await fetch(`${backendUrl(platform)}/rest/v1/rpc/${name}`, { method: "POST", headers: { ...Object.fromEntries(headers(platform, true).entries()), ...schemaHeaders }, body: JSON.stringify(body), cache: "no-store" });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_RPC_${name}_FAILED`);

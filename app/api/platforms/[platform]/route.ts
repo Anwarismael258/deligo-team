@@ -5,7 +5,7 @@ import { platformFunction, platformRest, platformRpc, signPlatformPath, type Pla
 import { buildPlatformDecision, type PlatformDecision } from "@/lib/platform-decisions";
 
 export const dynamic = "force-dynamic";
-const allowed = ["deligo", "comunhao", "sarca", "taomoz", "mestre24"] as const;
+const allowed = ["deligo", "comunhao", "sarca", "taomoz", "mestre24", "casadireta"] as const;
 const isPlatform = (value: string): value is PlatformBackend => allowed.includes(value as PlatformBackend);
 const safeRest = async (platform: PlatformBackend, path: string, source: string, sourceErrors: Record<string, string>) => {
   try {
@@ -47,7 +47,14 @@ export async function GET(request: NextRequest, context: { params: Promise<{ pla
           driver_positions: await safeRest(platform, "driver_location_events?select=driver_user_id,latitude,longitude,accuracy_meters,recorded_at&order=recorded_at.desc&limit=250", "driver_positions", sourceErrors),
           rider_positions: await safeRest(platform, "rider_location_events?select=rider_user_id,trip_id,latitude,longitude,accuracy_meters,recorded_at&order=recorded_at.desc&limit=250", "rider_positions", sourceErrors),
         }
-      : platform === "comunhao"
+      : platform === "casadireta"
+        ? {
+            subscription_plans: await safeRest(platform, "subscription_plans?select=code,name,price_minor,currency_code,billing_cycle_days,is_active,metadata&order=code.asc", "subscription_plans", sourceErrors),
+            subscription_cycles: await safeRest(platform, "subscription_cycles?select=id,user_id,plan_code,operator,amount_minor,currency_code,status,period_started_at,period_ends_at,paid_at,created_at,updated_at&order=created_at.desc&limit=250", "subscription_cycles", sourceErrors),
+            properties: await safeRest(platform, "properties?select=id,owner_user_id,type,rooms,bairro,price_mzn,verified,rented,created_at,updated_at&order=created_at.desc&limit=250", "properties", sourceErrors),
+            conversations: await safeRest(platform, "conversations?select=id,participant_a,participant_b,created_at,updated_at&order=updated_at.desc&limit=250", "conversations", sourceErrors),
+          }
+        : platform === "comunhao"
         ? { applications: await safeRest(platform, "church_applications?select=*&order=created_at.desc&limit=250", "applications", sourceErrors), subscriptions: await safeRest(platform, "church_subscriptions?select=*&order=created_at.desc&limit=100", "subscriptions", sourceErrors), subscription_plans: await safeRest(platform, "subscription_plans?select=code,name,description,price_mzn,currency_code,billing_cycle_days,member_limit,admin_limit,features,is_public,is_paid,is_active,sort_order&is_active=eq.true&order=sort_order.asc,code.asc", "subscription_plans", sourceErrors), notifications: await safeRest(platform, "internal_notifications?select=*&order=created_at.desc&limit=100", "notifications", sourceErrors) }
         : platform === "taomoz"
           ? { users: await safeRest(platform, "profiles?select=id,full_name,phone,account_status,created_at&order=created_at.desc&limit=100", "users", sourceErrors), kyc: await safeRest(platform, "kyc_submissions?select=*&status=eq.pending&order=created_at.desc&limit=100", "kyc", sourceErrors), products: await safeRest(platform, "products?select=id,name,moderation_status,is_active,created_at&order=created_at.desc&limit=100", "products", sourceErrors), orders: await safeRest(platform, "orders?select=id,order_number,status,payment_status,grand_total,created_at&order=created_at.desc&limit=100", "orders", sourceErrors), disputes: await safeRest(platform, "disputes?select=*&order=created_at.desc&limit=100", "disputes", sourceErrors), withdrawals: await safeRest(platform, "money_operations?select=*&type=eq.withdrawal&order=created_at.desc&limit=100", "withdrawals", sourceErrors) }

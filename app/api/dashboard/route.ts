@@ -193,13 +193,13 @@ export async function GET() {
       };
       if (rpc && typeof rpc === "object") return normalize(rpc as Record<string, unknown>);
       const [platformRows, appRows, eventRows] = await Promise.all([
-        profileRest("hq", "platforms?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
-        profileRest("core", "apps?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz)"),
+        profileRest("hq", "platforms?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz,casadireta)"),
+        profileRest("core", "apps?select=id,slug,name&slug=in.(deligo,mestre24,sarca,comunhao,taomoz,casadireta)"),
         profileRest("hq", "platform_financial_events?select=platform_id,source_record_id,gross_amount,platform_fee,provider_fee,currency,payment_status,metadata&currency=eq.MZN&payment_status=eq.confirmed&limit=10000"),
       ]) as [Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>];
       const appsBySlug = new Map(appRows.map(row => [String(row.slug), row]));
       const platformById = new Map(platformRows.map(row => [String(row.id), row]));
-      const platforms = ["deligo", "mestre24", "sarca", "comunhao", "taomoz"].map(slug => {
+      const platforms = ["deligo", "mestre24", "sarca", "comunhao", "taomoz", "casadireta"].map(slug => {
         const app = appsBySlug.get(slug);
         const platform = [...platformById.values()].find(row => String(row.slug) === slug);
         const platformId = String(platform?.id || "");
@@ -265,7 +265,8 @@ export async function GET() {
       metrics: [],
     }));
     const sourcePlatforms = dashboardPlatforms.length ? dashboardPlatforms : cataloguePlatforms;
-    const enrichedPlatforms = [...sourcePlatforms, mestre24.platform].filter((item, index, rows) => rows.findIndex(candidate => String(candidate.slug) === String(item.slug)) === index).map((item) => { const row = item as Record<string, unknown>; const status = statusBySlug.get(String(row.slug || "")); return { ...row, platform_status: status?.status || row.platform_status || "development", integration_status: status?.integration_status || (row.connected ? "connected" : "unknown"), last_sync_at: status?.last_sync_at || status?.updated_at || null }; });
+    const catalogueOnlyPlatforms = cataloguePlatforms.filter(item => !sourcePlatforms.some(source => String(source.slug) === String(item.slug)));
+    const enrichedPlatforms = [...sourcePlatforms, mestre24.platform, ...catalogueOnlyPlatforms].filter((item, index, rows) => rows.findIndex(candidate => String(candidate.slug) === String(item.slug)) === index).map((item) => { const row = item as Record<string, unknown>; const status = statusBySlug.get(String(row.slug || "")); return { ...row, platform_status: status?.status || row.platform_status || "development", integration_status: status?.integration_status || (row.connected ? "connected" : "unknown"), last_sync_at: status?.last_sync_at || row.last_sync_at || null }; });
     const now = Date.now();
     const deligoOperations = {
       activeOrders, pendingKyc, openSupport, accountControls, openIncidents,
