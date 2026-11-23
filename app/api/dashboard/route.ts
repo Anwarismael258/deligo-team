@@ -68,7 +68,11 @@ export async function GET() {
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_dashboard_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_platform_modules_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_mestre24_module_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
-      fetch(`${supabaseUrl()}/rest/v1/platforms?select=id,slug,name,platform_code,status,integration_status,last_sync_at,updated_at&order=name`, { headers: { ...rpcHeaders, "Accept-Profile": "hq" }, cache: "no-store", signal: AbortSignal.timeout(12_000) }),
+      // hq.platforms has no last_sync_at column.  Asking PostgREST for it
+      // invalidates the whole status response and makes every platform fall
+      // back to "Estado não confirmado".  updated_at is the verified source
+      // currently available for the catalogue status.
+      fetch(`${supabaseUrl()}/rest/v1/platforms?select=id,slug,name,platform_code,status,integration_status,updated_at&order=name`, { headers: { ...rpcHeaders, "Accept-Profile": "hq" }, cache: "no-store", signal: AbortSignal.timeout(12_000) }),
       authorizationResponse.then(response => response.ok ? response.json() : null),
     ]);
     if (!dashboardResponse.ok || !modulesResponse.ok || !mestre24Response.ok) {
@@ -318,7 +322,7 @@ export async function GET() {
         ...(slug === "casadireta" ? { metrics: casaDiretaSnapshot.metrics, source_errors: casaDiretaSnapshot.source_errors } : {}),
         platform_status: casaUnavailable ? "error" : status?.status || row.platform_status || "development",
         integration_status: casaUnavailable ? "error" : status?.integration_status || (row.connected ? "connected" : "unknown"),
-        last_sync_at: status?.last_sync_at || row.last_sync_at || null,
+        last_sync_at: status?.updated_at || row.updated_at || null,
       };
     });
     const now = Date.now();
