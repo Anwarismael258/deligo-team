@@ -3,7 +3,7 @@ import { corporateAuthorization, hqRpc, stagingRest, supabaseUrl } from "@/lib/h
 
 const entity = "10000000-0000-0000-0000-000000000001";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
-const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005" };
+const platforms: Record<string, string> = { deligo:"20000000-0000-0000-0000-000000000001", comunhao:"20000000-0000-0000-0000-000000000002", taomoz:"20000000-0000-0000-0000-000000000003", sarca:"20000000-0000-0000-0000-000000000004", mestre24:"20000000-0000-0000-0000-000000000005", casadireta:"502d0cee-72f3-4782-a31c-ca9aab30ef77" };
 // Central support access is role-based and shared across all connected apps.
 const viewerRoles = new Set(["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT","FINANCE","ACCOUNTING","MARKETING"]);
 const replyRoles = new Set(["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT","OPERATIONS","FINANCE","ACCOUNTING"]);
@@ -196,6 +196,16 @@ export async function GET(request:NextRequest){
       console.error("SUPPORT_CORE_TICKETS_FALLBACK_FAILED", String(retryError));
     }
   }
+  let casaTickets: Array<Record<string,unknown>> = [];
+  let casaMessages: Array<Record<string,unknown>> = [];
+  try {
+    casaTickets = await sourceRest(current.key,"casadireta","support_cases?select=*&order=updated_at.desc&limit=300") as Array<Record<string,unknown>>;
+    if (requestedPlatform && requestedPlatform !== "casadireta") casaTickets = [];
+    const casaIds = casaTickets.map(row=>String(row.id||"")).filter(Boolean);
+    if (casaIds.length) casaMessages = await sourceRest(current.key,"casadireta",`support_messages?select=*&case_id=in.(${casaIds.join(",")})&order=created_at.asc&limit=3000`) as Array<Record<string,unknown>>;
+  } catch(error) {
+    console.error("SUPPORT_CASADIRETA_SOURCE_FAILED",String(error));
+  }
   const publicTicketRows=publicTickets;
   const publicTicketIds=new Set(publicTicketRows.map(row=>String(row.id||"")));
   const publicIdentityKeys=(row:Record<string,unknown>)=>{const keys:string[]=[];const add=(prefix:string,value:unknown)=>{const normalized=String(value||"").trim().toLowerCase();if(normalized)keys.push(`${prefix}:${normalized}`);};add("user",row.opened_by);const phone=String(row.customer_phone||"").replace(/\D/g,"");if(phone)keys.push(`phone:${phone}`);add("email",row.customer_email);add("name",row.customer_name);return keys.length?keys:[`ticket:${String(row.id||"")}`];};
@@ -253,11 +263,14 @@ export async function GET(request:NextRequest){
   const legacyMessages=(Array.isArray(conversations)?conversations:[]).map((item:Record<string,unknown>)=>({...item,is_read:item.sender_type!=="customer"||Boolean(readAtByTicket.get(String(item.ticket_id))&&new Date(String(item.created_at)).getTime()<=new Date(readAtByTicket.get(String(item.ticket_id)) as string).getTime())}));
   const coreTicketMapped=coreTickets.map((row)=>{const appValue=Array.isArray(row.app)?row.app[0]:row.app;const app=appValue&&typeof appValue==="object"?appValue as Record<string,unknown>:{};const slug=String(app.slug||row.app_slug||"").toLowerCase();const platformName=String(app.name|| (slug==="mestre24"?"Mestre24":slug||"Plataforma"));const id=String(row.id||"");return {id:`core:${id}`,source:"core",ticket_number:`${platformName.toUpperCase()}-${String(row.case_number||id).slice(0,12)}`,platform_id:null,platform_slug:slug,platform_name:platformName,subject:String(row.subject||"Pedido de apoio"),description:String(row.description||""),status:String(row.status||"open"),priority:String(row.priority||"normal"),ticket_type:"app_message",category:String(row.category||"general"),customer_name:String(row.requester_name||"Utilizador"),customer_contact:String(row.requester_phone||row.requester_email||""),customer_reference:String(row.requester_user_id||""),assigned_to:row.assigned_user_id||null,created_at:String(row.created_at||""),updated_at:String(row.updated_at||row.created_at||""),external_reference:`core-support:${id}`,source_channel:String(row.source_channel||"app")};});
   allTickets=[...allTickets,...coreTicketMapped];
+  const casaTicketMapped=casaTickets.map(row=>({id:`casadireta:${String(row.id)}`,source:"casadireta",ticket_number:String(row.case_number||row.id),platform_id:platforms.casadireta,platform_slug:"casadireta",platform_name:"CasaDireta",subject:String(row.subject||"Pedido de suporte"),description:String(row.description||""),status:String(row.status||"open"),priority:String(row.priority||"normal"),ticket_type:"app_message",category:String(row.category||"general"),customer_name:String(row.requester_name||"Utilizador CasaDireta"),customer_contact:String(row.requester_phone||""),customer_reference:String(row.requester_user_id||""),assigned_to:row.assigned_employee_id||null,created_at:String(row.created_at||""),updated_at:String(row.updated_at||row.created_at||""),external_reference:`casadireta-support:${String(row.id)}`,source_channel:"casadireta"}));
+  allTickets=[...allTickets,...casaTicketMapped];
   const coreMessages=(Array.isArray(coreConversations)?coreConversations:[]).map((item:{id:string;case_id:string;author_type:string;author_user_id?:string;body:string;is_internal:boolean;created_at:string;metadata?:Record<string,unknown>})=>{const author=employeesByAuthUserId.get(String(item.author_user_id||""));const senderType=item.author_type==="staff"?"agent":"customer";return {id:`core-msg:${item.id}`,ticket_id:`core:${item.case_id}`,sender_type:senderType,sender_id:item.author_user_id||null,sender_name:senderType==="agent"?String(author?.name||"").trim()||null:null,sender_employee_id:author?.id||item.metadata?.hq_employee_id||null,message:item.body,is_internal:item.is_internal,created_at:item.created_at,is_read:item.author_type!=="customer"||Boolean(readAtByCase.get(item.case_id)&&new Date(item.created_at).getTime()<=new Date(readAtByCase.get(item.case_id) as string).getTime())};});
+  const casaMessagesMapped=casaMessages.map(item=>{const author=employeesByAuthUserId.get(String(item.author_user_id||""));const senderType=String(item.author_type||"")==="staff"?"agent":"customer";return {id:`casadireta-msg:${String(item.id)}`,ticket_id:`casadireta:${String(item.case_id)}`,sender_type:senderType,sender_id:item.author_user_id||null,sender_name:senderType==="agent"?String(item.author_name||author?.name||"").trim()||null:String(item.author_name||"").trim()||null,sender_employee_id:author?.id||null,message:String(item.body||""),is_internal:Boolean(item.is_internal),created_at:String(item.created_at||""),is_read:senderType!=="customer"||Boolean(item.read_at)};});
   allTickets=allTickets.map(ticket=>{const ticketId=String(ticket.id||"");return ticketId.startsWith("core:")?{...ticket,last_read_at:readAtByCase.get(ticketId.slice(5))||null}:ticket;});
   const coreHistory=(Array.isArray(coreEvents)?coreEvents:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened").map((item:{id:number;case_id:string;event_type:string;old_value?:unknown;new_value?:unknown;created_at:string})=>({id:`core-event:${item.id}`,ticket_id:`core:${item.case_id}`,event_type:item.event_type,description:`${item.event_type.replaceAll("_"," ")}`,metadata:{old_value:item.old_value,new_value:item.new_value},created_at:item.created_at}));
   const legacyHistory=(Array.isArray(events)?events:[]).filter((item:{event_type?:string})=>item.event_type!=="hq_case_opened");
-  const orderedConversations=[...legacyMessages,...coreMessages,...publicMessagesMapped].sort((left,right)=>new Date(String((left as Record<string,unknown>).created_at||0)).getTime()-new Date(String((right as Record<string,unknown>).created_at||0)).getTime());
+  const orderedConversations=[...legacyMessages,...coreMessages,...casaMessagesMapped,...publicMessagesMapped].sort((left,right)=>new Date(String((left as Record<string,unknown>).created_at||0)).getTime()-new Date(String((right as Record<string,unknown>).created_at||0)).getTime());
   return NextResponse.json({data:{support_tickets:allTickets,support_conversations:orderedConversations,support_attachments:[...(Array.isArray(attachments)?attachments:[]),...publicAttachments],support_escalations:escalations,support_department_assignments:assignments,support_history:[...legacyHistory,...coreHistory],workflow_cases:cases,workflow_steps:steps,employees,platforms:platformRows,departments},meta:{degraded:!ticketsHealthy&&!publicTicketsHealthy||!publicMessagesHealthy,ticketsHealthy,publicTicketsHealthy,publicMessagesHealthy}},{headers:{"Cache-Control":"private, no-store"}});
 }
 
@@ -274,6 +287,15 @@ export async function POST(request:NextRequest){
       return NextResponse.json({record:{...created,ticket_number:workflow.ticket_number},workflow},{status:201});
     }
     const table={message:"support_conversations",attachment:"support_attachments"}[body.resource];if(!table)return NextResponse.json({error:"Operação de atendimento inválida."},{status:400});
+    if(String(body.record.ticket_id||"").startsWith("casadireta:")){
+      if(body.resource!=="message")return NextResponse.json({error:"Os anexos CasaDireta ainda devem ser enviados pelo armazenamento autorizado da aplicação."},{status:409});
+      const caseId=String(body.record.ticket_id).slice("casadireta:".length), casaCase=(await sourceRest(current.key,"casadireta",`support_cases?id=eq.${encodeURIComponent(caseId)}&select=*`) as Array<Record<string,unknown>>)?.[0];
+      if(!casaCase)return NextResponse.json({error:"Atendimento CasaDireta não encontrado."},{status:404});
+      if(!canReplyToTicket(current,{category:casaCase.category,subject:casaCase.subject,description:casaCase.description}))return NextResponse.json({error:"Sem permissão para responder a este atendimento."},{status:403});
+      const isInternal=body.record.is_internal==="true"||body.record.is_internal===true;
+      const created=(await sourceRest(current.key,"casadireta","support_messages",{method:"POST",body:JSON.stringify({case_id:caseId,author_type:"staff",author_user_id:current.actor.authUserId,author_name:current.actor.name,body:`${String(body.record.message||"").trim()}\n\n— ${current.actor.name}`,is_internal:isInternal})}) as Array<Record<string,unknown>>)?.[0];
+      return NextResponse.json({record:{...created,id:`casadireta-msg:${String(created?.id||"")}`,ticket_id:`casadireta:${caseId}`,sender_type:"agent",message:created?.body},delivery:{source:"casadireta",mirrored:true,notificationSent:!isInternal}},{status:201});
+    }
     if(String(body.record.ticket_id||"").startsWith("public:")){
       const publicId=String(body.record.ticket_id).slice(7),publicTicket=(await stagingRest(`support_tickets?id=eq.${encodeURIComponent(publicId)}&select=*`) as Array<Record<string,unknown>>)?.[0];
       if(!publicTicket)return NextResponse.json({error:"Atendimento do aplicativo não encontrado."},{status:404});
@@ -387,6 +409,17 @@ export async function PATCH(request:NextRequest){
       if(body.action==="resolve"&&String(body.resolution||"").trim().length<3)return NextResponse.json({error:"Indique a resolução aplicada."},{status:400});
       const updated=(await coreRest(current.key,`support_cases?id=eq.${caseId}`,{method:"PATCH",body:JSON.stringify({status:next,updated_at:new Date().toISOString(),metadata:{...(coreCase.metadata||{}),last_hq_employee_id:current.actor.employee_id,resolution:body.resolution||null}})}))?.[0];
       await coreRest(current.key,"support_case_events",{method:"POST",body:JSON.stringify({case_id:caseId,event_type:`hq_${body.action}`,old_value:{status:coreCase.status},new_value:{status:next},metadata:{hq_employee_id:current.actor.employee_id,reason:body.reason||null}})});
+      return NextResponse.json({ok:true,record:updated});
+    }
+    if(String(body.ticketId).startsWith("casadireta:")){
+      const caseId=String(body.ticketId).slice("casadireta:".length),casaCase=(await sourceRest(current.key,"casadireta",`support_cases?id=eq.${encodeURIComponent(caseId)}&select=*`) as Array<Record<string,unknown>>)?.[0];
+      if(!casaCase)return NextResponse.json({error:"Atendimento CasaDireta não encontrado."},{status:404});
+      if(body.action==="mark_read")return NextResponse.json({ok:true,readAt:new Date().toISOString()});
+      if(!canReplyToTicket(current,{category:casaCase.category,subject:casaCase.subject,description:casaCase.description}))return NextResponse.json({error:"Sem permissão para atualizar este atendimento."},{status:403});
+      const statusMap:Record<string,string>={analysis:"in_progress",waiting_customer:"waiting_customer",resolve:"resolved",close:"closed",reopen:"open"};
+      const next=statusMap[body.action||""];if(!next)return NextResponse.json({error:"Ação inválida."},{status:400});
+      if(body.action==="resolve"&&String(body.resolution||"").trim().length<3)return NextResponse.json({error:"Indique a resolução aplicada."},{status:400});
+      const updated=(await sourceRest(current.key,"casadireta",`support_cases?id=eq.${encodeURIComponent(caseId)}`,{method:"PATCH",body:JSON.stringify({status:next,resolved_at:next==="resolved"?new Date().toISOString():null,metadata:{...(casaCase.metadata||{}),resolution:body.resolution||null}})}) as Array<Record<string,unknown>>)?.[0];
       return NextResponse.json({ok:true,record:updated});
     }
     if(body.action==="mark_read"){
