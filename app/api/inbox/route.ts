@@ -22,11 +22,16 @@ export async function GET(req: NextRequest) {
   const ctx = await context();
   if (!ctx) return NextResponse.json({ error: "Sem acesso à caixa de entrada." }, { status: 403 });
   const requestedArea = req.nextUrl.searchParams.get("area");
+  const compact = req.nextUrl.searchParams.get("compact") === "1";
   const selected = requestedArea && ctx.areas.includes(requestedArea) ? [requestedArea] : ctx.areas;
   if (!selected.length) return NextResponse.json({ messages: [], sentMessages: [], replies: [], allowedMailboxes: [], meta: { source: "staging.inbox_messages", received: 0, sent: 0, unread: 0 } });
-  const query = new URLSearchParams({ select: "*", order: "created_at.desc", limit: "500", area: `in.(${selected.join(",")})` });
+  const query = new URLSearchParams({ select: compact ? "id,area,meta" : "*", order: "created_at.desc", limit: compact ? "5000" : "500", area: `in.(${selected.join(",")})` });
   try {
     const rawMessages = await stagingRest(`inbox_messages?${query.toString()}`) as Array<Record<string, unknown>>;
+    if (compact) {
+      const unreadCount = rawMessages.filter(message => !isOutbound(message) && !messageMeta(message).read_at).length;
+      return NextResponse.json({ unreadCount, meta: { source: "staging.inbox_messages", unread: unreadCount } });
+    }
     const messages = rawMessages.filter(message => !isOutbound(message));
     const sentMessages = rawMessages.filter(isOutbound);
     const ids = new Set(rawMessages.map(message => String(message.id || "")));

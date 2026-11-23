@@ -23,6 +23,7 @@ async function rest(k: string, p: string, i: RequestInit = {}) {
     ...i,
     headers: { ...h(k), ...(i.headers || {}) },
     cache: "no-store",
+    signal: i.signal || AbortSignal.timeout(15000),
   });
   if (!r.ok) throw new Error(await r.text());
   return r.status === 204 ? null : r.json();
@@ -111,24 +112,35 @@ export async function GET(req: NextRequest) {
     k = hqServiceKey();
   if (!a || !k)
     return NextResponse.json({ error: "Sessão inválida." }, { status: 401 });
-  await Promise.all([
-    ingestMestre24CentralEvents().catch((error) => {
-      console.error("Mestre24 central event intake failed", error);
-      return null;
-    }),
-    (["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT"].includes(a.role)?ingestSupportNotifications(a.employee_id, k,["SUPER_ADMIN","SUPERVISOR"].includes(a.role)):Promise.resolve()),
-  ]);
+  if (req.nextUrl.searchParams.get("skip_ingest") !== "1") {
+    await Promise.all([
+      ingestMestre24CentralEvents().catch((error) => {
+        console.error("Mestre24 central event intake failed", error);
+        return null;
+      }),
+      (["SUPER_ADMIN","SUPERVISOR","CUSTOMER_SUPPORT"].includes(a.role)?ingestSupportNotifications(a.employee_id, k,["SUPER_ADMIN","SUPERVISOR"].includes(a.role)):Promise.resolve()),
+    ]);
+  }
+  const compact = req.nextUrl.searchParams.get("compact") === "1";
+  const requestedLimit = Number(req.nextUrl.searchParams.get("limit") || (compact ? 100 : 300));
+  const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.floor(requestedLimit), 1), 300) : compact ? 100 : 300;
   const priority = req.nextUrl.searchParams.get("priority"),
     unread = req.nextUrl.searchParams.get("unread"),
     filters = [`employee_id=eq.${a.employee_id}`];
   if (priority && priority !== "all")
     filters.push(`priority=eq.${encodeURIComponent(priority)}`);
   if (unread === "true") filters.push("read_at=is.null");
-  const [notifications, departments, platforms, employees] = await Promise.all([
-    rest(
-      k,
-      `notifications?${filters.join("&")}&select=*&order=created_at.desc&limit=300`,
-    ),
+  const notifications = await rest(
+    k,
+    `notifications?${filters.join("&")}&select=${compact ? "id,employee_id,type,source_type,source_id,title,body,priority,read_at,target_url,platform_id,dedupe_key,created_at" : "*"}&order=created_at.desc&limit=${limit}`,
+  );
+  if (compact) {
+    return NextResponse.json(
+      { notifications: dedupeNotifications(notifications.filter(isRelevantNotification)) },
+      { headers: { "Cache-Control": "private, no-store" } },
+    );
+  }
+  const [departments, platforms, employees] = await Promise.all([
     rest(k, "departments?select=id,name,code&limit=100"),
     rest(k, "platforms?select=id,name,slug&limit=20"),
     rest(k, "employees?select=id,display_name,employee_code&limit=500"),

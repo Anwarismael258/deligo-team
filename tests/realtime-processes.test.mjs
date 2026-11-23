@@ -40,8 +40,8 @@ test("cada processo mostra atividade real e comentários ligados",()=>{
 
 test("telas ativas e mapa atualizam automaticamente",()=>{
   assert.match(page,/api\/realtime\?after/);
-  assert.match(page,/setInterval\(\(\)=>void poll\(\),2500\)/);
-  assert.match(page,/setInterval\(\(\) => void refreshMap\(\), 3_000\)/);
+  assert.match(page,/setInterval\(\(\)=>void poll\(\),5000\)/);
+  assert.match(page,/setInterval\(\(\) => void refreshMap\(\), 10_000\)/);
   for(const refresh of ["refreshFinance","refreshProcurement","refreshLegal","refreshField","refreshSupport","refreshMarketing","refreshBi","refreshWorkflows"])assert.match(page,new RegExp(refresh));
 });
 

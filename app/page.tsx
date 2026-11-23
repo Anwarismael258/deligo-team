@@ -466,6 +466,7 @@ export function HQApp() {
   const [notificationsOpen,setNotificationsOpen]=useState(false);
   const [notificationToast,setNotificationToast]=useState<FinanceRecord|null>(null);
   const notificationUnreadRef=useRef<Set<string>>(new Set());
+  const notificationIngestedAtRef=useRef(0);
   const notificationLoadedRef=useRef(false);
    const notificationRefreshBusyRef=useRef(false);
   const notificationToastTimerRef=useRef<number|null>(null);
@@ -843,14 +844,13 @@ export function HQApp() {
     } catch (error) { setWorkerTermsNotice(error instanceof Error ? error.message : "Não foi possível publicar a versão."); }
     finally { setWorkerTermsBusy(false); }
   };
-   const refreshNotifications=async()=>{if(notificationRefreshBusyRef.current)return;notificationRefreshBusyRef.current=true;try{const r=await fetch("/api/notifications",{cache:"no-store"});if(!r.ok)throw new Error();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)}finally{notificationRefreshBusyRef.current=false}};
-  useEffect(()=>{const refresh=()=>void refreshNotifications();window.addEventListener("hq-notifications-updated",refresh);return()=>window.removeEventListener("hq-notifications-updated",refresh)},[sessionUser?.id]);
+   const refreshNotifications=async()=>{if(notificationRefreshBusyRef.current||document.visibilityState==="hidden")return;notificationRefreshBusyRef.current=true;try{const shouldIngest=Date.now()-notificationIngestedAtRef.current>=60000;const r=await fetch(`/api/notifications?compact=1&limit=100${shouldIngest?"":"&skip_ingest=1"}`,{cache:"no-store"});if(!r.ok)throw new Error();if(shouldIngest)notificationIngestedAtRef.current=Date.now();const next=(await r.json()).notifications||[];const unreadItems=next.filter((item:FinanceRecord)=>!item.read_at);const unread=new Set<string>(unreadItems.map((item:FinanceRecord)=>String(item.id)));const newItem=notificationLoadedRef.current?unreadItems.find((item:FinanceRecord)=>!notificationUnreadRef.current.has(String(item.id))):null;if(newItem){playNotificationAlert();if(notificationShouldPop(newItem)){setNotificationToast(newItem);if(notificationToastTimerRef.current!==null)window.clearTimeout(notificationToastTimerRef.current);notificationToastTimerRef.current=window.setTimeout(()=>setNotificationToast(null),8000)}}notificationUnreadRef.current=unread;notificationLoadedRef.current=true;setNotifications(next)}finally{notificationRefreshBusyRef.current=false}};
   useEffect(() => {
     if (active !== "Visão geral" || !sessionUser) return;
     let cancelled = false;
     const refresh = () => fetch("/api/command-center", { cache: "no-store" }).then(response => response.ok ? response.json() : Promise.reject()).then(data => { if (!cancelled) setCommandCenter(data); }).catch(() => { if (!cancelled) setCommandCenter(null); });
     void refresh();
-    const interval = window.setInterval(() => void refresh(), 15_000);
+    const interval = window.setInterval(() => void refresh(), 30_000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [active, sessionUser?.id]);
   useEffect(() => {
@@ -867,8 +867,8 @@ export function HQApp() {
       setCommandResults(response.ok ? result.data || [] : []);
     } finally { setCommandLoading(false); }
   };
-  useEffect(()=>{if(!sessionUser)return;const refresh=()=>{void refreshNotifications().catch(()=>undefined)};refresh();const timer=window.setInterval(refresh,2000);window.addEventListener("focus",refresh);window.addEventListener("visibilitychange",refresh);return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);window.removeEventListener("visibilitychange",refresh)}},[sessionUser?.id]);
-  useEffect(()=>{if(!sessionUser)return;let cancelled=false;let busy=false;const refresh=async()=>{if(cancelled||busy||document.visibilityState==="hidden")return;busy=true;try{const response=await fetch("/api/inbox",{cache:"no-store"});if(!response.ok)return;const data=await response.json() as {messages?:Array<{meta?:Record<string,unknown>|null}>};if(!cancelled)setInboxUnreadCount(Array.isArray(data.messages)?data.messages.filter(item=>!item.meta?.read_at).length:0)}finally{busy=false}};void refresh();const timer=window.setInterval(()=>void refresh(),5000);window.addEventListener("focus",refresh);document.addEventListener("visibilitychange",refresh);return()=>{cancelled=true;window.clearInterval(timer);window.removeEventListener("focus",refresh);document.removeEventListener("visibilitychange",refresh)}},[sessionUser?.id]);
+  useEffect(()=>{if(!sessionUser)return;const refresh=()=>{void refreshNotifications().catch(()=>undefined)};refresh();const timer=window.setInterval(refresh,10000);window.addEventListener("focus",refresh);window.addEventListener("visibilitychange",refresh);return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);window.removeEventListener("visibilitychange",refresh)}},[sessionUser?.id]);
+  useEffect(()=>{if(!sessionUser)return;let cancelled=false;let busy=false;const refresh=async()=>{if(cancelled||busy||document.visibilityState==="hidden")return;busy=true;try{const response=await fetch("/api/inbox?compact=1",{cache:"no-store"});if(!response.ok)return;const data=await response.json() as {unreadCount?:number;messages?:Array<{meta?:Record<string,unknown>|null}>};if(!cancelled)setInboxUnreadCount(typeof data.unreadCount==="number"?data.unreadCount:Array.isArray(data.messages)?data.messages.filter(item=>!item.meta?.read_at).length:0)}finally{busy=false}};void refresh();const timer=window.setInterval(()=>void refresh(),15000);window.addEventListener("focus",refresh);document.addEventListener("visibilitychange",refresh);return()=>{cancelled=true;window.clearInterval(timer);window.removeEventListener("focus",refresh);document.removeEventListener("visibilitychange",refresh)}},[sessionUser?.id]);
   const markNotificationsByIds=async(ids:string[])=>{if(!ids.length)return;setNotifications(current=>current.map(notification=>ids.includes(String(notification.id))?{...notification,read_at:new Date().toISOString()}:notification));const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids})});if(r.ok)await refreshNotifications()};
   const markNotifications=async(id?:string)=>{if(id){await markNotificationsByIds([id]);return}const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({all:true})});if(r.ok)await refreshNotifications()};
 
@@ -880,7 +880,7 @@ export function HQApp() {
       .then((data) => { if (!cancelled) setLiveMap({ checkedAt: data.checkedAt, markers: Array.isArray(data.markers) ? data.markers : [] }); })
       .catch(() => { if (!cancelled) setLiveMap(null); });
     void refreshMap();
-    const interval = window.setInterval(() => void refreshMap(), 3_000);
+    const interval = window.setInterval(() => void refreshMap(), 10_000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [active, sessionUser?.id]);
 
@@ -1142,7 +1142,7 @@ const attachToSelectedSupport=async(event:React.ChangeEvent<HTMLInputElement>)=>
       }
     };
     void loadDashboard();
-    const retry = window.setInterval(() => void loadDashboard(), 15_000);
+    const retry = window.setInterval(() => void loadDashboard(), 60_000);
     return () => { cancelled = true; window.clearInterval(retry); };
   }, [sessionUser?.id]);
 
@@ -1150,7 +1150,7 @@ const attachToSelectedSupport=async(event:React.ChangeEvent<HTMLInputElement>)=>
     if(!sessionUser)return;
     let cancelled=false,cursor=0,busy=false;
     const poll=async()=>{if(busy||cancelled)return;busy=true;try{const response=await fetch(`/api/realtime?after=${cursor}`,{cache:"no-store"});if(!response.ok){setRealtimeMonitor({state:"degraded",checkedAt:new Date().toISOString()});return}const result=await response.json() as{cursor?:number;events?:unknown[];degraded?:boolean};cursor=Math.max(cursor,Number(result.cursor||0));setRealtimeMonitor({state:result.degraded?"degraded":"operational",checkedAt:new Date().toISOString()});if(result.events?.length)setRealtimeVersion(value=>value+1)}catch{setRealtimeMonitor({state:"offline",checkedAt:new Date().toISOString()})}finally{busy=false}};
-    void poll();const timer=window.setInterval(()=>void poll(),2500);
+    void poll();const timer=window.setInterval(()=>void poll(),5000);
     return()=>{cancelled=true;window.clearInterval(timer)};
   },[sessionUser?.id]);
 

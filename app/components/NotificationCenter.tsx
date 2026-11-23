@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Row = Record<string, unknown>;
 type ViewFilter = "all" | "unread" | "urgent" | "important";
@@ -88,9 +88,9 @@ export function NotificationCenter() {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = useCallback(async (skipIngest = false) => {
     try {
-      const response = await fetch("/api/notifications", { cache: "no-store" });
+      const response = await fetch(`/api/notifications${skipIngest ? "?skip_ingest=1" : ""}`, { cache: "no-store" });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Não foi possível actualizar as notificações.");
       setData(uniqueRows(Array.isArray(result.notifications) ? result.notifications : []));
@@ -98,8 +98,17 @@ export function NotificationCenter() {
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Não foi possível actualizar as notificações.");
     } finally { setLoading(false); }
-  };
-  useEffect(() => { void load(); const timer = window.setInterval(() => void load(), 5000); return () => window.clearInterval(timer); }, []);
+  }, []);
+  useEffect(() => {
+    void load(true);
+    const refresh = () => void load(true);
+    window.addEventListener("hq-notifications-updated", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("hq-notifications-updated", refresh);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [load]);
 
   const mark = async (id?: string) => {
     const body = id ? { id } : { all: true };
