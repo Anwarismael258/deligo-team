@@ -2,7 +2,7 @@ import {custodyWalletAmounts,custodyOwnership} from "@/lib/finance-custody";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { deligoTriunfalGovernance } from "@/lib/governance";
-import { corporateActor, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateActor, hqRest, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
 export const dynamic = "force-dynamic";
 
@@ -40,12 +40,14 @@ export async function GET() {
       casaDiretaRest("properties?select=id,owner_user_id,verified,rented&limit=10000"),
       casaDiretaRest("subscription_cycles?select=id,user_id,status,amount_minor&limit=10000"),
       casaDiretaRest("support_cases?select=id,requester_user_id,status&limit=10000"),
-    ]).then(([properties, cycles, supportCases]) => {
+      hqRest("global_user_platforms_v1?select=user_id&app_slug=eq.casadireta&limit=10000") as Promise<Array<Record<string, unknown>>>,
+    ]).then(([properties, cycles, supportCases, platformUsers]) => {
       const activeCycles = cycles.filter(row => ["active", "paid", "confirmed", "completed"].includes(String(row.status)));
       const knownUsers = new Set([
         ...properties.map(row => row.owner_user_id),
         ...cycles.map(row => row.user_id),
         ...supportCases.map(row => row.requester_user_id),
+        ...platformUsers.map(row => row.user_id),
       ].filter(Boolean).map(String));
       return {
         available: true,
