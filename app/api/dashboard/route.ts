@@ -264,6 +264,11 @@ export async function GET() {
       connected: ["connected", "operational"].includes(String(item.integration_status || item.status)),
       metrics: [],
     }));
+    // Keep the approved platform catalogue visible even when its integration
+    // has not published a status row yet. This is a catalogue entry only: it
+    // must not invent metrics or present CasaDireta as connected.
+    const knownPlatform = cataloguePlatforms.find((item) => item.slug === "casadireta");
+    if (!knownPlatform) cataloguePlatforms.push({ slug: "casadireta", name: "CasaDireta", connected: false, metrics: [] });
     const sourcePlatforms = dashboardPlatforms.length ? dashboardPlatforms : cataloguePlatforms;
     const catalogueOnlyPlatforms = cataloguePlatforms.filter(item => !sourcePlatforms.some(source => String(source.slug) === String(item.slug)));
     const enrichedPlatforms = [...sourcePlatforms, mestre24.platform, ...catalogueOnlyPlatforms].filter((item, index, rows) => rows.findIndex(candidate => String(candidate.slug) === String(item.slug)) === index).map((item) => { const row = item as Record<string, unknown>; const status = statusBySlug.get(String(row.slug || "")); return { ...row, platform_status: status?.status || row.platform_status || "development", integration_status: status?.integration_status || (row.connected ? "connected" : "unknown"), last_sync_at: status?.last_sync_at || row.last_sync_at || null }; });
