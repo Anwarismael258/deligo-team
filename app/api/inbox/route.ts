@@ -11,6 +11,10 @@ const messageMeta = (message: Record<string, unknown>) => {
   return {};
 };
 const isOutbound = (message: Record<string, unknown>) => Boolean(messageMeta(message).outbound);
+const isRead = (message: Record<string, unknown>) => {
+  const meta = messageMeta(message);
+  return Boolean(meta.read_at) || meta.unread === false;
+};
 
 async function context() {
   const actor = await corporateActor();
@@ -29,7 +33,7 @@ export async function GET(req: NextRequest) {
   try {
     const rawMessages = await stagingRest(`inbox_messages?${query.toString()}`) as Array<Record<string, unknown>>;
     if (compact) {
-      const unreadCount = rawMessages.filter(message => !isOutbound(message) && !messageMeta(message).read_at).length;
+      const unreadCount = rawMessages.filter(message => !isOutbound(message) && !isRead(message)).length;
       return NextResponse.json({ unreadCount, meta: { source: "staging.inbox_messages", unread: unreadCount } });
     }
     const messages = rawMessages.filter(message => !isOutbound(message));
@@ -37,7 +41,7 @@ export async function GET(req: NextRequest) {
     const ids = new Set(rawMessages.map(message => String(message.id || "")));
     const allReplies = (ids.size?await stagingRest(`inbox_replies?message_id=in.(${[...ids].join(",")})&select=*&order=created_at.asc&limit=2000`):[]) as Array<Record<string, unknown>>;
     const replies = allReplies.filter(reply => ids.has(String(reply.message_id || "")));
-    return NextResponse.json({ messages, sentMessages, replies, allowedMailboxes: ctx.areas, meta: { source: "staging.inbox_messages", received: messages.length, sent: sentMessages.length, unread: messages.filter(message => !messageMeta(message).read_at).length } });
+    return NextResponse.json({ messages, sentMessages, replies, allowedMailboxes: ctx.areas, meta: { source: "staging.inbox_messages", received: messages.length, sent: sentMessages.length, unread: messages.filter(message => !isRead(message)).length } });
   } catch { return NextResponse.json({ error: "Não foi possível carregar a caixa de entrada." }, { status: 500 }); }
 }
 
@@ -51,7 +55,7 @@ export async function PATCH(req: NextRequest) {
     try {
       const query = new URLSearchParams({ select: "id,area,meta", limit: "5000", area: `in.(${selected.join(",")})` });
       const rows = await stagingRest(`inbox_messages?${query.toString()}`) as Array<Record<string, unknown>>;
-      const unreadRows = rows.filter(row => !isOutbound(row) && !messageMeta(row).read_at);
+      const unreadRows = rows.filter(row => !isOutbound(row) && !isRead(row));
       const readAt = new Date().toISOString();
       await Promise.all(unreadRows.map(row => stagingRest(`inbox_messages?id=eq.${encodeURIComponent(String(row.id))}`, { method: "PATCH", body: JSON.stringify({ meta: { ...messageMeta(row), read_at: readAt, unread: false } }) })));
       return NextResponse.json({ ok: true, marked: unreadRows.length });
