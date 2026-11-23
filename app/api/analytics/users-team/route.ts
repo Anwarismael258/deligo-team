@@ -65,6 +65,7 @@ function friendlyRole(platform: string, value: string) {
     "DeliGo Market": { buyer: "Comprador", taomoz_buyer: "Comprador", seller: "Vendedor", taomoz_seller: "Vendedor", delivery: "Entregador", delivery_agent: "Entregador", platform_admin: "Administrador da plataforma" },
     "SARCA": { passenger: "Passageiro", sarca_passenger: "Passageiro", driver: "Motorista", sarca_driver: "Motorista", rider: "Motorista", platform_admin: "Administrador da plataforma" },
     "Mestre24": { client: "Cliente", mestre24_client: "Cliente", professional: "Profissional", mestre24_professional: "Profissional", platform_admin: "Administrador da plataforma" },
+    "CasaDireta": { owner: "Proprietário", landlord: "Proprietário", tenant: "Inquilino", renter: "Inquilino", broker: "Agente imobiliário", platform_admin: "Administrador da plataforma" },
   };
   return maps[platform]?.[token] || (token ? token.replace(/_/g, " ").replace(/\b\w/g, letter => letter.toUpperCase()) : "Utilizador");
 }
@@ -75,7 +76,7 @@ function rolesFor(row: Row) {
   const roles = values.filter((value): value is string => typeof value === "string" && Boolean(value.trim())).map(value => friendlyRole(platform, value.trim()));
   if (roles.length) return [...new Set(roles)];
   const slug = String(row.app_slug || "").toLowerCase();
-  return [slug === "deligo" ? "Cliente / Restaurante / Estafeta" : slug === "comunhao" ? "Membro / Igreja" : slug === "taomoz" ? "Comprador / Vendedor / Entregador" : slug === "sarca" ? "Passageiro / Motorista" : slug === "mestre24" ? "Cliente / Profissional" : "Utilizador"];
+  return [slug === "deligo" ? "Cliente / Restaurante / Estafeta" : slug === "comunhao" ? "Membro / Igreja" : slug === "taomoz" ? "Comprador / Vendedor / Entregador" : slug === "sarca" ? "Passageiro / Motorista" : slug === "mestre24" ? "Cliente / Profissional" : slug === "casadireta" ? "Proprietário / Inquilino" : "Utilizador"];
 }
 function state(row: Row) { return String(row.profile_status || row.membership_status || row.status || "indisponível").toLowerCase(); }
 

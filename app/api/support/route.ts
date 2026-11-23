@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { corporateAuthorization, hqRpc, stagingRest, supabaseUrl } from "@/lib/hq-server";
+import { corporateAuthorization, hqRpc, hqServiceKey, stagingRest, supabaseUrl } from "@/lib/hq-server";
 
 const entity = "10000000-0000-0000-0000-000000000001";
 const supportDepartment = "30000000-0000-0000-0000-000000000010";
@@ -46,7 +46,7 @@ async function notifyPlatformRequester(key:string,requesterId:unknown,source:str
   }
 }
 async function context(_permission="support.viewTickets",platform?:string){
-  const authorization=await corporateAuthorization(),key=process.env.SUPABASE_SERVICE_ROLE_KEY,actor=authorization?.actor;
+  const authorization=await corporateAuthorization(),key=hqServiceKey(),actor=authorization?.actor;
   const role=String(actor?.role||"").toUpperCase();
   if(!actor||!authorization||!key||!viewerRoles.has(role))return null;
   const hasPermission=authorization.isSuperAdmin||authorization.permissions.includes(_permission)||(isFinanceRole(role)&&_permission==="support.close")||(_permission==="support.viewTickets"&&viewerRoles.has(role))||(_permission==="support.reply"&&replyRoles.has(role));

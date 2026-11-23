@@ -44,13 +44,28 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const ctx = await context();
   if (!ctx) return NextResponse.json({ error: "Sem acesso." }, { status: 403 });
-  const body = await req.json() as { id?: string; status?: string; assigned_to?: string | null; kind?: "resposta" | "nota"; body?: string; read?: boolean };
+  const body = await req.json() as { id?: string; area?: string; all?: boolean; status?: string; assigned_to?: string | null; kind?: "resposta" | "nota"; body?: string; read?: boolean };
+  if (body.all) {
+    const selected = body.area && ctx.areas.includes(body.area) ? [body.area] : ctx.areas;
+    if (!selected.length) return NextResponse.json({ ok: true, marked: 0 });
+    try {
+      const query = new URLSearchParams({ select: "id,area,meta", limit: "5000", area: `in.(${selected.join(",")})` });
+      const rows = await stagingRest(`inbox_messages?${query.toString()}`) as Array<Record<string, unknown>>;
+      const unreadRows = rows.filter(row => !isOutbound(row) && !messageMeta(row).read_at);
+      const readAt = new Date().toISOString();
+      await Promise.all(unreadRows.map(row => stagingRest(`inbox_messages?id=eq.${encodeURIComponent(String(row.id))}`, { method: "PATCH", body: JSON.stringify({ meta: { ...messageMeta(row), read_at: readAt, unread: false } }) })));
+      return NextResponse.json({ ok: true, marked: unreadRows.length });
+    } catch (error) {
+      console.error("INBOX_MARK_ALL_READ_FAILED", String(error));
+      return NextResponse.json({ error: "Não foi possível marcar as mensagens como lidas." }, { status: 409 });
+    }
+  }
   if (!body.id) return NextResponse.json({ error: "Mensagem inválida." }, { status: 400 });
   try {
     const message = (await stagingRest(`inbox_messages?id=eq.${encodeURIComponent(body.id)}&select=*`))?.[0] as Record<string, unknown>;
     if (!message || !ctx.areas.includes(String(message.area))) return NextResponse.json({ error: "Mensagem fora do seu âmbito." }, { status: 403 });
     const currentMeta = messageMeta(message);
-    if (body.status || body.assigned_to !== undefined || body.read !== undefined) await stagingRest(`inbox_messages?id=eq.${encodeURIComponent(body.id)}`, { method: "PATCH", body: JSON.stringify({ ...(body.status ? { status: body.status } : {}), ...(body.assigned_to !== undefined ? { assigned_to: body.assigned_to || null } : {}), ...(body.read !== undefined ? { meta: { ...currentMeta, read_at: body.read ? new Date().toISOString() : null } } : {}) }) });
+    if (body.status || body.assigned_to !== undefined || body.read !== undefined) await stagingRest(`inbox_messages?id=eq.${encodeURIComponent(body.id)}`, { method: "PATCH", body: JSON.stringify({ ...(body.status ? { status: body.status } : {}), ...(body.assigned_to !== undefined ? { assigned_to: body.assigned_to || null } : {}), ...(body.read !== undefined ? { meta: { ...currentMeta, read_at: body.read ? new Date().toISOString() : null, unread: body.read ? false : true } } : {}) }) });
     if (body.body?.trim()) await stagingRest("inbox_replies", { method: "POST", body: JSON.stringify({ message_id: body.id, author_id: ctx.actor.authUserId, kind: body.kind || "nota", body: body.body.trim(), send_status: "n/a" }) });
     return NextResponse.json({ ok: true });
   } catch { return NextResponse.json({ error: "Não foi possível guardar a alteração." }, { status: 409 }); }

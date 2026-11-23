@@ -65,6 +65,19 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
     : platform === "sarca"
       ? (await read(platform, `driver_profiles?user_id=eq.${encoded}&select=*&limit=1`))[0] || (await read(platform, `profiles?id=eq.${encoded}&select=*&limit=1`))[0] || null
       : (await read(platform, `profiles?id=eq.${encoded}&select=*&limit=1`))[0] || null;
+  if (platform === "casadireta") {
+    const property = (await read(platform, `properties?owner_user_id=eq.${encoded}&select=*&order=created_at.desc&limit=1`))[0];
+    const cycle = (await read(platform, `subscription_cycles?user_id=eq.${encoded}&select=*&order=created_at.desc&limit=1`))[0];
+    if (property || cycle) profile = {
+      id: id,
+      user_id: id,
+      full_name: property?.owner_name || "Utilizador CasaDireta",
+      phone: property?.owner_phone || cycle?.phone || null,
+      account_status: "active",
+      property_count: property ? 1 : 0,
+      latest_subscription_status: cycle?.status || null,
+    };
+  }
   // Field cards may carry the KYC case id rather than the platform profile id.
   // Resolve the subject first so the detail view never silently loses identity/media.
   let resolvedId = initialId;
@@ -114,7 +127,9 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
     ? ids.flatMap(value => relationPaths("service_requests", ["client_id", "professional_id", "provider_id", "user_id"], value))
     : platform === "sarca"
       ? ids.flatMap(value => relationPaths("trips", ["driver_user_id", "passenger_user_id"], value))
-      : ids.flatMap(value => relationPaths("orders", ["user_id", "customer_id", "buyer_id", "seller_id", "restaurant_id", "courier_id", "rider_id"], value));
+      : platform === "casadireta"
+        ? ids.flatMap(value => relationPaths("subscription_cycles", ["user_id"], value))
+        : ids.flatMap(value => relationPaths("orders", ["user_id", "customer_id", "buyer_id", "seller_id", "restaurant_id", "courier_id", "rider_id"], value));
   const disputePaths = platform === "mestre24"
     ? ids.flatMap(value => relationPaths("reports", ["reporter_id", "client_id", "professional_id", "user_id"], value))
     : platform === "deligo"
@@ -131,7 +146,13 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ pl
       ...relationPaths("church_subscriptions", ["church_id", "owner_id", "user_id"], value),
       ...relationPaths("donations", ["church_id", "owner_id", "user_id"], value),
     ])
-    : [];
+    : platform === "casadireta"
+      ? ids.flatMap(value => [
+        ...relationPaths("properties", ["owner_user_id"], value),
+        ...relationPaths("support_cases", ["requester_user_id"], value),
+        ...relationPaths("conversations", ["participant_a", "participant_b"], value),
+      ])
+      : [];
   const [kyc, wallets, orders, disputes, activity, extras] = await Promise.all([
     readMany(platform, kycPaths),
     readMany(platform, walletPaths),
