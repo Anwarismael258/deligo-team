@@ -1114,10 +1114,10 @@ const attachToSelectedSupport=async(event:React.ChangeEvent<HTMLInputElement>)=>
 
   useEffect(() => {
     const syncRoute = () => {
-      const platformMatch = window.location.pathname.match(/^\/plataformas\/(deligo|comunhao|sarca|taomoz|mestre24)$/);
+      const platformMatch = window.location.pathname.match(/^\/plataformas\/(deligo|comunhao|sarca|taomoz|mestre24|casadireta)$/);
       const nextModule = platformMatch ? "Plataformas" : moduleByRoute[window.location.pathname] || "Visão geral";
       setActive(nextModule);
-      if (platformMatch) setPlatform(({ deligo: "DeliGo", comunhao: "Comunhão", sarca: "SARCA", taomoz: "DeliGo Market" } as const)[platformMatch[1] as "deligo" | "comunhao" | "sarca" | "taomoz"]);
+      if (platformMatch) setPlatform(({ deligo: "DeliGo", comunhao: "Comunhão", sarca: "SARCA", taomoz: "DeliGo Market", casadireta: "CasaDireta", mestre24: "Mestre24" } as const)[platformMatch[1] as "deligo" | "comunhao" | "sarca" | "taomoz" | "mestre24" | "casadireta"]);
       setSubArea(moduleDetails[nextModule]?.[0] || "");
     };
     syncRoute();
@@ -1494,7 +1494,7 @@ if(active==="Operações de Campo")void refreshField();
               <FinanceKpi label="Total sob custódia" value={financialBreakdown?.total_funds_controlled_available == null ? "Indisponível" : money(Number(financialBreakdown.total_funds_controlled_available))} tone="blue" icon={<Landmark size={22} />} note="" />
             </div>
             <div className="financeVisualGrid">
-              <FinanceRevenueBars formatValue={money} items={["deligo","mestre24","sarca","comunhao","taomoz"].map(slug=>{const platform=platformBreakdown(slug);const label=slug==="deligo"?"DeliGo Eats":slug==="mestre24"?"Mestre24":slug==="sarca"?"SARCA":slug==="comunhao"?"Comunhão":"DeliGo Market";return {slug,label,value:typeof platform?.central_revenue_confirmed === "number" ? Number(platform.central_revenue_confirmed) : null};})} />
+              <FinanceRevenueBars formatValue={money} items={["deligo","mestre24","sarca","comunhao","taomoz","casadireta"].map(slug=>{const platform=platformBreakdown(slug);const label=slug==="deligo"?"DeliGo Eats":slug==="mestre24"?"Mestre24":slug==="sarca"?"SARCA":slug==="comunhao"?"Comunhão":slug==="casadireta"?"CasaDireta":"DeliGo Market";return {slug,label,value:typeof platform?.central_revenue_confirmed === "number" ? Number(platform.central_revenue_confirmed) : null};})} />
               <FinanceCustodyDonut centralRevenue={typeof financialBreakdown?.corporate_custody_available === "number" ? Number(financialBreakdown.corporate_custody_available) : null} thirdPartyWallets={typeof financialBreakdown?.user_wallets_available === "number" ? Number(financialBreakdown.user_wallets_available) : null} custodyTotal={typeof financialBreakdown?.total_funds_controlled_available === "number" ? Number(financialBreakdown.total_funds_controlled_available) : null} formatValue={money} />
             </div>
             {["SUPER_ADMIN", "FINANCE"].includes(sessionUser?.hq_role || "") && <form className="financeEntryForm financeTransferForm" onSubmit={transferToWorker}>

@@ -109,7 +109,7 @@ export function NotificationCenter() {
   };
 
   const areas = useMemo(() => ["Todas as áreas"].concat(Array.from(new Set(data.map(moduleOf))).sort((a, b) => a.localeCompare(b, "pt"))), [data]);
-  const platforms = ["Todas as plataformas","Central","DeliGo","SARCA","DeliGo Market","Mestre24","Comunhão"];
+  const platforms = ["Todas as plataformas","Central","DeliGo","SARCA","DeliGo Market","Mestre24","Comunhão","CasaDireta"];
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return data.filter(row => {

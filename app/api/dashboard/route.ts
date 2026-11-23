@@ -28,6 +28,42 @@ export async function GET() {
       rpcHeaders.Authorization = `Bearer ${serviceKey}`;
     }
     const authorizationResponse = fetch(`${supabaseUrl()}/rest/v1/rpc/hq_actor_authorization_v1`, { method: "POST", headers: rpcHeaders, body: JSON.stringify({ p_employee_id: (actor as { employee_id: string }).employee_id }), cache: "no-store", signal: AbortSignal.timeout(12_000) });
+    const casaDiretaRest = (path: string) => fetch(`${supabaseUrl()}/rest/v1/${path}`, {
+      headers: { ...rpcHeaders, "Accept-Profile": "casadireta", "Content-Profile": "casadireta" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
+    }).then(async response => {
+      if (!response.ok) throw new Error(`CasaDireta source ${response.status}`);
+      return response.json() as Promise<Array<Record<string, unknown>>>;
+    });
+    const casaDiretaSnapshotPromise = Promise.all([
+      casaDiretaRest("properties?select=id,owner_user_id,verified,rented&limit=10000"),
+      casaDiretaRest("subscription_cycles?select=id,user_id,status,amount_minor&limit=10000"),
+      casaDiretaRest("support_cases?select=id,requester_user_id,status&limit=10000"),
+    ]).then(([properties, cycles, supportCases]) => {
+      const activeCycles = cycles.filter(row => ["active", "paid", "confirmed", "completed"].includes(String(row.status)));
+      const knownUsers = new Set([
+        ...properties.map(row => row.owner_user_id),
+        ...cycles.map(row => row.user_id),
+        ...supportCases.map(row => row.requester_user_id),
+      ].filter(Boolean).map(String));
+      return {
+        available: true,
+        metrics: [
+          { key: "users", label: "Utilizadores", value: knownUsers.size },
+          { key: "properties", label: "Imóveis", value: properties.length },
+          { key: "active_subscriptions", label: "Subscrições activas", value: activeCycles.length },
+          { key: "support_cases", label: "Casos de apoio", value: supportCases.length },
+        ],
+        users: knownUsers.size,
+        source_errors: {},
+      };
+    }).catch(error => ({
+      available: false,
+      metrics: [],
+      users: null,
+      source_errors: { casadireta: error instanceof Error ? error.message : "Fonte indisponível" },
+    }));
     const [dashboardResponse, modulesResponse, mestre24Response, platformStatusResponse, authorization] = await Promise.all([
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_dashboard_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_platform_modules_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),
@@ -45,7 +81,7 @@ export async function GET() {
     const anonKey = process.env.SUPABASE_ANON_KEY;
     const canonicalFinanceResponse = canViewDeligoFinance && anonKey ? fetch(`${supabaseUrl()}/rest/v1/rpc/admin_canonical_finance_summary_v1`, { method: "POST", headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" }, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }) : null;
     const executiveResponse = ["SUPER_ADMIN","FINANCE"].includes(actor.role) ? await fetch(`${supabaseUrl()}/rest/v1/rpc/hq_executive_governance_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store" }) : null;
-    const [dashboard, modules, mestre24, executive, platformStatuses, financeResponses, activeOrders, pendingKyc, openSupport, eventTickets, accountControls, openIncidents] = await Promise.all([
+    const [dashboard, modules, mestre24, executive, platformStatuses, financeResponses, activeOrders, pendingKyc, openSupport, eventTickets, accountControls, openIncidents, casaDiretaSnapshot] = await Promise.all([
       dashboardResponse.json(), modulesResponse.json(), mestre24Response.json(), executiveResponse?.ok ? executiveResponse.json() : Promise.resolve(null),
       platformStatusResponse.ok ? platformStatusResponse.json() : Promise.resolve([]),
       Promise.all([deligoFinanceResponse?.then(response => response.ok ? response.json() : null) || Promise.resolve(null), canonicalFinanceResponse?.then(response => response.ok ? response.json() : null) || Promise.resolve(null)]),
@@ -55,7 +91,8 @@ export async function GET() {
       stagingRest("marketing_event_tickets?select=id,status,price,deligo_commission,created_at&status=in.(sold,used)&order=created_at.desc&limit=200").catch(() => []),
       stagingRest("profiles?select=id,full_name,role,administrative_status,administrative_reason,updated_at&role=in.(client,customer,restaurant,courier)&order=updated_at.desc&limit=8").catch(() => []),
       stagingRest("order_disputes?select=*&status=not.in.(resolved,closed)&order=created_at.desc&limit=8").catch(() => []),
-    ]) as [Record<string, unknown>, Record<string, unknown>, { platform: Record<string, unknown>; module: Record<string, unknown> }, unknown, Array<Record<string, unknown>>, [Record<string, unknown> | null, Record<string, unknown> | null], Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>];
+      casaDiretaSnapshotPromise,
+    ]) as [Record<string, unknown>, Record<string, unknown>, { platform: Record<string, unknown>; module: Record<string, unknown> }, unknown, Array<Record<string, unknown>>, [Record<string, unknown> | null, Record<string, unknown> | null], Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, Array<Record<string, unknown>>, { available: boolean; metrics: Array<Record<string, unknown>>; users: number | null; source_errors: Record<string, string> }];
     const [legacyDeligoFinance, canonicalFinance] = financeResponses as [Record<string, unknown> | null, Record<string, unknown> | null];
     // The canonical corporate wallet summary lives in the hq schema.  Calling
     // it as a public `hq_*` function returns 404/null and makes every Finance
@@ -271,7 +308,19 @@ export async function GET() {
     if (!knownPlatform) cataloguePlatforms.push({ slug: "casadireta", name: "CasaDireta", connected: false, metrics: [] });
     const sourcePlatforms = dashboardPlatforms.length ? dashboardPlatforms : cataloguePlatforms;
     const catalogueOnlyPlatforms = cataloguePlatforms.filter(item => !sourcePlatforms.some(source => String(source.slug) === String(item.slug)));
-    const enrichedPlatforms = [...sourcePlatforms, mestre24.platform, ...catalogueOnlyPlatforms].filter((item, index, rows) => rows.findIndex(candidate => String(candidate.slug) === String(item.slug)) === index).map((item) => { const row = item as Record<string, unknown>; const status = statusBySlug.get(String(row.slug || "")); return { ...row, platform_status: status?.status || row.platform_status || "development", integration_status: status?.integration_status || (row.connected ? "connected" : "unknown"), last_sync_at: status?.last_sync_at || row.last_sync_at || null }; });
+    const enrichedPlatforms = [...sourcePlatforms, mestre24.platform, ...catalogueOnlyPlatforms].filter((item, index, rows) => rows.findIndex(candidate => String(candidate.slug) === String(item.slug)) === index).map((item) => {
+      const row = item as Record<string, unknown>;
+      const slug = String(row.slug || "");
+      const status = statusBySlug.get(slug);
+      const casaUnavailable = slug === "casadireta" && !casaDiretaSnapshot.available;
+      return {
+        ...row,
+        ...(slug === "casadireta" ? { metrics: casaDiretaSnapshot.metrics, source_errors: casaDiretaSnapshot.source_errors } : {}),
+        platform_status: casaUnavailable ? "error" : status?.status || row.platform_status || "development",
+        integration_status: casaUnavailable ? "error" : status?.integration_status || (row.connected ? "connected" : "unknown"),
+        last_sync_at: status?.last_sync_at || row.last_sync_at || null,
+      };
+    });
     const now = Date.now();
     const deligoOperations = {
       activeOrders, pendingKyc, openSupport, accountControls, openIncidents,
@@ -287,7 +336,7 @@ export async function GET() {
         } : {}),
       },
     };
-    return NextResponse.json({ ...dashboard, platforms: enrichedPlatforms, modules: mergedModules, deligoOperations, deligoFinance, historical_total_value: totalValue, governance: ["SUPER_ADMIN","FINANCE"].includes(actorRole) ? deligoTriunfalGovernance : null, executive }, {
+    return NextResponse.json({ ...dashboard, platforms: enrichedPlatforms, modules: mergedModules, deligoOperations, deligoFinance, casaDireta: casaDiretaSnapshot, historical_total_value: totalValue, governance: ["SUPER_ADMIN","FINANCE"].includes(actorRole) ? deligoTriunfalGovernance : null, executive }, {
       headers: { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" },
     });
   } catch (error) {

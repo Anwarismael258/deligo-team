@@ -4,6 +4,7 @@ export const corporatePlatforms = {
   taomoz: { code: "DELIGO_MARKETING", name: "DeliGo Market", integration: "connected" },
   comunhao: { code: "COMUNHAO", name: "Comunhão", integration: "connected" },
   mestre24: { code: "MESTRE24", name: "Mestre24", integration: "connected" },
+  casadireta: { code: "CASADIRETA", name: "CasaDireta", integration: "connected" },
   exploremoz: { code: "EXPLOREMOZ", name: "ExploreMoz", integration: "planned" },
 } as const;
 
