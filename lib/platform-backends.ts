@@ -34,6 +34,7 @@ export async function listPlatformStorageObjects(platform: PlatformBackend, buck
     headers: headers(platform),
     body: JSON.stringify({ prefix, limit: 100, offset: 0, sortBy: { column: "created_at", order: "asc" } }),
     cache: "no-store",
+    signal: AbortSignal.timeout(8000),
   });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_${platform.toUpperCase()}_STORAGE_LIST_FAILED`);
   const result = await response.json() as unknown;
@@ -43,7 +44,7 @@ export async function listPlatformStorageObjects(platform: PlatformBackend, buck
 export async function signPlatformPath(platform: PlatformBackend, path: string) {
   if (!path || /^https?:\/\//i.test(path)) return path;
   for (const bucket of storageBuckets[platform]) {
-    const response = await fetch(`${backendUrl(platform)}/storage/v1/object/sign/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`, { method: "POST", headers: headers(platform), body: JSON.stringify({ expiresIn: 900 }), cache: "no-store" });
+    const response = await fetch(`${backendUrl(platform)}/storage/v1/object/sign/${bucket}/${path.split("/").map(encodeURIComponent).join("/")}`, { method: "POST", headers: headers(platform), body: JSON.stringify({ expiresIn: 900 }), cache: "no-store", signal: AbortSignal.timeout(8000) });
     if (response.ok) {
       const result = await response.json() as { signedURL?: string };
       if (result.signedURL) {
@@ -59,13 +60,13 @@ export async function signPlatformPath(platform: PlatformBackend, path: string) 
 export async function platformRest(platform: PlatformBackend, path: string, init: RequestInit = {}) {
   const schema = platform === "mestre24" ? "mestre24" : platform === "sarca" ? "sarca" : platform === "casadireta" ? "casadireta" : null;
   const schemaHeaders: Record<string, string> = schema ? { "Accept-Profile": schema, "Content-Profile": schema } : {};
-  const response = await fetch(`${backendUrl(platform)}/rest/v1/${path}`, { ...init, headers: { ...Object.fromEntries(headers(platform).entries()), ...schemaHeaders, ...Object.fromEntries(new Headers(init.headers).entries()) }, cache: "no-store" });
+  const response = await fetch(`${backendUrl(platform)}/rest/v1/${path}`, { ...init, headers: { ...Object.fromEntries(headers(platform).entries()), ...schemaHeaders, ...Object.fromEntries(new Headers(init.headers).entries()) }, cache: "no-store", signal: init.signal || AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_${platform.toUpperCase()}_FAILED`);
   return response.status === 204 ? null : response.json();
 }
 
 export async function platformFunction(platform: PlatformBackend, name: string, body: Record<string, unknown> = {}) {
-  const response = await fetch(`${backendUrl(platform)}/functions/v1/${name}`, { method: "POST", headers: headers(platform, true), body: JSON.stringify(body), cache: "no-store" });
+  const response = await fetch(`${backendUrl(platform)}/functions/v1/${name}`, { method: "POST", headers: headers(platform, true), body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_FUNCTION_${name}_FAILED`);
   return response.json();
 }
@@ -73,7 +74,7 @@ export async function platformFunction(platform: PlatformBackend, name: string, 
 export async function platformRpc(platform: PlatformBackend, name: string, body: Record<string, unknown> = {}) {
   const schema = platform === "mestre24" ? "mestre24" : platform === "sarca" ? "sarca" : platform === "casadireta" ? "casadireta" : null;
   const schemaHeaders: Record<string, string> = schema ? { "Accept-Profile": schema, "Content-Profile": schema } : {};
-  const response = await fetch(`${backendUrl(platform)}/rest/v1/rpc/${name}`, { method: "POST", headers: { ...Object.fromEntries(headers(platform, true).entries()), ...schemaHeaders }, body: JSON.stringify(body), cache: "no-store" });
+  const response = await fetch(`${backendUrl(platform)}/rest/v1/rpc/${name}`, { method: "POST", headers: { ...Object.fromEntries(headers(platform, true).entries()), ...schemaHeaders }, body: JSON.stringify(body), cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error((await response.text()) || `PLATFORM_RPC_${name}_FAILED`);
   return response.json();
 }

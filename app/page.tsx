@@ -867,7 +867,7 @@ export function HQApp() {
       setCommandResults(response.ok ? result.data || [] : []);
     } finally { setCommandLoading(false); }
   };
-  useEffect(()=>{if(!sessionUser)return;const refresh=()=>{void refreshNotifications().catch(()=>undefined)};refresh();const timer=window.setInterval(refresh,10000);window.addEventListener("focus",refresh);window.addEventListener("visibilitychange",refresh);return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);window.removeEventListener("visibilitychange",refresh)}},[sessionUser?.id]);
+  useEffect(()=>{if(!sessionUser)return;const refresh=()=>{if(document.visibilityState!=="hidden")void refreshNotifications().catch(()=>undefined)};refresh();const timer=window.setInterval(refresh,20000);window.addEventListener("focus",refresh);window.addEventListener("visibilitychange",refresh);return()=>{window.clearInterval(timer);window.removeEventListener("focus",refresh);window.removeEventListener("visibilitychange",refresh)}},[sessionUser?.id]);
   useEffect(()=>{if(!sessionUser)return;let cancelled=false;let busy=false;const refresh=async()=>{if(cancelled||busy||document.visibilityState==="hidden")return;busy=true;try{const response=await fetch("/api/inbox?compact=1",{cache:"no-store"});if(!response.ok)return;const data=await response.json() as {unreadCount?:number;messages?:Array<{meta?:Record<string,unknown>|null}>};if(!cancelled)setInboxUnreadCount(typeof data.unreadCount==="number"?data.unreadCount:Array.isArray(data.messages)?data.messages.filter(item=>!item.meta?.read_at).length:0)}finally{busy=false}};void refresh();const timer=window.setInterval(()=>void refresh(),15000);window.addEventListener("focus",refresh);document.addEventListener("visibilitychange",refresh);return()=>{cancelled=true;window.clearInterval(timer);window.removeEventListener("focus",refresh);document.removeEventListener("visibilitychange",refresh)}},[sessionUser?.id]);
   const markNotificationsByIds=async(ids:string[])=>{if(!ids.length)return;setNotifications(current=>current.map(notification=>ids.includes(String(notification.id))?{...notification,read_at:new Date().toISOString()}:notification));const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids})});if(r.ok)await refreshNotifications()};
   const markNotifications=async(id?:string)=>{if(id){await markNotificationsByIds([id]);return}const r=await fetch("/api/notifications",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({all:true})});if(r.ok)await refreshNotifications()};
@@ -880,7 +880,7 @@ export function HQApp() {
       .then((data) => { if (!cancelled) setLiveMap({ checkedAt: data.checkedAt, markers: Array.isArray(data.markers) ? data.markers : [] }); })
       .catch(() => { if (!cancelled) setLiveMap(null); });
     void refreshMap();
-    const interval = window.setInterval(() => void refreshMap(), 10_000);
+    const interval = window.setInterval(() => { if (document.visibilityState !== "hidden") void refreshMap(); }, 15_000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [active, sessionUser?.id]);
 
@@ -914,7 +914,7 @@ export function HQApp() {
       const [dashboardResponse,financeResponse]=await Promise.all([fetch("/api/dashboard",{cache:"no-store"}),fetch("/api/finance",{cache:"no-store"})]);
       if(dashboardResponse.ok){const data=await dashboardResponse.json();if(!cancelled)setDashboard(normalizeDashboardNames(data))}
       if(financeResponse.ok){const data=await financeResponse.json();if(!cancelled)setFinanceData(data.data)}
-    }}catch{}finally{busy=false;if(!cancelled)timer=setTimeout(refresh,5000)}};
+    }}catch{}finally{busy=false;if(!cancelled)timer=setTimeout(refresh,30000)}};
     void refresh();const focus=()=>void refresh();window.addEventListener("focus",focus);
     return()=>{cancelled=true;clearTimeout(timer);window.removeEventListener("focus",focus)};
   },[active,sessionUser?.id]);

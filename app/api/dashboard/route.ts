@@ -36,12 +36,23 @@ export async function GET() {
       if (!response.ok) throw new Error(`CasaDireta source ${response.status}`);
       return response.json() as Promise<Array<Record<string, unknown>>>;
     });
-    const casaDiretaSnapshotPromise = Promise.all([
+    const casaDiretaSnapshotPromise = Promise.allSettled([
       casaDiretaRest("properties?select=id,owner_user_id,verified,rented&limit=10000"),
       casaDiretaRest("subscription_cycles?select=id,user_id,status,amount_minor&limit=10000"),
       casaDiretaRest("support_cases?select=id,requester_user_id,status&limit=10000"),
       hqRest("global_user_platforms_v1?select=user_id&app_slug=eq.casadireta&limit=10000") as Promise<Array<Record<string, unknown>>>,
-    ]).then(([properties, cycles, supportCases, platformUsers]) => {
+    ]).then(([propertiesResult, cyclesResult, supportCasesResult, platformUsersResult]) => {
+      const sourceErrors: Record<string, string> = {};
+      const rowsFor = (result: PromiseSettledResult<Array<Record<string, unknown>>>, source: string) => {
+        if (result.status === "fulfilled") return result.value;
+        sourceErrors[source] = result.reason instanceof Error ? result.reason.message : "Fonte indisponível";
+        return [];
+      };
+      const properties = rowsFor(propertiesResult, "properties");
+      const cycles = rowsFor(cyclesResult, "subscription_cycles");
+      const supportCases = rowsFor(supportCasesResult, "support_cases");
+      const platformUsers = rowsFor(platformUsersResult, "platform_users");
+      const successfulSources = [propertiesResult, cyclesResult, supportCasesResult, platformUsersResult].filter(result => result.status === "fulfilled").length;
       const activeCycles = cycles.filter(row => ["active", "paid", "confirmed", "completed"].includes(String(row.status)));
       const knownUsers = new Set([
         ...properties.map(row => row.owner_user_id),
@@ -50,21 +61,21 @@ export async function GET() {
         ...platformUsers.map(row => row.user_id),
       ].filter(Boolean).map(String));
       return {
-        available: true,
+        available: successfulSources > 0,
         metrics: [
           { key: "users", label: "Utilizadores", value: knownUsers.size },
           { key: "properties", label: "Imóveis", value: properties.length },
           { key: "active_subscriptions", label: "Subscrições activas", value: activeCycles.length },
           { key: "support_cases", label: "Casos de apoio", value: supportCases.length },
         ],
-        users: knownUsers.size,
-        source_errors: {},
+        users: successfulSources > 0 ? knownUsers.size : null,
+        source_errors: sourceErrors,
       };
     }).catch(error => ({
       available: false,
       metrics: [],
       users: null,
-      source_errors: { casadireta: error instanceof Error ? error.message : "Fonte indisponível" },
+      source_errors: { snapshot: error instanceof Error ? error.message : "Fonte indisponível" },
     }));
     const [dashboardResponse, modulesResponse, mestre24Response, platformStatusResponse, authorization] = await Promise.all([
       fetch(`${supabaseUrl()}/rest/v1/rpc/hq_dashboard_v1`, { method: "POST", headers: rpcHeaders, body: "{}", cache: "no-store", signal: AbortSignal.timeout(12_000) }),

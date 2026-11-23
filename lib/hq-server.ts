@@ -43,7 +43,7 @@ export async function corporateActor(options: { allowInvited?: boolean } = {}) {
     console.info("HQ_SESSION_ACTOR", { anonKey: Boolean(anonKey), serviceKey: Boolean(serviceKey), token: Boolean(token), reason: "missing-config-or-cookie" });
     return null;
   }
-  const identity = await fetch(`${supabaseUrl()}/auth/v1/user`, { headers: { apikey: anonKey, Authorization: `Bearer ${token}` }, cache: "no-store" });
+  const identity = await fetch(`${supabaseUrl()}/auth/v1/user`, { headers: { apikey: anonKey, Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(5000) });
   if (!identity.ok) {
     console.info("HQ_SESSION_ACTOR", { identityStatus: identity.status, reason: "auth-user-rejected" });
     return null;
