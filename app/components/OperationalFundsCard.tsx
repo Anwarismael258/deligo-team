@@ -19,7 +19,7 @@ export function OperationalFundsCard({ role }: { role: string }) {
       } finally { busy = false; }
     };
     void load();
-    const timer = window.setInterval(() => void load(), 10_000);
+    const timer = window.setInterval(() => { if (document.visibilityState !== "hidden") void load(); }, 30_000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [role]);
   if (value == null) return null;

@@ -626,7 +626,7 @@ export function HQApp() {
     if(!isAccountScreen||!sessionUser)return;
     let cancelled=false;let timer:ReturnType<typeof setTimeout>;
     const refresh=async()=>{try{if(document.visibilityState!=="hidden"){const response=await fetch("/api/profile",{cache:"no-store"});const data=await response.json();if(!cancelled&&response.ok){setOwnWallets(Array.isArray(data.wallets)?data.wallets:[]);setPersonalBalanceBreakdown(data.reconciliation||null)}}}catch{}finally{if(!cancelled)timer=setTimeout(refresh,5000)}};
-    timer=setTimeout(refresh,5000);return()=>{cancelled=true;clearTimeout(timer)};
+    timer=setTimeout(refresh,30000);return()=>{cancelled=true;clearTimeout(timer)};
   },[isAccountScreen,sessionUser?.id]);
   const corporateSummary=dashboard?.deligoFinance?.summary;
   const financialBreakdown=dashboard?.deligoFinance?.breakdown;
@@ -779,7 +779,7 @@ export function HQApp() {
     if(!sessionUser)return;
     let cancelled=false,busy=false;let timer:ReturnType<typeof setTimeout>;
     const check=async()=>{if(cancelled||busy)return;clearTimeout(timer);busy=true;try{if(document.visibilityState!=="hidden"){const response=await fetch("/api/auth/session",{cache:"no-store",credentials:"include"});if(!cancelled&&response.status===401){setSessionUser(null);window.location.replace("/login");return}}}catch{}finally{busy=false;if(!cancelled)timer=setTimeout(check,10000)}};
-    timer=setTimeout(check,10000);window.addEventListener("focus",check);return()=>{cancelled=true;clearTimeout(timer);window.removeEventListener("focus",check)};
+    timer=setTimeout(check,30000);window.addEventListener("focus",check);return()=>{cancelled=true;clearTimeout(timer);window.removeEventListener("focus",check)};
   },[sessionUser?.id]);
   useEffect(() => {
     if (!sessionUser || (ownProfile && active !== "Meu Perfil")) return;
@@ -850,7 +850,7 @@ export function HQApp() {
     let cancelled = false;
     const refresh = () => fetch("/api/command-center", { cache: "no-store" }).then(response => response.ok ? response.json() : Promise.reject()).then(data => { if (!cancelled) setCommandCenter(data); }).catch(() => { if (!cancelled) setCommandCenter(null); });
     void refresh();
-    const interval = window.setInterval(() => void refresh(), 30_000);
+    const interval = window.setInterval(() => { if (document.visibilityState !== "hidden") void refresh(); }, 60_000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [active, sessionUser?.id]);
   useEffect(() => {
@@ -910,7 +910,6 @@ export function HQApp() {
     if(active!=="Finanças"||!sessionUser)return;
     let cancelled=false,busy=false;let timer:ReturnType<typeof setTimeout>;
     const refresh=async()=>{if(cancelled||busy)return;clearTimeout(timer);busy=true;try{if(document.visibilityState!=="hidden"){
-      await fetch("/api/profile",{cache:"no-store"}).catch(()=>null);
       const [dashboardResponse,financeResponse]=await Promise.all([fetch("/api/dashboard",{cache:"no-store"}),fetch("/api/finance",{cache:"no-store"})]);
       if(dashboardResponse.ok){const data=await dashboardResponse.json();if(!cancelled)setDashboard(normalizeDashboardNames(data))}
       if(financeResponse.ok){const data=await financeResponse.json();if(!cancelled)setFinanceData(data.data)}
@@ -1150,8 +1149,8 @@ const attachToSelectedSupport=async(event:React.ChangeEvent<HTMLInputElement>)=>
     if(!sessionUser)return;
     let cancelled=false,cursor=0,busy=false;
     const poll=async()=>{if(busy||cancelled)return;busy=true;try{const response=await fetch(`/api/realtime?after=${cursor}`,{cache:"no-store"});if(!response.ok){setRealtimeMonitor({state:"degraded",checkedAt:new Date().toISOString()});return}const result=await response.json() as{cursor?:number;events?:unknown[];degraded?:boolean};cursor=Math.max(cursor,Number(result.cursor||0));setRealtimeMonitor({state:result.degraded?"degraded":"operational",checkedAt:new Date().toISOString()});if(result.events?.length)setRealtimeVersion(value=>value+1)}catch{setRealtimeMonitor({state:"offline",checkedAt:new Date().toISOString()})}finally{busy=false}};
-    void poll();const timer=window.setInterval(()=>void poll(),5000);
-    return()=>{cancelled=true;window.clearInterval(timer)};
+    void poll();const timer=window.setInterval(()=>void poll(),15000);window.addEventListener("focus",poll);document.addEventListener("visibilitychange",poll);
+    return()=>{cancelled=true;window.clearInterval(timer);window.removeEventListener("focus",poll);document.removeEventListener("visibilitychange",poll)};
   },[sessionUser?.id]);
 
   useEffect(()=>{

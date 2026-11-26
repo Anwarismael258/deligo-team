@@ -56,7 +56,7 @@ export function MicrocreditWorkspace() {
     requestAnimationFrame(()=>detailRef.current?.scrollIntoView({behavior:"smooth",block:"start"}));
     try{const response=await fetch("/api/microcredit",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:row.id,read:true})});if(response.ok){setRows(current=>current.map(item=>item.id===row.id?{...item,is_unread:false}:item));window.dispatchEvent(new Event("hq-notifications-updated"));}}catch{}
   };
-  useEffect(()=>{let cancelled=false;let timer:ReturnType<typeof setTimeout>;const poll=async()=>{if(document.visibilityState!=="hidden")await load(page,true);if(!cancelled)timer=setTimeout(poll,5000)};timer=setTimeout(poll,5000);return()=>{cancelled=true;clearTimeout(timer)}},[load,page]);
+  useEffect(()=>{let cancelled=false;let timer:ReturnType<typeof setTimeout>;const poll=async()=>{if(document.visibilityState!=="hidden")await load(page,true);if(!cancelled)timer=setTimeout(poll,20000)};timer=setTimeout(poll,20000);return()=>{cancelled=true;clearTimeout(timer)}},[load,page]);
   useEffect(()=>{if(linkedOpened.current)return;const id=new URLSearchParams(window.location.search).get("application");const row=rows.find(item=>item.id===id);if(row){linkedOpened.current=true;void openApplication(row)}},[rows]);
 
   const submitSearch = (event: FormEvent) => { event.preventDefault(); setPage(0); setSubmittedQ(q.trim().slice(0, 120)); };
